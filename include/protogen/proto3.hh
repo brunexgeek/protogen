@@ -27,6 +27,7 @@ enum FieldType
     TYPE_BOOL         =  18,
     TYPE_STRING       =  19,
     TYPE_BYTES        =  20,
+    TYPE_MESSAGE      =  21,
 };
 
 
@@ -85,6 +86,10 @@ class exception : public std::exception
 
 
 } // protogen
+
+std::ostream &operator<<( std::ostream &out, protogen::Proto3 &proto );
+std::ostream &operator<<( std::ostream &out, protogen::Message &message );
+std::ostream &operator<<( std::ostream &out, protogen::Field &field );
 
 
 #endif // PROTOGEN_PROTO3_HH

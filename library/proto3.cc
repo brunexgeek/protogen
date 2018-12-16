@@ -32,24 +32,23 @@
 #define TOKEN_T_BOOL           18
 #define TOKEN_T_STRING         19
 #define TOKEN_T_BYTES          20
-#define TOKEN_BEGIN            21
-#define TOKEN_END              22
-#define TOKEN_SCOLON           23
+#define TOKEN_T_MESSAGE        21
+#define TOKEN_BEGIN            22
+#define TOKEN_END              23
 #define TOKEN_STRING           24
 #define TOKEN_INTEGER          25
 #define TOKEN_COMMENT          26
 #define TOKEN_ENUM             27
+#define TOKEN_SCOLON           28
 
 
 static const char *TOKENS[] =
 {
-    ""
     "TOKEN_NONE",
     "TOKEN_MESSAGE",
     "TOKEN_NAME",
     "TOKEN_EQUAL",
     "TOKEN_REPEATED",
-    "TOKEN_MESSAGE",
     "TOKEN_T_DOUBLE",
     "TOKEN_T_FLOAT",
     "TOKEN_T_INT32",
@@ -65,13 +64,14 @@ static const char *TOKENS[] =
     "TOKEN_T_BOOL",
     "TOKEN_T_STRING",
     "TOKEN_T_BYTES",
+    "TOKEN_T_MESSAGE",
     "TOKEN_BEGIN",
     "TOKEN_END",
-    "TOKEN_SCOLON",
     "TOKEN_STRING",
     "TOKEN_INTEGER",
     "TOKEN_COMMENT",
     "TOKEN_ENUM",
+    "TOKEN_SCOLON",
 };
 
 static const char *TYPES[] =
@@ -127,7 +127,7 @@ namespace protogen {
 
 
 exception::exception( const std::string &message, int line, int column ) :
-    message(message), line(line), column(column)
+    line(line), column(column), message(message)
 {
 }
 
@@ -310,7 +310,7 @@ template <typename Iter> class Tokenizer
                 else
                     throw exception("Invalid symbol");
 
-                std::cout << current << std::endl;
+                //std::cout << current << std::endl;
                 return current;
             }
 
@@ -327,7 +327,7 @@ template <typename Iter> class Tokenizer
 
             if (cur == '/')
             {
-                while ((cur = is.getc()) != '\n') temp.value += cur;
+                while ((cur = is.getc()) != '\n') temp.value += (char) cur;
                 return temp;
             }
 
@@ -337,7 +337,7 @@ template <typename Iter> class Tokenizer
         Token identifier( int first = 0 )
         {
             Token temp(TOKEN_NAME, "");
-            if (first != 0) temp.value += first;
+            if (first != 0) temp.value += (char) first;
             int cur = -1;
             while ((cur = is.getc()) >= 0)
             {
@@ -346,7 +346,7 @@ template <typename Iter> class Tokenizer
                     is.ungetc();
                     break;
                 }
-                temp.value += cur;
+                temp.value += (char)cur;
             }
 
             for (int i = 0; KEYWORDS[i].keyword != nullptr; ++i)
@@ -364,7 +364,7 @@ template <typename Iter> class Tokenizer
         Token integer( int first = 0 )
         {
             Token tt(TOKEN_INTEGER, "");
-            if (first != 0) tt.value += first;
+            if (first != 0) tt.value += (char) first;
 
             do
             {
@@ -427,7 +427,7 @@ static Field parseField( Tokenizer<Iter> &tk )
     else
     if (tk.current.code == TOKEN_NAME)
     {
-        field.type = (FieldType) TOKEN_NAME;
+        field.type = (FieldType) TOKEN_T_MESSAGE;
         field.typeName = tk.current.value;
     }
     else
@@ -437,7 +437,7 @@ static Field parseField( Tokenizer<Iter> &tk )
     field.name = tk.current.value;
     if (tk.next().code != TOKEN_EQUAL) throw exception("Expected '='");
     if (tk.next().code != TOKEN_INTEGER) throw exception("Missing field index");
-    field.index = strtol(tk.current.value.c_str(), nullptr, 10);
+    field.index = (int) strtol(tk.current.value.c_str(), nullptr, 10);
     if (tk.next().code != TOKEN_SCOLON) throw exception("Expected ';'");
 
     return field;
@@ -502,7 +502,11 @@ Proto3 *Proto3::parse( std::istream &input )
 }
 
 
-std::ostream &operator<<( std::ostream &out, Field &field )
+} // protogen
+
+
+
+std::ostream &operator<<( std::ostream &out, protogen::Field &field )
 {
     if (field.repeated)
         out << "repeated ";
@@ -515,7 +519,7 @@ std::ostream &operator<<( std::ostream &out, Field &field )
 }
 
 
-std::ostream &operator<<( std::ostream &out, Message &message )
+std::ostream &operator<<( std::ostream &out, protogen::Message &message )
 {
     out << "message " << message.name << " {" << std::endl;;
 
@@ -528,28 +532,11 @@ std::ostream &operator<<( std::ostream &out, Message &message )
 }
 
 
-std::ostream &operator<<( std::ostream &out, Proto3 &proto )
+std::ostream &operator<<( std::ostream &out, protogen::Proto3 &proto )
 {
     for (auto it = proto.messages.begin(); it != proto.messages.end(); ++it)
     {
         out << *it << '\n';
     }
     return out;
-}
-
-
-} // protogen
-
-int main( int argc, char **argv )
-{
-    std::istream *input = &std::cin;
-    std::stringstream text;
-    if (argc == 2)
-    {
-        text << argv[1];
-        input = &text;
-    }
-    protogen::Proto3 *proto = protogen::Proto3::parse(*input);
-    std::cout << *proto;
-    return 0;
 }
