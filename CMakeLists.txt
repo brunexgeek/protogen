@@ -15,7 +15,6 @@ function(fileToSource inputFileName outputFileName variableName)
 endfunction(fileToSource)
 
 file(REMOVE "compiler/base-auto.cc")
-fileToSource("library/picojson.hh" "compiler/base-auto.cc" "BASE_PICOJSON")
 fileToSource("compiler/base.cc" "compiler/base-auto.cc" "BASE_TEMPLATE")
 
 add_library(libprotogen_static STATIC "library/proto3.cc")

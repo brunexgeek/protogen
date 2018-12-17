@@ -86,11 +86,17 @@ static std::string fieldNativeType( const Field &field )
 {
     std::string output = "protogen::";
 
-    if (field.type >= protogen::TYPE_DOUBLE && field.type <= protogen::TYPE_BYTES)
+    if (field.type >= protogen::TYPE_DOUBLE && field.type <= protogen::TYPE_BOOL)
     {
         int index = (int)field.type - (int)protogen::TYPE_DOUBLE;
-        output += TYPE_MAPPING[index].typeName;
-        output += "Field";
+        output += "NumericField<";
+        output += TYPE_MAPPING[index].nativeType;
+        output += '>';
+    }
+    else
+    if (field.type == protogen::TYPE_STRING)
+    {
+        output += "StringField";
     }
     else
     if (field.type == protogen::TYPE_MESSAGE)
@@ -145,7 +151,7 @@ extern const char *BASE_TEMPLATE;
 static void generateFieldTemplate( std::ostream &out )
 {
     out << '\n' << BASE_TEMPLATE << '\n';
-    generateFieldTemplates(out);
+    //generateFieldTemplates(out);
 }
 
 
@@ -156,24 +162,38 @@ static void generateVariable( std::ostream &out, const Field &field )
 }
 
 
-static void generateCtor( std::ostream &out, const Message &message )
+static void generateCopyCtor( std::ostream &out, const Message &message )
 {
-    out << '\t' << message.name << "() {\n";
-
+    out << '\t' << message.name << "(const " << message.name << " &that) {\n";
     for (auto it = message.fields.begin(); it != message.fields.end(); ++it)
-    {
-        if (it->type == protogen::TYPE_STRING) continue;
-        out << "\t\t" << fieldStorage(*it) << " = ";
-
-        if (it->type == protogen::TYPE_MESSAGE)
-            out << "new " << it->typeName << "();\n";
-        else
-            out << defaultValue(*it) << ";\n";
-    }
-
+        out << "\t\tthis->" << it->name << " = that." << it->name << ";\n";
     out << "\t}\n";
 }
 
+
+static void generateAssignOperator( std::ostream &out, const Message &message )
+{
+    out << '\t' << message.name << " &operator=(const " << message.name << " &that) {\n";
+    for (auto it = message.fields.begin(); it != message.fields.end(); ++it)
+        out << "\t\tthis->" << it->name << " = that." << it->name << ";\n";
+    out << "\t\treturn *this;\n\t}\n";
+}
+
+
+static void generateEqualityOperator( std::ostream &out, const Message &message )
+{
+    out << "\tbool operator==(const " << message.name << " &that) {\n";
+    out << "\t\treturn\n";
+    for (auto it = message.fields.begin(); it != message.fields.end(); ++it)
+    {
+        out << "\t\tthis->" << it->name << " == that." << it->name;
+        if (it + 1 != message.fields.end())
+            out << " &&\n";
+        else
+            out << ";\n";
+    }
+    out << "\t}\n";
+}
 
 static void generateMessage( std::ostream &out, const Message &message )
 {
@@ -186,30 +206,27 @@ static void generateMessage( std::ostream &out, const Message &message )
     }
 
     // default constructor
-    generateCtor(out, message);
+    out << '\t' << message.name << "() {}\n";
     // copy constructor
-    out << '\t' << message.name << "(const " << message.name << " &obj) {}\n";
+    generateCopyCtor(out, message);
+    #if 0
     // move constructor
     out << "#if __cplusplus >= 201103L\n";
     out << '\t' << message.name << "(const " << message.name << " &&obj) {}\n";
     out << "#endif\n";
+    #endif
     // assign operator
-    out << '\t' << message.name << " &operator=(const " << message.name << " &obj) { return *this; }\n";
+    generateAssignOperator(out, message);
     // equality operator
-    out << "\tbool operator==(const " << message.name << " &obj) { return false; }\n\n";
+    generateEqualityOperator(out, message);
 
     out << "};\n";//typedef " << message.name << "__type<0> " << message.name << ";\n\n";
 }
 
 
-extern const char *BASE_PICOJSON;
-
-
 static void generateModel( std::ostream &out, const Proto3 &proto )
 {
     out << "// AUTO-GENERATED FILE, DO NOT EDIT!" << std::endl;
-
-    out << BASE_PICOJSON;
 
     out << "\n\n#ifndef GUARD_HH\n";
     out << "#define GUARD_HH\n\n";
@@ -227,7 +244,7 @@ static void generateModel( std::ostream &out, const Proto3 &proto )
     // message declarations
     for (auto it = proto.messages.begin(); it != proto.messages.end(); ++it)
         generateMessage(out, *it);
-    out << "#endif\n";
+    out << "#endif // GUARD_HH\n";
 }
 
 
