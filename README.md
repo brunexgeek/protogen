@@ -2,6 +2,8 @@
 
 Experimental tool to compile ``proto3`` schemas and generate C++ classes which serialize and deserialize JSON messages.
 
+The compiler generates a C++ header file to be included in your program. This file is all you need: no external libraries.
+
 ## Build
 
 ```
@@ -37,8 +39,10 @@ Person girl;
 girl.name = "Michelle";
 girl.age = 24;
 // serialization
-girl.serialze(std::cout);
+girl.serialize(std::cout);
 ```
+
+Compile your program as usual (no additional library is required).
 
 ## Features
 
@@ -69,13 +73,16 @@ Supported field types:
 - [ ] oneof
 - [ ] maps
 
-Proto3 features:
+Proto3 syntax features:
 - [x] Line comments
 - [ ] Block comments
+- [ ] Packages
+- [ ] Imports
 - [ ] Options
 
 ## Limitations
 
-- You can't import additional ``.proto`` files;
-- Circular references are not supported
-- Messages used by other messages *must* be declared first;
+These are the current limitations of the implementation. Some of them may be removed in future versions.
+- You cannot import additional ``.proto`` files;
+- Circular references are not supported;
+- Messages used by other messages *must* be declared first.
