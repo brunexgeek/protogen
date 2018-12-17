@@ -34,29 +34,6 @@ static struct {
 };
 
 
-static void generateFieldTemplates( std::ostream &out )
-{
-    out << "namespace protogen {\n\n";
-    for (size_t i = 0; TYPE_MAPPING[i].nativeType != nullptr; ++i)
-    {
-        if (!TYPE_MAPPING[i].needTemplate) continue;
-
-        std::string className = TYPE_MAPPING[i].typeName;
-        className += "Field";
-
-        out << "class " << className << " : public Field<" << TYPE_MAPPING[i].nativeType << "> {\n";
-        out << "public:\n";
-        if (TYPE_MAPPING[i].type == protogen::TYPE_STRING)
-            out << "\tvoid operator ()(const char *value ) { this->value = value; }\n";
-        out << '\t' << className << " &operator=( const " << TYPE_MAPPING[i].nativeType << " &value )"
-            << "{ this->value = value; flags &= ~1; return *this; }\n";
-        out << "\tvoid clear() { Field::clear(); value = " << TYPE_MAPPING[i].defaultValue << "; }\n";
-        out << "};\n\n";
-    }
-    out << "} // protogen\n\n";
-}
-
-
 static std::string toLower( const std::string &value )
 {
     std::string output = value;
@@ -66,7 +43,7 @@ static std::string toLower( const std::string &value )
     return output;
 }
 
-
+#if 0
 static std::string toUpper( const std::string &value )
 {
     std::string output = value;
@@ -75,6 +52,7 @@ static std::string toUpper( const std::string &value )
 
     return output;
 }
+#endif
 
 
 static std::string fieldStorage( const Field &field )
@@ -86,17 +64,12 @@ static std::string fieldNativeType( const Field &field )
 {
     std::string output = "protogen::";
 
-    if (field.type >= protogen::TYPE_DOUBLE && field.type <= protogen::TYPE_BOOL)
+    if (field.type >= protogen::TYPE_DOUBLE && field.type <= protogen::TYPE_BYTES)
     {
         int index = (int)field.type - (int)protogen::TYPE_DOUBLE;
-        output += "NumericField<";
+        output += "Field<";
         output += TYPE_MAPPING[index].nativeType;
         output += '>';
-    }
-    else
-    if (field.type == protogen::TYPE_STRING)
-    {
-        output += "StringField";
     }
     else
     if (field.type == protogen::TYPE_MESSAGE)
@@ -108,6 +81,7 @@ static std::string fieldNativeType( const Field &field )
 }
 
 
+// TODO: use 'protogen::traits' instead
 static std::string defaultValue( const Field &field )
 {
     switch (field.type)
@@ -142,16 +116,6 @@ static std::string defaultValue( const Field &field )
         default:
             throw protogen::exception("Unable to generate default value");
     }
-}
-
-
-extern const char *BASE_TEMPLATE;
-
-
-static void generateFieldTemplate( std::ostream &out )
-{
-    out << '\n' << BASE_TEMPLATE << '\n';
-    //generateFieldTemplates(out);
 }
 
 
@@ -204,25 +168,52 @@ static void generateSerializer( std::ostream &out, const Message &message )
     for (auto it = message.fields.begin(); it != message.fields.end(); ++it)
     {
         std::string storage = fieldStorage(*it);
-        out << "\t\tif (!" << storage << ".undefined()) ";
 
-        // numerical field
-        if (it->type >= protogen::TYPE_DOUBLE && it->type <= protogen::TYPE_SFIXED64)
-            out << "protogen::Message::writeNumber(out, first, \"" << it->name << "\", " << storage << "());\n";
-        else
-        // string fields
-        if (it->type == protogen::TYPE_STRING)
-            out << "protogen::Message::writeString(out, first, \"" << it->name << "\", " << storage << "());\n";
         // message fields
         if (it->type == protogen::TYPE_MESSAGE)
-            out << "protogen::Message::writeMessage(out, first, \"" << it->name << "\", " << storage << "());\n";
+            out << "\n\nprotogen::Message::writeMessage(out, first, \"" << it->name << "\", " << storage << "());\n";
+        else
+        {
+            out << "\t\tif (!" << storage << ".undefined()) ";
+
+            // numerical field
+            if (it->type >= protogen::TYPE_DOUBLE && it->type <= protogen::TYPE_SFIXED64)
+                out << "protogen::Message::writeNumber(out, first, \"" << it->name << "\", " << storage << "());\n";
+            else
+            // string fields
+            if (it->type == protogen::TYPE_STRING)
+                out << "protogen::Message::writeString(out, first, \"" << it->name << "\", " << storage << "());\n";
+        }
     }
     out << "\tout << '}';\n";
     out << "\t}\n";
 }
 
+static void generateTrait( std::ostream &out, const Message &message )
+{
+    out << "namespace protogen { template<> struct traits<" << message.name << "> {";
+    out << "\tstatic bool isMessage() { return true; }\n";
+    out << "\tstatic void clear( " << message.name << " &value ) { }\n";
+    out << "}; }";
+}
+
+static void generateClear( std::ostream &out, const Message &message )
+{
+    out << "\tvoid clear() {\n";
+    for (auto it = message.fields.begin(); it != message.fields.end(); ++it)
+    {
+        if (it->type == protogen::TYPE_MESSAGE)
+            out << "\t\tthis->" << it->name << ".clear();\n";
+        else
+            out << "\t\tthis->" << it->name << "(" << defaultValue(*it) << ");\n";
+    }
+    out << "\t}\n";
+}
+
 static void generateMessage( std::ostream &out, const Message &message )
 {
+    generateTrait(out, message);
+
     out << "\nclass " << message.name << " : public protogen::Message {\npublic:\n";
 
     for (auto it = message.fields.begin(); it != message.fields.end(); ++it)
@@ -247,11 +238,14 @@ static void generateMessage( std::ostream &out, const Message &message )
     generateEqualityOperator(out, message);
     // message serializer
     generateSerializer(out, message);
+    // clear function
+    generateClear(out, message);
 
-    out << "};\n";//typedef " << message.name << "__type<0> " << message.name << ";\n\n";
+    out << "};\n";
 }
 
 
+extern const char *BASE_TEMPLATE;
 
 
 static void generateModel( std::ostream &out, const Proto3 &proto )
@@ -263,8 +257,8 @@ static void generateModel( std::ostream &out, const Proto3 &proto )
     out << "#include <string>\n";
     out << "#include <stdint.h>\n\n";
 
-    // field templates
-    generateFieldTemplate(out);
+    // base template
+    out << '\n' << BASE_TEMPLATE << '\n';
     // forward declarations
     out << "\n// forward declarations\n";
     for (auto it = proto.messages.begin(); it != proto.messages.end(); ++it)

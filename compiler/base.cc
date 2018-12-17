@@ -7,40 +7,62 @@
 
 namespace protogen {
 
+
+template<typename T> struct traits
+{
+    static bool isMessage() { return false; }
+    //static T defaultValue() { return 0; };
+    static void clear( T &value ) { value = 0; }
+};
+
+template<> struct traits<std::string>
+{
+    static bool isMessage() { return false; }
+    //static const std::string &defaultValue() { static std::string value; return value; };
+    static void clear( std::string &value ) { value.clear(); }
+};
+
 template<typename T> class Field
 {
     protected:
         T value;
         uint32_t flags;
     public:
-        Field() : flags(0) {}
-        operator const T&() const { return value; }
+        Field() : flags(0) { clear(); }
+#if __cplusplus >= 201103L
+        //explicit operator const T&() const { return value; }
+#endif
         const T &operator()() const { return value; }
+        T &operator()() { return value; }
         void operator ()(const T &value ) { this->value = value; flags &= ~1; }
         bool undefined() const { return flags & 1; }
-        virtual void clear() { flags |= 1; }
+        virtual void clear() { traits<T>::clear(value); flags |= 1; }
+        //Field<T> &operator=( const T &value ) { this->value = value; this->flags &= ~1; return *this; }
+        Field<T> &operator=( const Field<T> &that ) { this->value = that.value; this->flags &= ~1; return *this; }
         bool operator==( const T &that ) { return this->value == that; }
         bool operator==( const Field<T> &that ) { return this->value == that.value; }
 };
 
-template<typename T> class NumericField : public Field<T>
+/*
+template<typename T> class RepeatedField
 {
+    protected:
+        std::vector<Field<T>> value;
+        uint32_t flags;
     public:
-        NumericField<T>() : Field<T>() { this->value = (T) 0; }
-        NumericField<T> &operator=( const T &value ) { this->value = value; this->flags &= ~1; return *this; }
-        void clear() { this->value = (T) 0; Field<T>::clear(); }
-};
+        RepeatedField() : flags(0) {}
+        const std::vector<T> &operator()() const { return value; }
+        std::vector<T> &operator()() { return value; }
+        bool undefined() const { return flags & 1; }
+        void clear() { value.clear(); flags |= 1; }
+        bool operator==( const RepeatedField<T> &that ) { return this->value == that.value; }
+};*/
 
-class StringField : public Field<std::string>
-{
-    public:
-        StringField &operator=( const std::string &value ) { this->value = value; this->flags &= ~1; return *this; }
-        void clear() { this->value.clear(); Field<std::string>::clear(); }
-};
 
 class Message {
     public:
         virtual void serialize( std::ostream &out ) const = 0;
+        virtual void clear() = 0;
 
         template<typename T>
         static void writeNumber( std::ostream &out, bool &first, const std::string &name, const T &value )
