@@ -73,6 +73,43 @@ static std::string fieldNativeType( const Field &field )
 }
 
 
+static std::string defaultValue( const Field &field )
+{
+    switch (field.type)
+    {
+        case protogen::TYPE_DOUBLE:
+            return "0.0";
+
+        case protogen::TYPE_FLOAT:
+            return "0.0F";
+
+        case protogen::TYPE_SINT32:
+        case protogen::TYPE_SFIXED32:
+        case protogen::TYPE_INT32:
+        case protogen::TYPE_SINT64:
+        case protogen::TYPE_SFIXED64:
+        case protogen::TYPE_INT64:
+        case protogen::TYPE_FIXED32:
+        case protogen::TYPE_UINT32:
+        case protogen::TYPE_FIXED64:
+        case protogen::TYPE_UINT64:
+            return "0";
+
+        case protogen::TYPE_BOOL:
+            return "false";
+
+        case protogen::TYPE_STRING:
+            return "\"\"";
+
+        case protogen::TYPE_BYTES:
+            return "\"\"";
+
+        default:
+            throw protogen::exception("Unable to generate default value");
+    }
+}
+
+
 static void generateFunctions( std::ostream &out, const Field &field )
 {
     std::string type = fieldNativeType(field);
@@ -120,11 +157,47 @@ static void generateVariable( std::ostream &out, const Field &field )
     out << "\tuint32_t " << field.name << "__flags;\n";
 }
 
+
+static void generateCtor( std::ostream &out, const Message &message )
+{
+    std::string className = message.name + "__type";
+    out << '\t' << className << "() {\n";
+
+    for (auto it = message.fields.begin(); it != message.fields.end(); ++it)
+    {
+        if (it->type == protogen::TYPE_STRING) continue;
+        out << "\t\t" << it->name << "__ = ";
+
+        if (it->type == protogen::TYPE_MESSAGE)
+            out << "new " << it->typeName << "__type<0>();\n";
+        else
+            out << defaultValue(*it) << ";\n";
+    }
+
+    out << "\t}\n";
+}
+
+
+static void generateDtor( std::ostream &out, const Message &message )
+{
+    std::string className = message.name + "__type";
+    out << "\tvirtual ~" << className << "() {\n";
+
+    for (auto it = message.fields.begin(); it != message.fields.end(); ++it)
+    {
+        if (it->type != protogen::TYPE_MESSAGE) continue;
+        out << "\t\tdelete " << it->name << "__;\n";
+    }
+
+    out << "\t}\n";
+}
+
+
 static void generateMessage( std::ostream &out, const Message &message )
 {
     std::string className = message.name + "__type";
 
-    out << "template<int> class " << className << " {\nprivate:\n";
+    out << "\ntemplate<int> class " << className << " {\nprivate:\n";
 
     for (auto it = message.fields.begin(); it != message.fields.end(); ++it)
     {
@@ -134,7 +207,7 @@ static void generateMessage( std::ostream &out, const Message &message )
     out << "public:\n";
 
     // default constructor
-    out << '\t' << className << "() {}\n";
+    generateCtor(out, message);
     // copy constructor
     out << '\t' << className << "(const " << className << " &obj) {}\n";
     // move constructor
@@ -142,7 +215,7 @@ static void generateMessage( std::ostream &out, const Message &message )
     out << '\t' << className << "(const " << className << " &&obj) {}\n";
     out << "#endif\n";
     // destructor
-    out << "\tvirtual ~" << className << "() {}\n";
+    generateDtor(out, message);
     // assign operator
     out << '\t' << className << " &operator=(const " << className << " &obj) { return *this; }\n";
     // equality operator
@@ -166,10 +239,18 @@ static void generateMessage( std::ostream &out, const Message &message )
     out << "};\n";//typedef " << message.name << "__type<0> " << message.name << ";\n\n";
 }
 
+
+extern unsigned char ___library_picojson_hh[];
+extern  unsigned int ___library_picojson_hh_len;
+
+
 static void generateModel( std::ostream &out, const Proto3 &proto )
 {
     out << "// AUTO-GENERATED FILE, DO NOT EDIT!" << std::endl;
-    out << "#ifndef GUARD_HH\n";
+
+    out.write((char*)___library_picojson_hh, ___library_picojson_hh_len);
+
+    out << "\n\n#ifndef GUARD_HH\n";
     out << "#define GUARD_HH\n\n";
     out << "#include <string>\n";
     out << "#include <stdint.h>\n\n";
@@ -177,7 +258,7 @@ static void generateModel( std::ostream &out, const Proto3 &proto )
     // forward declarations
     for (auto it = proto.messages.begin(); it != proto.messages.end(); ++it)
     {
-        out << "template<int> class " << it->name << "__type;\n";
+        out << "// forward declarations\ntemplate<int> class " << it->name << "__type;\n";
     }
 
     // message declarations

@@ -8,5 +8,5 @@ add_library(libprotogen_static STATIC "library/proto3.cc")
 target_include_directories(libprotogen_static
     PUBLIC "include/")
 
-add_executable(protogen "compiler/main.cc")
+add_executable(protogen "compiler/main.cc" "compiler/json.cc")
 target_link_libraries(protogen libprotogen_static)
