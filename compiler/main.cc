@@ -195,9 +195,35 @@ static void generateEqualityOperator( std::ostream &out, const Message &message 
     out << "\t}\n";
 }
 
+
+static void generateSerializer( std::ostream &out, const Message &message )
+{
+    out << "\tvoid serialize( std::ostream &out ) const {";
+    out << "\tout << '{';\n";
+    out << "\tbool first = true;\n";
+    for (auto it = message.fields.begin(); it != message.fields.end(); ++it)
+    {
+        std::string storage = fieldStorage(*it);
+        out << "\t\tif (!" << storage << ".undefined()) ";
+
+        // numerical field
+        if (it->type >= protogen::TYPE_DOUBLE && it->type <= protogen::TYPE_SFIXED64)
+            out << "protogen::Message::writeNumber(out, first, \"" << it->name << "\", " << storage << "());\n";
+        else
+        // string fields
+        if (it->type == protogen::TYPE_STRING)
+            out << "protogen::Message::writeString(out, first, \"" << it->name << "\", " << storage << "());\n";
+        // message fields
+        if (it->type == protogen::TYPE_MESSAGE)
+            out << "protogen::Message::writeMessage(out, first, \"" << it->name << "\", " << storage << "());\n";
+    }
+    out << "\tout << '}';\n";
+    out << "\t}\n";
+}
+
 static void generateMessage( std::ostream &out, const Message &message )
 {
-    out << "\nclass " << message.name << " {\npublic:\n";
+    out << "\nclass " << message.name << " : public protogen::Message {\npublic:\n";
 
     for (auto it = message.fields.begin(); it != message.fields.end(); ++it)
     {
@@ -219,9 +245,13 @@ static void generateMessage( std::ostream &out, const Message &message )
     generateAssignOperator(out, message);
     // equality operator
     generateEqualityOperator(out, message);
+    // message serializer
+    generateSerializer(out, message);
 
     out << "};\n";//typedef " << message.name << "__type<0> " << message.name << ";\n\n";
 }
+
+
 
 
 static void generateModel( std::ostream &out, const Proto3 &proto )
