@@ -10,6 +10,9 @@
 namespace protogen {
 
 
+#ifndef PROTOGEN_FIELD_TYPES
+#define PROTOGEN_FIELD_TYPES
+
 enum FieldType
 {
     TYPE_DOUBLE       =  6,
@@ -29,6 +32,8 @@ enum FieldType
     TYPE_BYTES        =  20,
     TYPE_MESSAGE      =  21,
 };
+
+#endif // PROTOGEN_FIELD_TYPES
 
 
 class Field

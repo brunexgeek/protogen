@@ -9,6 +9,32 @@
 namespace protogen {
 
 
+#ifndef PROTOGEN_FIELD_TYPES
+#define PROTOGEN_FIELD_TYPES
+
+enum FieldType
+{
+    TYPE_DOUBLE       =  6,
+    TYPE_FLOAT        =  7,
+    TYPE_INT32        =  8,
+    TYPE_INT64        =  9,
+    TYPE_UINT32       =  10,
+    TYPE_UINT64       =  11,
+    TYPE_SINT32       =  12,
+    TYPE_SINT64       =  13,
+    TYPE_FIXED32      =  14,
+    TYPE_FIXED64      =  15,
+    TYPE_SFIXED32     =  16,
+    TYPE_SFIXED64     =  17,
+    TYPE_BOOL         =  18,
+    TYPE_STRING       =  19,
+    TYPE_BYTES        =  20,
+    TYPE_MESSAGE      =  21,
+};
+
+#endif // PROTOGEN_FIELD_TYPES
+
+
 template<typename T> struct traits
 {
     static bool isMessage() { return false; }
@@ -93,6 +119,50 @@ class JSON
             out << '"' << name << "\" : ";
             value.serialize(out);
             first = false;
+        }
+
+        static void skipws( std::istream &in )
+        {
+            while (1)
+            {
+                int ch = in.get();
+                if (! (ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r'))
+                {
+                    in.unget();
+                    break;
+                }
+            }
+        }
+
+        static bool readString( std::istream &in, std::string &value )
+        {
+            skipws(in);
+            if (in.get() != '"') return false;
+            int c = 0;
+            while (1)
+            {
+                int c = in.get();
+                if (c == '"') return true;
+                if (c <= 0) return false;
+                value += (char) c;
+            }
+
+            return false;
+        }
+
+        template<typename T>
+        static bool readNumber( std::istream &in, T &value )
+        {
+            skipws(in);
+            in >> value;
+            return !in.fail();
+        }
+
+        static bool readName( std::istream &in, std::string &name )
+        {
+            if (!readString(in, name)) return false;
+            skipws(in);
+            return (in.get() == ':');
         }
 };
 

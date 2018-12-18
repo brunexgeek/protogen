@@ -224,6 +224,38 @@ static void generateRepeatedSerializer( std::ostream &out, const Field &field )
 }
 
 
+static void generateDeserializer( std::ostream &out, const Message &message )
+{
+    out << indent(1) << "void deserialize( std::istream &in ) {\n";
+    out << indent(2) << "if (in.get() != '{') return;\n";
+    out << indent(2) << "std::string name;\n";
+    out << indent(2) << "while (true) {\n";
+    out << indent(3) << "if (!protogen::JSON::readName(in, name)) break;\n";
+
+    for (auto it = message.fields.begin(); it != message.fields.end(); ++it)
+    {
+        if (it->repeated) break;
+
+        out << indent(3) << "if (name == \"" << it->name << "\") {\n";
+        out << indent(4) << nativeType(*it) << " value;\n";
+
+        // numerical field
+        if (it->type >= protogen::TYPE_DOUBLE && it->type <= protogen::TYPE_SFIXED64)
+            out << indent(4) << "if (!protogen::JSON::readNumber(in, value)) break;\n";
+        else
+        // string fields
+        if (it->type == protogen::TYPE_STRING)
+            out << indent(4) << "if (!protogen::JSON::readString(in, value)) break;\n";
+        else
+            continue;
+
+        out << indent(4) << fieldStorage(*it) << "(value);\n";
+        out << indent(3) << "}\n";
+    }
+    out << indent(2) << "}}\n\n";
+}
+
+
 static void generateSerializer( std::ostream &out, const Message &message )
 {
     out << indent(1) << "void serialize( std::ostream &out ) const {\n";
@@ -243,23 +275,6 @@ static void generateSerializer( std::ostream &out, const Message &message )
         if (it->type != protogen::TYPE_MESSAGE)
             out << "if (!" << fieldStorage(*it) << ".undefined()) ";
         out << "protogen::JSON::write(out, first, \"" << it->name << "\", " << storage << ");\n";
-#if 0
-        // message fields
-        if (it->type == protogen::TYPE_MESSAGE)
-            out << "\t\tprotogen::JSON::write(out, first, \"" << it->name << "\", &" << storage << ");\n";
-        else
-        {
-            out << "\t\tif (!" << fieldStorage(*it) << ".undefined()) ";
-
-            // numerical field
-            if (it->type >= protogen::TYPE_DOUBLE && it->type <= protogen::TYPE_SFIXED64)
-                out << "protogen::Message::writeNumber<" << nativeType(*it) << ">(out, first, \"" << it->name << "\", &" << storage << ");\n";
-            else
-            // string fields
-            if (it->type == protogen::TYPE_STRING)
-                out << "protogen::Message::writeString(out, first, \"" << it->name << "\", &" << storage << ");\n";
-        }
-#endif
 
         if (it->repeated) out << "}\n";
     }
@@ -321,6 +336,8 @@ static void generateMessage( std::ostream &out, const Message &message )
     generateEqualityOperator(out, message);
     // message serializer
     generateSerializer(out, message);
+    // message deserializer
+    generateDeserializer(out, message);
     // clear function
     generateClear(out, message);
 
