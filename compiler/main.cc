@@ -179,7 +179,7 @@ static void generateAssignOperator( std::ostream &out, const Message &message )
 
 static void generateEqualityOperator( std::ostream &out, const Message &message )
 {
-    out << "\tbool operator==(const " << message.name << " &that) {\n";
+    out << "\tbool operator==(const " << message.name << " &that) const {\n";
     out << "\t\treturn\n";
     for (auto it = message.fields.begin(); it != message.fields.end(); ++it)
     {
@@ -239,9 +239,14 @@ static void generateSerializer( std::ostream &out, const Message &message )
         }
         std::string storage = fieldStorage(*it) + "()";
 
+        out << indent(2);
+        if (it->type != protogen::TYPE_MESSAGE)
+            out << "if (!" << fieldStorage(*it) << ".undefined()) ";
+        out << "protogen::JSON::write(out, first, \"" << it->name << "\", " << storage << ");\n";
+#if 0
         // message fields
         if (it->type == protogen::TYPE_MESSAGE)
-            out << "\t\tprotogen::Message::writeMessage(out, first, \"" << it->name << "\", &" << storage << ");\n";
+            out << "\t\tprotogen::JSON::write(out, first, \"" << it->name << "\", &" << storage << ");\n";
         else
         {
             out << "\t\tif (!" << fieldStorage(*it) << ".undefined()) ";
@@ -254,6 +259,7 @@ static void generateSerializer( std::ostream &out, const Message &message )
             if (it->type == protogen::TYPE_STRING)
                 out << "protogen::Message::writeString(out, first, \"" << it->name << "\", &" << storage << ");\n";
         }
+#endif
 
         if (it->repeated) out << "}\n";
     }

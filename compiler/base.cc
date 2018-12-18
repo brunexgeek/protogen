@@ -44,8 +44,8 @@ template<typename T> class Field
         void clear() { traits<T>::clear(value); flags |= 1; }
         //Field<T> &operator=( const T &value ) { this->value = value; this->flags &= ~1; return *this; }
         Field<T> &operator=( const Field<T> &that ) { this->value = that.value; this->flags = that.flags; return *this; }
-        bool operator==( const T &that ) { return this->value == that; }
-        bool operator==( const Field<T> &that ) { return this->value == that.value; }
+        bool operator==( const T &that ) const { return this->value == that; }
+        bool operator==( const Field<T> &that ) const { return this->value == that.value; }
 };
 
 
@@ -58,74 +58,42 @@ template<typename T> class RepeatedField
         const std::vector<T> &operator()() const { return value; }
         std::vector<T> &operator()() { return value; }
         bool undefined() const { return value.size() == 0; }
-        bool operator==( const RepeatedField<T> &that ) { return /*this->value == that.value*/false; }
+        bool operator==( const RepeatedField<T> &that ) const { return this->value == that.value; }
 };
 
 
-class Message {
+class Message
+{
     public:
         virtual void serialize( std::ostream &out ) const = 0;
         virtual void clear() = 0;
+};
 
+class JSON
+{
+    public:
         template<typename T>
-        static void writeNumber( std::ostream &out, bool &first, const std::string &name, const void *ptr )
+        static void write( std::ostream &out, bool &first, const std::string &name, const T &value )
         {
-            const T &value = *((T*)ptr);
-
             if (!first) out << ',';
             out << '"' << name << "\" : " << value;
             first = false;
         }
 
-        static void writeString( std::ostream &out, bool &first, const std::string &name, const void *ptr)
+        static void write( std::ostream &out, bool &first, const std::string &name, const std::string &value)
         {
-            const std::string &value = *((std::string*)ptr);
-
             if (!first) out << ',';
             out << '"' << name << "\" : \"" << value << '"';
             first = false;
         }
 
-        static void writeMessage( std::ostream &out, bool &first, const std::string &name, const void *ptr)
+        static void write( std::ostream &out, bool &first, const std::string &name, const Message &value)
         {
-            const Message &value = *((Message*)ptr);
-
             if (!first) out << ',';
             out << '"' << name << "\" : ";
             value.serialize(out);
             first = false;
         }
-
-        /*template<typename T>
-        static void writeField( std::ostream &out, bool &first, const std::string &name, const std::vector<T> &value )
-        {
-            if (traits<T>::isMessage())
-                writeMessage(out, first, name, &(*it));
-            else
-            if (traits<T>::isNumber())
-            {
-                writeNumber(out, first, name, &(*it));
-            else
-            if (traits<T>::isString())
-                writeString(out, first, name, &(*it));
-        }*/
-
-/*
-        template<typename T>
-        static void writeRepeated( std::ostream &out, bool &first, const std::string &name, const std::vector<T> &value )
-        {
-            for (typename std::vector<T>::const_iterator it = value.begin(); it != value.end(); ++it)
-            {
-                if (traits<T>::isMessage())
-                    writeMessage(out, first, name, &(*it));
-                else
-                if (traits<T>::isNumber())
-                    writeNumber<T>(out, first, name, &(*it));
-                else
-                if (traits<T>::isString())
-                    writeString(out, first, name, &(*it));
-            }
-        }*/
 };
 
 } // namespace protogen
