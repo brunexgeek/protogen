@@ -34,6 +34,20 @@ static struct {
 };
 
 
+static const char *indent( int level = 1 )
+{
+    switch (level)
+    {
+        case 1: return "\t";
+        case 2: return "\t\t";
+        case 3: return "\t\t\t";
+        case 4: return "\t\t\t\t";
+        case 5: return "\t\t\t\t\t";
+    }
+    return "";
+}
+
+
 static std::string toLower( const std::string &value )
 {
     std::string output = value;
@@ -60,23 +74,42 @@ static std::string fieldStorage( const Field &field )
     return toLower(field.name);
 }
 
-static std::string fieldNativeType( const Field &field )
+static std::string nativeType( const Field &field )
 {
-    std::string output = "protogen::";
 
     if (field.type >= protogen::TYPE_DOUBLE && field.type <= protogen::TYPE_BYTES)
     {
         int index = (int)field.type - (int)protogen::TYPE_DOUBLE;
-        output += "Field<";
-        output += TYPE_MAPPING[index].nativeType;
-        output += '>';
+        return TYPE_MAPPING[index].nativeType;
     }
     else
     if (field.type == protogen::TYPE_MESSAGE)
-        output += std::string("Field<") + field.typeName + ">";
+        return field.typeName;
+    else
+        throw protogen::exception("Invalid field type");
+}
+
+static std::string fieldNativeType( const Field &field )
+{
+    std::string output = "protogen::";
+
+    if (field.repeated)
+        output += "RepeatedField<";
+    else
+        output += "Field<";
+
+    if (field.type >= protogen::TYPE_DOUBLE && field.type <= protogen::TYPE_BYTES)
+    {
+        int index = (int)field.type - (int)protogen::TYPE_DOUBLE;
+        output += TYPE_MAPPING[index].nativeType;
+    }
+    else
+    if (field.type == protogen::TYPE_MESSAGE)
+        output += field.typeName;
     else
         throw protogen::exception("Invalid field type");
 
+    output += '>';
     return output;
 }
 
@@ -160,39 +193,80 @@ static void generateEqualityOperator( std::ostream &out, const Message &message 
 }
 
 
+static void generateRepeatedSerializer( std::ostream &out, const Field &field )
+{
+    std::string storage = fieldStorage(field);
+
+    out << indent(2) << "if (" << storage << "().size() > 0) {\n";
+    out << indent(3) << "bool first = true;\n";
+    out << indent(3) << "out << \"\\\"" << field.name << "\\\" : [ \";\n";
+    out << indent(3) << "for (std::vector<" << nativeType(field) << ">::const_iterator it = " << storage
+        << "().begin(); it != " << storage << "().end(); ++it) {\n";
+    out << indent(4) << "if (!first) out << \", \";\n";
+    out << indent(4) << "first = false;\n";
+
+    storage = "(*it)";
+
+    // message fields
+    if (field.type == protogen::TYPE_MESSAGE)
+        out << indent(4) << storage << ".serialize(out);\n";
+    else
+    {
+        // numerical field
+        if (field.type >= protogen::TYPE_DOUBLE && field.type <= protogen::TYPE_SFIXED64)
+            out << indent(4) << "out << " << storage << ";\n";
+        else
+        // string fields
+        if (field.type == protogen::TYPE_STRING)
+            out << indent(4) << "out << '\"' << " << storage << " << '\"';\n";
+    }
+    out << indent(3) << "}\n" << indent(3) << "out << \" ]\"; \n" << indent(2) << "};\n";
+}
+
+
 static void generateSerializer( std::ostream &out, const Message &message )
 {
-    out << "\tvoid serialize( std::ostream &out ) const {";
-    out << "\tout << '{';\n";
-    out << "\tbool first = true;\n";
+    out << indent(1) << "void serialize( std::ostream &out ) const {\n";
+    out << indent(2) << "out << '{';\n";
+    out << indent(2) << "bool first = true;\n";
     for (auto it = message.fields.begin(); it != message.fields.end(); ++it)
     {
-        std::string storage = fieldStorage(*it);
+        out << indent(2) << "// " << it->name << '\n';
+        if (it->repeated)
+        {
+            generateRepeatedSerializer(out, *it);
+            continue;
+        }
+        std::string storage = fieldStorage(*it) + "()";
 
         // message fields
         if (it->type == protogen::TYPE_MESSAGE)
-            out << "\n\nprotogen::Message::writeMessage(out, first, \"" << it->name << "\", " << storage << "());\n";
+            out << "\t\tprotogen::Message::writeMessage(out, first, \"" << it->name << "\", &" << storage << ");\n";
         else
         {
-            out << "\t\tif (!" << storage << ".undefined()) ";
+            out << "\t\tif (!" << fieldStorage(*it) << ".undefined()) ";
 
             // numerical field
             if (it->type >= protogen::TYPE_DOUBLE && it->type <= protogen::TYPE_SFIXED64)
-                out << "protogen::Message::writeNumber(out, first, \"" << it->name << "\", " << storage << "());\n";
+                out << "protogen::Message::writeNumber<" << nativeType(*it) << ">(out, first, \"" << it->name << "\", &" << storage << ");\n";
             else
             // string fields
             if (it->type == protogen::TYPE_STRING)
-                out << "protogen::Message::writeString(out, first, \"" << it->name << "\", " << storage << "());\n";
+                out << "protogen::Message::writeString(out, first, \"" << it->name << "\", &" << storage << ");\n";
         }
+
+        if (it->repeated) out << "}\n";
     }
-    out << "\tout << '}';\n";
-    out << "\t}\n";
+    out << indent(2) << "out << '}';\n";
+    out << indent(1) << "}\n";
 }
 
 static void generateTrait( std::ostream &out, const Message &message )
 {
-    out << "namespace protogen { template<> struct traits<" << message.name << "> {";
+    out << "namespace protogen {\ntemplate<> struct traits<" << message.name << "> {\n";
     out << "\tstatic bool isMessage() { return true; }\n";
+    out << "\tstatic bool isNumber() { return false; }\n";
+    out << "\tstatic bool isString() { return false; }\n";
     out << "\tstatic void clear( " << message.name << " &value ) { }\n";
     out << "}; }";
 }
@@ -202,6 +276,9 @@ static void generateClear( std::ostream &out, const Message &message )
     out << "\tvoid clear() {\n";
     for (auto it = message.fields.begin(); it != message.fields.end(); ++it)
     {
+        if (it->repeated)
+            out << "\t\tthis->" << it->name << "().clear();\n";
+        else
         if (it->type == protogen::TYPE_MESSAGE)
             out << "\t\tthis->" << it->name << ".clear();\n";
         else
