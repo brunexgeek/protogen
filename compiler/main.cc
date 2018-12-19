@@ -7,6 +7,10 @@ using protogen::Message;
 using protogen::Field;
 
 
+#define IS_VALID_TYPE(x)    ( (x) >= protogen::TYPE_DOUBLE && (x) <= protogen::TYPE_BYTES )
+#define IS_NUMERIC_TYPE(x)  ( (x) >= protogen::TYPE_DOUBLE && (x) <= protogen::TYPE_SFIXED64 )
+
+
 static struct {
     bool needTemplate;
     protogen::FieldType type;
@@ -69,9 +73,12 @@ static std::string toUpper( const std::string &value )
 #endif
 
 
-static std::string fieldStorage( const Field &field )
+static std::string fieldStorage( const Field &field, bool qualified = true )
 {
-    return toLower(field.name);
+    if (!qualified)
+        return toLower(field.name);
+    else
+        return "this->" + toLower(field.name);
 }
 
 static std::string nativeType( const Field &field )
@@ -155,7 +162,7 @@ static std::string defaultValue( const Field &field )
 static void generateVariable( std::ostream &out, const Field &field )
 {
     // storage variable
-    out << "\t" << fieldNativeType(field) << ' ' << fieldStorage(field) << ";\n";
+    out << "\t" << fieldNativeType(field) << ' ' << fieldStorage(field, false) << ";\n";
 }
 
 
@@ -226,31 +233,37 @@ static void generateRepeatedSerializer( std::ostream &out, const Field &field )
 
 static void generateDeserializer( std::ostream &out, const Message &message )
 {
-    out << indent(1) << "void deserialize( std::istream &in ) {\n";
+    out << indent(1) << "void deserialize( const std::string &json ) {\n";
+    out << indent(2) << "protogen::InputStream<std::string::const_iterator> in(json.begin(), json.end());\n";
     out << indent(2) << "if (in.get() != '{') return;\n";
     out << indent(2) << "std::string name;\n";
     out << indent(2) << "while (true) {\n";
+    out << indent(3) << "name.clear();\n";
     out << indent(3) << "if (!protogen::JSON::readName(in, name)) break;\n";
+
+    bool first = true;
 
     for (auto it = message.fields.begin(); it != message.fields.end(); ++it)
     {
-        if (it->repeated) break;
+        if (!IS_VALID_TYPE(it->type) || it->repeated) continue;
+
+        if (!first) out << " else\n";
 
         out << indent(3) << "if (name == \"" << it->name << "\") {\n";
         out << indent(4) << nativeType(*it) << " value;\n";
 
         // numerical field
-        if (it->type >= protogen::TYPE_DOUBLE && it->type <= protogen::TYPE_SFIXED64)
-            out << indent(4) << "if (!protogen::JSON::readNumber(in, value)) break;\n";
+        if (IS_NUMERIC_TYPE(it->type))
+            out << indent(4) << "if (!protogen::JSON::read(in, value)) break;\n";
         else
         // string fields
         if (it->type == protogen::TYPE_STRING)
-            out << indent(4) << "if (!protogen::JSON::readString(in, value)) break;\n";
-        else
-            continue;
+            out << indent(4) << "if (!protogen::JSON::read(in, value)) break;\n";
 
         out << indent(4) << fieldStorage(*it) << "(value);\n";
-        out << indent(3) << "}\n";
+        out << indent(4) << "if (!protogen::JSON::next(in)) break;\n";
+        out << indent(3) << "}";
+        first = false;
     }
     out << indent(2) << "}}\n\n";
 }

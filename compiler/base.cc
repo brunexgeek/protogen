@@ -95,6 +95,95 @@ class Message
         virtual void clear() = 0;
 };
 
+template <typename Iter> class InputStream {
+    protected:
+        Iter cur_, end_;
+        int last_ch_;
+        bool ungot_;
+        int line_, column_;
+    public:
+        InputStream( const Iter& first, const Iter& last ) : cur_(first), end_(last),
+            last_ch_(-1), ungot_(false), line_(1), column_(1)
+        {
+        }
+
+        int get()
+        {
+            if (ungot_)
+            {
+                ungot_ = false;
+                return last_ch_;
+            }
+
+            if (cur_ == end_)
+            {
+                last_ch_ = -1;
+                return -1;
+            }
+            if (last_ch_ == '\n')
+            {
+                line_++;
+                column_ = 1;
+            }
+            last_ch_ = *cur_ & 0xff;
+            ++cur_;
+            ++column_;
+            return last_ch_;
+        }
+
+        void unget()
+        {
+            if (last_ch_ != -1)
+            {
+                if (ungot_) throw std::runtime_error("unable to unget");
+                ungot_ = true;
+            }
+        }
+
+        int cur() const { return *cur_; }
+
+        int line() const { return line_; }
+
+        int column() const { return column_; }
+
+        void skip_ws()
+        {
+            while (1) {
+                int ch = get();
+                if (! (ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r'))
+                {
+                    unget();
+                    break;
+                }
+            }
+        }
+
+        bool expect(int expect)
+        {
+            skip_ws();
+            if (get() != expect)
+            {
+                unget();
+                return false;
+            }
+            return true;
+        }
+
+        bool match(const std::string& pattern)
+        {
+            for (std::string::const_iterator pi(pattern.begin()); pi != pattern.end(); ++pi)
+            {
+                if (get() != *pi)
+                {
+                    unget();
+                    return false;
+                }
+            }
+            return true;
+        }
+};
+
+
 class JSON
 {
     public:
@@ -121,7 +210,8 @@ class JSON
             first = false;
         }
 
-        static void skipws( std::istream &in )
+        /*template<typename I>
+        static void skipws( InputStream<I> &in )
         {
             while (1)
             {
@@ -132,11 +222,26 @@ class JSON
                     break;
                 }
             }
+        }*/
+
+        template<typename I>
+        static bool next( InputStream<I> &in )
+        {
+            in.skip_ws();
+            int ch = in.get();
+            if (ch == ',') return true;
+            if (ch == '}' || ch == ']')
+            {
+                in.unget();
+                return true;
+            }
+            return false;
         }
 
-        static bool readString( std::istream &in, std::string &value )
+        template<typename I>
+        static bool read( InputStream<I> &in, std::string &value )
         {
-            skipws(in);
+            in.skip_ws();
             if (in.get() != '"') return false;
             int c = 0;
             while (1)
@@ -150,18 +255,34 @@ class JSON
             return false;
         }
 
-        template<typename T>
-        static bool readNumber( std::istream &in, T &value )
+        template<typename I, typename T>
+        static bool read( InputStream<I> &in, T &value )
         {
-            skipws(in);
-            in >> value;
-            return !in.fail();
+            in.skip_ws();
+            //in >> value;
+            //return !in.fail();
+            return 10;
         }
 
-        static bool readName( std::istream &in, std::string &name )
+        template<typename I, typename T>
+        static bool readArray( InputStream<I> &in, std::vector<T> &array )
         {
-            if (!readString(in, name)) return false;
-            skipws(in);
+            in.skip_ws();
+            while (true)
+            {
+                T value;
+                if (!read(in, value)) return false;
+                array.push_back(value);
+            }
+
+            return 10;
+        }
+
+        template<typename I>
+        static bool readName( InputStream<I> &in, std::string &name )
+        {
+            if (!read(in, name)) return false;
+            in.skip_ws();
             return (in.get() == ':');
         }
 };
