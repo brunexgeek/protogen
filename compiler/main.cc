@@ -287,7 +287,11 @@ static void generateSerializer( std::ostream &out, const Message &message )
         out << indent(2);
         if (it->type != protogen::TYPE_MESSAGE)
             out << "if (!" << fieldStorage(*it) << ".undefined()) ";
-        out << "protogen::JSON::write(out, first, \"" << it->name << "\", " << storage << ");\n";
+
+        if (it->type == protogen::TYPE_MESSAGE)
+            out << "protogen::JSON::writeMessage(out, first, \"" << it->name << "\", " << storage << ");\n";
+        else
+            out << "protogen::JSON::write(out, first, \"" << it->name << "\", " << storage << ");\n";
 
         if (it->repeated) out << "}\n";
     }
@@ -313,10 +317,7 @@ static void generateClear( std::ostream &out, const Message &message )
         if (it->repeated)
             out << "\t\tthis->" << it->name << "().clear();\n";
         else
-        if (it->type == protogen::TYPE_MESSAGE)
-            out << "\t\tthis->" << it->name << ".clear();\n";
-        else
-            out << "\t\tthis->" << it->name << "(" << defaultValue(*it) << ");\n";
+        out << "\t\tthis->" << it->name << ".clear();\n";
     }
     out << "\t}\n";
 }

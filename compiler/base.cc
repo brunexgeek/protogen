@@ -202,27 +202,13 @@ class JSON
             first = false;
         }
 
-        static void write( std::ostream &out, bool &first, const std::string &name, const Message &value)
+        static void writeMessage( std::ostream &out, bool &first, const std::string &name, const Message &value)
         {
             if (!first) out << ',';
             out << '"' << name << "\" : ";
             value.serialize(out);
             first = false;
         }
-
-        /*template<typename I>
-        static void skipws( InputStream<I> &in )
-        {
-            while (1)
-            {
-                int ch = in.get();
-                if (! (ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r'))
-                {
-                    in.unget();
-                    break;
-                }
-            }
-        }*/
 
         template<typename I>
         static bool next( InputStream<I> &in )
@@ -243,7 +229,6 @@ class JSON
         {
             in.skip_ws();
             if (in.get() != '"') return false;
-            int c = 0;
             while (1)
             {
                 int c = in.get();
@@ -259,9 +244,9 @@ class JSON
         static bool read( InputStream<I> &in, T &value )
         {
             in.skip_ws();
-            //in >> value;
-            //return !in.fail();
-            return 10;
+            // TODO: read the number
+            value = 23;
+            return true;
         }
 
         template<typename I, typename T>
@@ -275,7 +260,7 @@ class JSON
                 array.push_back(value);
             }
 
-            return 10;
+            return true;
         }
 
         template<typename I>
