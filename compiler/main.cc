@@ -7,8 +7,8 @@ using protogen::Message;
 using protogen::Field;
 
 
-#define IS_VALID_TYPE(x)    ( (x) >= protogen::TYPE_DOUBLE && (x) <= protogen::TYPE_BYTES )
-#define IS_NUMERIC_TYPE(x)  ( (x) >= protogen::TYPE_DOUBLE && (x) <= protogen::TYPE_SFIXED64 )
+#define IS_VALID_TYPE(x)      ( (x) >= protogen::TYPE_DOUBLE && (x) <= protogen::TYPE_BYTES )
+#define IS_NUMERIC_TYPE(x)    ( (x) >= protogen::TYPE_DOUBLE && (x) <= protogen::TYPE_SFIXED64 )
 
 
 static struct {
@@ -204,6 +204,9 @@ static void generateRepeatedSerializer( std::ostream &out, const Field &field )
 {
     std::string storage = fieldStorage(field);
 
+    // this 'first' variable is from 'generateSerializer'
+    out << indent(2) << "if (!first) { out << \", \"; first = false; };\n";
+
     out << indent(2) << "if (" << storage << "().size() > 0) {\n";
     out << indent(3) << "bool first = true;\n";
     out << indent(3) << "out << \"\\\"" << field.name << "\\\" : [ \";\n";
@@ -245,27 +248,31 @@ static void generateDeserializer( std::ostream &out, const Message &message )
 
     for (auto it = message.fields.begin(); it != message.fields.end(); ++it)
     {
-        if (!IS_VALID_TYPE(it->type) || it->repeated) continue;
+        if (!IS_VALID_TYPE(it->type)) continue;
 
-        if (!first) out << " else\n";
+        if (!first) out << indent(3) << "else\n";
 
         out << indent(3) << "if (name == \"" << it->name << "\") {\n";
         out << indent(4) << nativeType(*it) << " value;\n";
 
-        // numerical field
-        if (IS_NUMERIC_TYPE(it->type))
-            out << indent(4) << "if (!protogen::JSON::read(in, value)) break;\n";
+        if (it->repeated)
+            out << indent(4) << "if (!protogen::JSON::readArray(in, " << fieldStorage(*it) << "())) break;\n";
         else
-        // string fields
-        if (it->type == protogen::TYPE_STRING)
-            out << indent(4) << "if (!protogen::JSON::read(in, value)) break;\n";
+        {
+            if (it->type >= protogen::TYPE_DOUBLE && it->type <= protogen::TYPE_BYTES)
+                out << indent(4) << "if (!protogen::JSON::read(in, value)) break;\n";
+            else
 
-        out << indent(4) << fieldStorage(*it) << "(value);\n";
+
+            out << indent(4) << fieldStorage(*it) << "(value);\n";
+        }
         out << indent(4) << "if (!protogen::JSON::next(in)) break;\n";
-        out << indent(3) << "}";
+        out << indent(3) << "}\n";
         first = false;
     }
-    out << indent(2) << "}}\n\n";
+    out << indent(3) << "else\n";
+    out << indent(4) << "protogen::JSON::ignore(in);\n";
+    out << indent(2) << "}\n" << indent(1) << "}\n\n";
 }
 
 
@@ -292,8 +299,6 @@ static void generateSerializer( std::ostream &out, const Message &message )
             out << "protogen::JSON::writeMessage(out, first, \"" << it->name << "\", " << storage << ");\n";
         else
             out << "protogen::JSON::write(out, first, \"" << it->name << "\", " << storage << ");\n";
-
-        if (it->repeated) out << "}\n";
     }
     out << indent(2) << "out << '}';\n";
     out << indent(1) << "}\n";

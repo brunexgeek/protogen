@@ -5,6 +5,8 @@
 #include <iostream>
 #include <string>
 #include <vector>
+#include <cstdlib>
+#include <locale.h>
 
 namespace protogen {
 
@@ -98,17 +100,32 @@ class Message
 template <typename Iter> class InputStream {
     protected:
         Iter cur_, end_;
-        int last_ch_;
+        int last_ch_, prev_;
         bool ungot_;
         int line_, column_;
     public:
         InputStream( const Iter& first, const Iter& last ) : cur_(first), end_(last),
-            last_ch_(-1), ungot_(false), line_(1), column_(1)
+            last_ch_(-1), prev_(-1), ungot_(false), line_(1), column_(1)
         {
+        }
+
+        bool eof()
+        {
+            return last_ch_ == -2;
+        }
+
+        int prev()
+        {
+            if (prev_ >= 0)
+                return prev_;
+            else
+                return -1;
         }
 
         int get()
         {
+            if (!ungot_) prev_ = last_ch_;
+
             if (ungot_)
             {
                 ungot_ = false;
@@ -117,7 +134,7 @@ template <typename Iter> class InputStream {
 
             if (cur_ == end_)
             {
-                last_ch_ = -1;
+                last_ch_ = -2;
                 return -1;
             }
             if (last_ch_ == '\n')
@@ -133,7 +150,7 @@ template <typename Iter> class InputStream {
 
         void unget()
         {
-            if (last_ch_ != -1)
+            if (last_ch_ >= 0)
             {
                 if (ungot_) throw std::runtime_error("unable to unget");
                 ungot_ = true;
@@ -187,6 +204,7 @@ template <typename Iter> class InputStream {
 class JSON
 {
     public:
+        // numeric types
         template<typename T>
         static void write( std::ostream &out, bool &first, const std::string &name, const T &value )
         {
@@ -195,6 +213,16 @@ class JSON
             first = false;
         }
 
+        // boolean
+        static void write( std::ostream &out, bool &first, const std::string &name, const bool &value)
+        {
+            if (!first) out << ',';
+            out << '"' << name << "\" : " << ((value) ? "true" : "false");
+            first = false;
+        }
+
+        // TODO: handle escaped characters
+        // string
         static void write( std::ostream &out, bool &first, const std::string &name, const std::string &value)
         {
             if (!first) out << ',';
@@ -202,6 +230,7 @@ class JSON
             first = false;
         }
 
+        // message
         static void writeMessage( std::ostream &out, bool &first, const std::string &name, const Message &value)
         {
             if (!first) out << ',';
@@ -224,6 +253,7 @@ class JSON
             return false;
         }
 
+        // TODO: handle escaped characters
         template<typename I>
         static bool read( InputStream<I> &in, std::string &value )
         {
@@ -232,7 +262,7 @@ class JSON
             while (1)
             {
                 int c = in.get();
-                if (c == '"') return true;
+                if (in.prev() != '\\' && c == '"') return true;
                 if (c <= 0) return false;
                 value += (char) c;
             }
@@ -244,8 +274,25 @@ class JSON
         static bool read( InputStream<I> &in, T &value )
         {
             in.skip_ws();
+            std::string temp;
+            while (true)
+            {
+                int ch = in.get();
+                if (ch != '.' && (ch < '0' || ch > '9'))
+                {
+                    in.unget();
+                    break;
+                }
+                temp += (char) ch;
+            }
+            if (temp.empty()) return false;
+
+            static locale_t loc = newlocale(LC_NUMERIC_MASK | LC_MONETARY_MASK, "C", 0);
+            if (loc == 0) return false;
+            uselocale(loc);
+            value = (T) strtod(temp.c_str(), NULL);
+            uselocale(LC_GLOBAL_LOCALE);
             // TODO: read the number
-            value = 23;
             return true;
         }
 
@@ -253,12 +300,17 @@ class JSON
         static bool readArray( InputStream<I> &in, std::vector<T> &array )
         {
             in.skip_ws();
+            if (in.get() != '[') return false;
+            in.skip_ws();
             while (true)
             {
                 T value;
                 if (!read(in, value)) return false;
                 array.push_back(value);
+                in.skip_ws();
+                if (!in.expect(',')) break;
             }
+            if (in.get() != ']') return false;
 
             return true;
         }
@@ -269,6 +321,71 @@ class JSON
             if (!read(in, name)) return false;
             in.skip_ws();
             return (in.get() == ':');
+        }
+
+        template<typename I>
+        static bool ignoreEnclosing( InputStream<I> &in, int begin, int end )
+        {
+            in.skip_ws();
+            if (in.get() != begin) return false;
+
+            int count = 1;
+
+            bool text = false;
+            while (count != 0 && !in.eof())
+            {
+                int ch = in.get();
+                std::cerr << "-- '" << (char)ch << '\'' << std::endl;
+                if (in.prev() != '\\' && ch == '"' && begin != '"')
+                    text != true;
+                else
+                if (!text)
+                {
+                    if (ch == end)
+                        --count;
+                    else
+                    if (ch == begin)
+                        ++count;
+                }
+            }
+
+            in.skip_ws();
+            if (in.get() != ',') in.unget();
+
+            return count == 0;
+        }
+
+
+        template<typename I>
+        static bool ignore( InputStream<I> &in )
+        {
+            in.skip_ws();
+            int ch = in.get();
+            in.unget();
+            if (ch == '[')
+                return ignoreEnclosing(in, '[', ']');
+            else
+            if (ch == '{')
+                return ignoreEnclosing(in, '{', '}');
+            else
+            if (ch == '"')
+                return ignoreEnclosing(in, '"', '"');
+            else
+            {
+                while (!in.eof())
+                {
+                    int ch = in.get();
+                    if (ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r' || ch == ',')
+                    {
+                        in.unget();
+                        return true;
+                    }
+                }
+                in.skip_ws();
+                if (in.get() != ',') in.unget();
+            }
+
+            return false;
         }
 };
 
