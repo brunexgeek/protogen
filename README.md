@@ -36,9 +36,8 @@ Include the generated header file in your source code to use the classes:
 ...
 
 Person girl;
-girl.name = "Michelle";
-girl.age = 24;
-// serialization
+girl.name("Michelle");
+girl.age(24);
 girl.serialize(std::cout);
 ```
 
@@ -46,14 +45,9 @@ Compile your program as usual (no additional library is required).
 
 ## Features
 
-Supported output programming languages:
-- [x] C++ (1998/2011)
-- [ ] C99
-- [ ] Java
-
 Supported field types:
 - [x] other messages (see [Limitations](#Limitations))
-- [ ] repeated
+- [x] repeated
 - [x] double
 - [x] float
 - [x] int32
