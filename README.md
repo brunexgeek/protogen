@@ -77,6 +77,11 @@ Proto3 syntax features:
 ## Limitations
 
 These are the current limitations of the implementation. Some of them may be removed in future versions.
+
+Proto3 parser:
 - You cannot import additional ``.proto`` files;
 - Circular references are not supported;
-- Messages used by other messages *must* be declared first.
+- Messages used by other messages *must* be declared first;
+
+JSON parser:
+- Strings do not support ``\u`` to specify unicode endpoints

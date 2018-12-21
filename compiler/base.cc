@@ -177,24 +177,10 @@ template <typename Iter> class InputStream {
 
         bool expect(int expect)
         {
-            skip_ws();
             if (get() != expect)
             {
                 unget();
                 return false;
-            }
-            return true;
-        }
-
-        bool match(const std::string& pattern)
-        {
-            for (std::string::const_iterator it(pattern.begin()); it != pattern.end(); ++it)
-            {
-                if (get() != *it)
-                {
-                    unget();
-                    return false;
-                }
             }
             return true;
         }
@@ -220,12 +206,27 @@ namespace json {
         first = false;
     }
 
-    // TODO: handle escaped characters
     // string
     static void write( std::ostream &out, bool &first, const std::string &name, const std::string &value)
     {
         if (!first) out << ',';
-        out << '"' << name << "\" : \"" << value << '"';
+        out << '"' << name << "\" : \"";
+        for (std::string::const_iterator it = value.begin(); it != value.end(); ++it)
+        {
+            switch (*it)
+            {
+                case '"':  out << "\\\""; break;
+                case '\\': out << "\\\\"; break;
+                case '/':  out << "\\/"; break;
+                case '\b': out << "\\b"; break;
+                case '\f': out << "\\f"; break;
+                case '\r': out << "\\r"; break;
+                case '\n': out << "\\n"; break;
+                case '\t': out << "\\t"; break;
+                default:   out << *it;
+            }
+        }
+        out << '"';
         first = false;
     }
 
@@ -252,7 +253,6 @@ namespace json {
         return false;
     }
 
-    // TODO: handle escaped characters
     template<typename I>
     static bool readValue( InputStream<I> &in, std::string &value )
     {
@@ -261,7 +261,24 @@ namespace json {
         while (1)
         {
             int c = in.get();
-            if (in.prev() != '\\' && c == '"') return true;
+            if (c == '"') return true;
+
+            if (c == '\\')
+            {
+                c = in.get();
+                switch (c)
+                {
+                    case '"':  c = '"'; break;
+                    case '\\': c = '\\'; break;
+                    case '/':  c = '/'; break;
+                    case 'b':  c = '\b'; break;
+                    case 'f':  c = '\f'; break;
+                    case 'r':  c = '\r'; break;
+                    case 'n':  c = '\n'; break;
+                    case 't':  c = '\t'; break;
+                }
+            }
+
             if (c <= 0) return false;
             value += (char) c;
         }
@@ -291,6 +308,42 @@ namespace json {
         uselocale(loc);
         value = (T) strtod(temp.c_str(), NULL);
         uselocale(LC_GLOBAL_LOCALE);
+        return true;
+    }
+
+    template<typename I>
+    static bool readValue( InputStream<I> &in, bool &value )
+    {
+        in.skip_ws();
+        std::string temp;
+        while (true)
+        {
+            int ch = in.get();
+            switch (ch)
+            {
+                case 't':
+                case 'r':
+                case 'u':
+                case 'e':
+                case 'f':
+                case 'a':
+                case 'l':
+                case 's':
+                    temp += (int) ch;
+                    break;
+                default:
+                    in.unget();
+                    goto ESCAPE;
+            }
+        }
+    ESCAPE:
+        if (temp == "true")
+            value = true;
+        else
+        if (temp == "false")
+            value = false;
+        else
+            return false;
         return true;
     }
 
