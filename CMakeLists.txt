@@ -14,12 +14,16 @@ function(fileToSource inputFileName outputFileName variableName)
     FILE(APPEND "${outputFileName}" "\";\n\n")
 endfunction(fileToSource)
 
-file(REMOVE "compiler/base-auto.cc")
-fileToSource("compiler/base.cc" "compiler/base-auto.cc" "BASE_TEMPLATE")
+file(REMOVE "library/base-auto.cc")
+fileToSource("library/base.cc" "library/base-auto.cc" "BASE_TEMPLATE")
 
-add_library(libprotogen_static STATIC "library/proto3.cc")
+add_library(libprotogen_static STATIC
+    "library/proto3.cc"
+    "library/base-auto.cc"
+    "library/cppgen.cc" )
 target_include_directories(libprotogen_static
     PUBLIC "include/")
 
-add_executable(protogen "compiler/main.cc" "compiler/json.cc" "compiler/base-auto.cc")
+add_executable(protogen
+    "compiler/main.cc")
 target_link_libraries(protogen libprotogen_static)
