@@ -7,7 +7,7 @@ using protogen::Message;
 using protogen::Field;
 
 
-#define IS_VALID_TYPE(x)      ( (x) >= protogen::TYPE_DOUBLE && (x) <= protogen::TYPE_BYTES )
+#define IS_VALID_TYPE(x)      ( (x) >= protogen::TYPE_DOUBLE && (x) <= protogen::TYPE_MESSAGE )
 #define IS_NUMERIC_TYPE(x)    ( (x) >= protogen::TYPE_DOUBLE && (x) <= protogen::TYPE_SFIXED64 )
 
 
@@ -96,6 +96,9 @@ static std::string nativeType( const Field &field )
         throw protogen::exception("Invalid field type");
 }
 
+/**
+ * Translates protobuf3 types to C++ types.
+ */
 static std::string fieldNativeType( const Field &field )
 {
     std::string output = "protogen::";
@@ -236,13 +239,19 @@ static void generateRepeatedSerializer( std::ostream &out, const Field &field )
 
 static void generateDeserializer( std::ostream &out, const Message &message )
 {
-    out << indent(1) << "void deserialize( const std::string &json ) {\n";
+    out << indent(1) << "bool deserialize( const std::string &json ) {\n";
     out << indent(2) << "protogen::InputStream<std::string::const_iterator> in(json.begin(), json.end());\n";
-    out << indent(2) << "if (in.get() != '{') return;\n";
+    out << indent(2) << "return this->deserialize(in);\n";
+    out << indent(1) << "}\n";
+
+    out << indent(1) << "template<typename T>\n";
+    out << indent(1) << "bool deserialize( protogen::InputStream<T> &in ) {\n";
+    out << indent(2) << "in.skip_ws();\n";
+    out << indent(2) << "if (in.get() != '{') return false;\n";
     out << indent(2) << "std::string name;\n";
     out << indent(2) << "while (true) {\n";
     out << indent(3) << "name.clear();\n";
-    out << indent(3) << "if (!protogen::JSON::readName(in, name)) break;\n";
+    out << indent(3) << "if (!protogen::json::readName(in, name)) break;\n";
 
     bool first = true;
 
@@ -253,26 +262,33 @@ static void generateDeserializer( std::ostream &out, const Message &message )
         if (!first) out << indent(3) << "else\n";
 
         out << indent(3) << "if (name == \"" << it->name << "\") {\n";
-        out << indent(4) << nativeType(*it) << " value;\n";
+
 
         if (it->repeated)
-            out << indent(4) << "if (!protogen::JSON::readArray(in, " << fieldStorage(*it) << "())) break;\n";
+        {
+            std::string function = "readArray";
+            if (it->type == protogen::TYPE_MESSAGE) function = "readMessageArray";
+            out << indent(4) << "if (!protogen::json::" << function << "(in, " << fieldStorage(*it) << "())) return false;\n";
+        }
         else
         {
             if (it->type >= protogen::TYPE_DOUBLE && it->type <= protogen::TYPE_BYTES)
-                out << indent(4) << "if (!protogen::JSON::read(in, value)) break;\n";
+            {
+                out << indent(4) << nativeType(*it) << " value;\n";
+                out << indent(4) << "if (!protogen::json::readValue(in, value)) return false;\n";
+                out << indent(4) << fieldStorage(*it) << "(value);\n";
+            }
             else
-
-
-            out << indent(4) << fieldStorage(*it) << "(value);\n";
+            if (it->type == protogen::TYPE_MESSAGE)
+                out << indent(4) << "if (!" << fieldStorage(*it) << "().deserialize(in)) return false;\n";
         }
-        out << indent(4) << "if (!protogen::JSON::next(in)) break;\n";
+        out << indent(4) << "if (!protogen::json::next(in)) return false;\n";
         out << indent(3) << "}\n";
         first = false;
     }
     out << indent(3) << "else\n";
-    out << indent(4) << "protogen::JSON::ignore(in);\n";
-    out << indent(2) << "}\n" << indent(1) << "}\n\n";
+    out << indent(4) << "if (!protogen::json::ignore(in)) return false;\n";
+    out << indent(2) << "}\n" << indent(1) << "return true; }\n\n";
 }
 
 
@@ -296,9 +312,9 @@ static void generateSerializer( std::ostream &out, const Message &message )
             out << "if (!" << fieldStorage(*it) << ".undefined()) ";
 
         if (it->type == protogen::TYPE_MESSAGE)
-            out << "protogen::JSON::writeMessage(out, first, \"" << it->name << "\", " << storage << ");\n";
+            out << "protogen::json::writeMessage(out, first, \"" << it->name << "\", " << storage << ");\n";
         else
-            out << "protogen::JSON::write(out, first, \"" << it->name << "\", " << storage << ");\n";
+            out << "protogen::json::write(out, first, \"" << it->name << "\", " << storage << ");\n";
     }
     out << indent(2) << "out << '}';\n";
     out << indent(1) << "}\n";
