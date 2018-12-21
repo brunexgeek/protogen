@@ -42,8 +42,7 @@ template<typename T> struct traits
     static bool isMessage() { return false; }
     static bool isNumber() { return true; }
     static bool isString() { return false; }
-    //static T defaultValue() { return 0; };
-    static void clear( T &value ) { value = 0; }
+    static void clear( T &value ) { value = (T) 0; }
 };
 
 template<> struct traits<std::string>
@@ -51,7 +50,6 @@ template<> struct traits<std::string>
     static bool isMessage() { return false; }
     static bool isNumber() { return false; }
     static bool isString() { return true; }
-    //static const std::string &defaultValue() { static std::string value; return value; };
     static void clear( std::string &value ) { value.clear(); }
 };
 
@@ -94,6 +92,7 @@ class Message
 {
     public:
         virtual void serialize( std::ostream &out ) const = 0;
+        virtual bool deserialize( std::istream &in ) = 0;
         virtual void clear() = 0;
 };
 

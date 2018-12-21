@@ -239,9 +239,15 @@ static void generateRepeatedSerializer( std::ostream &out, const Field &field )
 
 static void generateDeserializer( std::ostream &out, const Message &message )
 {
-    out << indent(1) << "bool deserialize( const std::string &json ) {\n";
-    out << indent(2) << "protogen::InputStream<std::string::const_iterator> in(json.begin(), json.end());\n";
-    out << indent(2) << "return this->deserialize(in);\n";
+    out << indent(1) << "bool deserialize( std::istream &in ) {\n";
+    out << indent(2) << "bool skip = in.flags() & std::ios_base::skipws;\n";
+    out << indent(2) << "std::noskipws(in);\n";
+    out << indent(2) << "std::istream_iterator<char> itb(in);\n";
+    out << indent(2) << "std::istream_iterator<char> ite;\n";
+    out << indent(2) << "protogen::InputStream< std::istream_iterator<char> > is(itb, ite);\n";
+    out << indent(2) << "bool result = this->deserialize(is);\n";
+    out << indent(2) << "if (skip) std::skipws(in);\n";
+    out << indent(2) << "return result;\n";
     out << indent(1) << "}\n";
 
     out << indent(1) << "template<typename T>\n";
@@ -390,7 +396,8 @@ static void generateModel( std::ostream &out, const Proto3 &proto )
     out << "\n\n#ifndef GUARD_HH\n";
     out << "#define GUARD_HH\n\n";
     out << "#include <string>\n";
-    out << "#include <stdint.h>\n\n";
+    out << "#include <stdint.h>\n";
+    out << "#include <iterator>\n\n";
 
     // base template
     out << '\n' << BASE_TEMPLATE << '\n';
