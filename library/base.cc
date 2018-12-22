@@ -96,7 +96,8 @@ class Message
         virtual void clear() = 0;
 };
 
-template <typename Iter> class InputStream {
+template <typename Iter> class InputStream
+{
     protected:
         Iter cur_, end_;
         int last_ch_, prev_;
@@ -188,276 +189,276 @@ template <typename Iter> class InputStream {
 
 namespace json {
 
-    // numeric types
-    template<typename T>
-    static void write( std::ostream &out, bool &first, const std::string &name, const T &value )
-    {
-        if (!first) out << ',';
-        out << '"' << name << "\" : " << value;
-        first = false;
-    }
+// numeric types
+template<typename T>
+static void write( std::ostream &out, bool &first, const std::string &name, const T &value )
+{
+    if (!first) out << ',';
+    out << '"' << name << "\" : " << value;
+    first = false;
+}
 
-    // boolean
-    static void write( std::ostream &out, bool &first, const std::string &name, const bool &value)
-    {
-        if (!first) out << ',';
-        out << '"' << name << "\" : " << ((value) ? "true" : "false");
-        first = false;
-    }
+// boolean
+static void write( std::ostream &out, bool &first, const std::string &name, const bool &value)
+{
+    if (!first) out << ',';
+    out << '"' << name << "\" : " << ((value) ? "true" : "false");
+    first = false;
+}
 
-    // string
-    static void write( std::ostream &out, bool &first, const std::string &name, const std::string &value)
+// string
+static void write( std::ostream &out, bool &first, const std::string &name, const std::string &value)
+{
+    if (!first) out << ',';
+    out << '"' << name << "\" : \"";
+    for (std::string::const_iterator it = value.begin(); it != value.end(); ++it)
     {
-        if (!first) out << ',';
-        out << '"' << name << "\" : \"";
-        for (std::string::const_iterator it = value.begin(); it != value.end(); ++it)
+        switch (*it)
         {
-            switch (*it)
+            case '"':  out << "\\\""; break;
+            case '\\': out << "\\\\"; break;
+            case '/':  out << "\\/"; break;
+            case '\b': out << "\\b"; break;
+            case '\f': out << "\\f"; break;
+            case '\r': out << "\\r"; break;
+            case '\n': out << "\\n"; break;
+            case '\t': out << "\\t"; break;
+            default:   out << *it;
+        }
+    }
+    out << '"';
+    first = false;
+}
+
+// message
+static void writeMessage( std::ostream &out, bool &first, const std::string &name, const Message &value)
+{
+    if (!first) out << ',';
+    out << '"' << name << "\" : ";
+    value.serialize(out);
+    first = false;
+}
+
+template<typename I>
+static bool next( InputStream<I> &in )
+{
+    in.skip_ws();
+    int ch = in.get();
+    if (ch == ',') return true;
+    if (ch == '}' || ch == ']')
+    {
+        in.unget();
+        return true;
+    }
+    return false;
+}
+
+template<typename I>
+static bool readValue( InputStream<I> &in, std::string &value )
+{
+    in.skip_ws();
+    if (in.get() != '"') return false;
+    while (1)
+    {
+        int c = in.get();
+        if (c == '"') return true;
+
+        if (c == '\\')
+        {
+            c = in.get();
+            switch (c)
             {
-                case '"':  out << "\\\""; break;
-                case '\\': out << "\\\\"; break;
-                case '/':  out << "\\/"; break;
-                case '\b': out << "\\b"; break;
-                case '\f': out << "\\f"; break;
-                case '\r': out << "\\r"; break;
-                case '\n': out << "\\n"; break;
-                case '\t': out << "\\t"; break;
-                default:   out << *it;
+                case '"':  c = '"'; break;
+                case '\\': c = '\\'; break;
+                case '/':  c = '/'; break;
+                case 'b':  c = '\b'; break;
+                case 'f':  c = '\f'; break;
+                case 'r':  c = '\r'; break;
+                case 'n':  c = '\n'; break;
+                case 't':  c = '\t'; break;
             }
         }
-        out << '"';
-        first = false;
+
+        if (c <= 0) return false;
+        value += (char) c;
     }
 
-    // message
-    static void writeMessage( std::ostream &out, bool &first, const std::string &name, const Message &value)
-    {
-        if (!first) out << ',';
-        out << '"' << name << "\" : ";
-        value.serialize(out);
-        first = false;
-    }
+    return false;
+}
 
-    template<typename I>
-    static bool next( InputStream<I> &in )
+template<typename I, typename T>
+static bool readValue( InputStream<I> &in, T &value )
+{
+    in.skip_ws();
+    std::string temp;
+    while (true)
     {
-        in.skip_ws();
         int ch = in.get();
-        if (ch == ',') return true;
-        if (ch == '}' || ch == ']')
+        if (ch != '.' && (ch < '0' || ch > '9'))
         {
             in.unget();
-            return true;
+            break;
         }
-        return false;
+        temp += (char) ch;
     }
+    if (temp.empty()) return false;
 
-    template<typename I>
-    static bool readValue( InputStream<I> &in, std::string &value )
+    static locale_t loc = newlocale(LC_NUMERIC_MASK | LC_MONETARY_MASK, "C", 0);
+    if (loc == 0) return false;
+    uselocale(loc);
+    value = (T) strtod(temp.c_str(), NULL);
+    uselocale(LC_GLOBAL_LOCALE);
+    return true;
+}
+
+template<typename I>
+static bool readValue( InputStream<I> &in, bool &value )
+{
+    in.skip_ws();
+    std::string temp;
+    while (true)
     {
-        in.skip_ws();
-        if (in.get() != '"') return false;
-        while (1)
+        int ch = in.get();
+        switch (ch)
         {
-            int c = in.get();
-            if (c == '"') return true;
-
-            if (c == '\\')
-            {
-                c = in.get();
-                switch (c)
-                {
-                    case '"':  c = '"'; break;
-                    case '\\': c = '\\'; break;
-                    case '/':  c = '/'; break;
-                    case 'b':  c = '\b'; break;
-                    case 'f':  c = '\f'; break;
-                    case 'r':  c = '\r'; break;
-                    case 'n':  c = '\n'; break;
-                    case 't':  c = '\t'; break;
-                }
-            }
-
-            if (c <= 0) return false;
-            value += (char) c;
+            case 't':
+            case 'r':
+            case 'u':
+            case 'e':
+            case 'f':
+            case 'a':
+            case 'l':
+            case 's':
+                temp += (int) ch;
+                break;
+            default:
+                in.unget();
+                goto ESCAPE;
         }
-
+    }
+ESCAPE:
+    if (temp == "true")
+        value = true;
+    else
+    if (temp == "false")
+        value = false;
+    else
         return false;
+    return true;
+}
+
+template<typename I, typename T>
+static bool readMessageArray( InputStream<I> &in, std::vector<T> &array )
+{
+    in.skip_ws();
+    if (in.get() != '[') return false;
+    in.skip_ws();
+    while (true)
+    {
+        T value;
+        value.deserialize(in);
+        array.push_back(value);
+        in.skip_ws();
+        if (!in.expect(',')) break;
+    }
+    if (in.get() != ']') return false;
+
+    return true;
+}
+
+template<typename I, typename T>
+static bool readArray( InputStream<I> &in, std::vector<T> &array )
+{
+    in.skip_ws();
+    if (in.get() != '[') return false;
+    in.skip_ws();
+    while (true)
+    {
+        T value;
+        if (!readValue(in, value)) return false;
+        array.push_back(value);
+        in.skip_ws();
+        if (!in.expect(',')) break;
+    }
+    if (in.get() != ']') return false;
+
+    return true;
+}
+
+template<typename I>
+static bool readName( InputStream<I> &in, std::string &name )
+{
+    if (!readValue(in, name)) return false;
+    in.skip_ws();
+    return (in.get() == ':');
+}
+
+template<typename I>
+static bool ignoreEnclosing( InputStream<I> &in, int begin, int end )
+{
+    in.skip_ws();
+    if (in.get() != begin) return false;
+
+    int count = 1;
+
+    bool text = false;
+    while (count != 0 && !in.eof())
+    {
+        int ch = in.get();
+        std::cerr << "-- '" << (char)ch << '\'' << std::endl;
+        if (in.prev() != '\\' && ch == '"' && begin != '"')
+            text = !text;
+        else
+        if (!text)
+        {
+            if (ch == end)
+                --count;
+            else
+            if (ch == begin)
+                ++count;
+        }
     }
 
-    template<typename I, typename T>
-    static bool readValue( InputStream<I> &in, T &value )
+    in.skip_ws();
+    if (in.get() != ',') in.unget();
+
+    return count == 0;
+}
+
+
+template<typename I>
+static bool ignore( InputStream<I> &in )
+{
+    in.skip_ws();
+    int ch = in.get();
+    in.unget();
+    if (ch == '[')
+        return ignoreEnclosing(in, '[', ']');
+    else
+    if (ch == '{')
+        return ignoreEnclosing(in, '{', '}');
+    else
+    if (ch == '"')
+        return ignoreEnclosing(in, '"', '"');
+    else
     {
-        in.skip_ws();
-        std::string temp;
-        while (true)
+        while (!in.eof())
         {
             int ch = in.get();
-            if (ch != '.' && (ch < '0' || ch > '9'))
+            if (ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r' || ch == ',')
             {
                 in.unget();
-                break;
-            }
-            temp += (char) ch;
-        }
-        if (temp.empty()) return false;
-
-        static locale_t loc = newlocale(LC_NUMERIC_MASK | LC_MONETARY_MASK, "C", 0);
-        if (loc == 0) return false;
-        uselocale(loc);
-        value = (T) strtod(temp.c_str(), NULL);
-        uselocale(LC_GLOBAL_LOCALE);
-        return true;
-    }
-
-    template<typename I>
-    static bool readValue( InputStream<I> &in, bool &value )
-    {
-        in.skip_ws();
-        std::string temp;
-        while (true)
-        {
-            int ch = in.get();
-            switch (ch)
-            {
-                case 't':
-                case 'r':
-                case 'u':
-                case 'e':
-                case 'f':
-                case 'a':
-                case 'l':
-                case 's':
-                    temp += (int) ch;
-                    break;
-                default:
-                    in.unget();
-                    goto ESCAPE;
+                return true;
             }
         }
-    ESCAPE:
-        if (temp == "true")
-            value = true;
-        else
-        if (temp == "false")
-            value = false;
-        else
-            return false;
-        return true;
-    }
-
-    template<typename I, typename T>
-    static bool readMessageArray( InputStream<I> &in, std::vector<T> &array )
-    {
-        in.skip_ws();
-        if (in.get() != '[') return false;
-        in.skip_ws();
-        while (true)
-        {
-            T value;
-            value.deserialize(in);
-            array.push_back(value);
-            in.skip_ws();
-            if (!in.expect(',')) break;
-        }
-        if (in.get() != ']') return false;
-
-        return true;
-    }
-
-    template<typename I, typename T>
-    static bool readArray( InputStream<I> &in, std::vector<T> &array )
-    {
-        in.skip_ws();
-        if (in.get() != '[') return false;
-        in.skip_ws();
-        while (true)
-        {
-            T value;
-            if (!readValue(in, value)) return false;
-            array.push_back(value);
-            in.skip_ws();
-            if (!in.expect(',')) break;
-        }
-        if (in.get() != ']') return false;
-
-        return true;
-    }
-
-    template<typename I>
-    static bool readName( InputStream<I> &in, std::string &name )
-    {
-        if (!readValue(in, name)) return false;
-        in.skip_ws();
-        return (in.get() == ':');
-    }
-
-    template<typename I>
-    static bool ignoreEnclosing( InputStream<I> &in, int begin, int end )
-    {
-        in.skip_ws();
-        if (in.get() != begin) return false;
-
-        int count = 1;
-
-        bool text = false;
-        while (count != 0 && !in.eof())
-        {
-            int ch = in.get();
-            std::cerr << "-- '" << (char)ch << '\'' << std::endl;
-            if (in.prev() != '\\' && ch == '"' && begin != '"')
-                text = !text;
-            else
-            if (!text)
-            {
-                if (ch == end)
-                    --count;
-                else
-                if (ch == begin)
-                    ++count;
-            }
-        }
-
         in.skip_ws();
         if (in.get() != ',') in.unget();
-
-        return count == 0;
     }
 
+    return false;
+}
 
-    template<typename I>
-    static bool ignore( InputStream<I> &in )
-    {
-        in.skip_ws();
-        int ch = in.get();
-        in.unget();
-        if (ch == '[')
-            return ignoreEnclosing(in, '[', ']');
-        else
-        if (ch == '{')
-            return ignoreEnclosing(in, '{', '}');
-        else
-        if (ch == '"')
-            return ignoreEnclosing(in, '"', '"');
-        else
-        {
-            while (!in.eof())
-            {
-                int ch = in.get();
-                if (ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r' || ch == ',')
-                {
-                    in.unget();
-                    return true;
-                }
-            }
-            in.skip_ws();
-            if (in.get() != ',') in.unget();
-        }
-
-        return false;
-    }
-};
-
+} // namespace json
 } // namespace protogen
 
 #endif // PROTOGEN_TEMPLATES

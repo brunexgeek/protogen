@@ -330,6 +330,17 @@ template <typename Iter> class Tokenizer
                 while ((cur = is.getc()) != '\n') temp.value += (char) cur;
                 return temp;
             }
+            else
+            if (cur == '*')
+            {
+                while (true)
+                {
+                    cur = is.getc();
+                    if (cur == '*' && is.expect('/')) return temp;
+                    if (cur < 0) return Token();
+                    temp.value += (char) cur;
+                }
+            }
 
             return Token();
         }
@@ -479,7 +490,6 @@ Proto3 *Proto3::parse( std::istream &input )
     Proto3 *output = new Proto3();
 
     try {
-
         do
         {
             tok.next();
