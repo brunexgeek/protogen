@@ -20,6 +20,6 @@ class CppGenerator : public Generator
         void generate( Proto3 &proto, std::ostream &out );
 };
 
-};
+}
 
 #endif // PROTOGEN_API_H
