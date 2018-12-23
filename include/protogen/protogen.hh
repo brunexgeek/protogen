@@ -10,14 +10,14 @@ namespace protogen {
 class Generator
 {
     public:
-        virtual void generate( Proto3 &proto, std::ostream &out ) = 0;
+        virtual void generate( Proto3 &proto, std::ostream &out, const std::string &fileName ) = 0;
 };
 
 
 class CppGenerator : public Generator
 {
     public:
-        void generate( Proto3 &proto, std::ostream &out );
+        void generate( Proto3 &proto, std::ostream &out, const std::string &fileName = "" );
 };
 
 }

@@ -19,6 +19,7 @@ Create a ``.proto`` file:
 message Person {
     string name = 1;
     int age = 2;
+    repeated string colors = 3;
 }
 ```
 
@@ -38,7 +39,12 @@ Include the generated header file in your source code to use the classes:
 Person girl;
 girl.name("Michelle");
 girl.age(24);
+girl.colors().push_back("yellow");
 girl.serialize(std::cout);
+
+...
+
+girl.deserialize(std::cin);
 ```
 
 Compile your program as usual (no additional library is required).
@@ -69,7 +75,7 @@ Supported field types:
 
 Proto3 syntax features:
 - [x] Line comments
-- [ ] Block comments
+- [x] Block comments
 - [ ] Packages
 - [ ] Imports
 - [ ] Options
@@ -84,4 +90,5 @@ Proto3 parser:
 - Messages used by other messages *must* be declared first;
 
 JSON parser:
-- Strings do not support ``\u`` to specify unicode endpoints
+- Strings do not support ``\u`` to specify unicode endpoints;
+- ``null`` values are not recognized.
