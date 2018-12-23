@@ -76,7 +76,7 @@ Supported field types:
 Proto3 syntax features:
 - [x] Line comments
 - [x] Block comments
-- [ ] Packages
+- [x] Packages
 - [ ] Imports
 - [ ] Options
 

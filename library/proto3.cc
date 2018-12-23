@@ -3,12 +3,8 @@
 #include <sstream>
 
 
-#ifndef PICOJSON_ASSERT
-# define PICOJSON_ASSERT(e) do { if (! (e)) throw exception(#e); } while (0)
-#endif
-
-#define IS_LETTER(x)   ( ((x) >= 'A' && (x) <= 'Z') || ((x) >= 'a' && (x) <= 'z') || (x) == '_' )
-#define IS_DIGIT(x)    ( (x) >= '0' && (x) <= '9' )
+#define IS_LETTER(x)           ( ((x) >= 'A' && (x) <= 'Z') || ((x) >= 'a' && (x) <= 'z') || (x) == '_' )
+#define IS_DIGIT(x)            ( (x) >= '0' && (x) <= '9' )
 #define IS_LETTER_OR_DIGIT(x)  ( IS_LETTER(x) || IS_DIGIT(x) )
 
 
@@ -40,6 +36,8 @@
 #define TOKEN_COMMENT          26
 #define TOKEN_ENUM             27
 #define TOKEN_SCOLON           28
+#define TOKEN_PACKAGE          29
+#define TOKEN_QNAME            30
 
 
 static const char *TOKENS[] =
@@ -72,6 +70,8 @@ static const char *TOKENS[] =
     "TOKEN_COMMENT",
     "TOKEN_ENUM",
     "TOKEN_SCOLON",
+    "TOKEN_PACKAGE",
+    "TOKEN_QNAME"
 };
 
 static const char *TYPES[] =
@@ -103,9 +103,11 @@ static const struct
 {
     { TOKEN_MESSAGE     , "message" },
     { TOKEN_REPEATED    , "repeated" },
+    { TOKEN_T_STRING    , "string" },
     { TOKEN_ENUM        , "enum" },
     { TOKEN_T_DOUBLE    , "double" },
     { TOKEN_T_FLOAT     , "float" },
+    { TOKEN_T_BOOL      , "bool" },
     { TOKEN_T_INT32     , "int32" },
     { TOKEN_T_INT64     , "int64" },
     { TOKEN_T_UINT32    , "uint32" },
@@ -116,9 +118,8 @@ static const struct
     { TOKEN_T_FIXED64   , "fixed64" },
     { TOKEN_T_SFIXED32  , "sfixed32" },
     { TOKEN_T_SFIXED64  , "sfixed64" },
-    { TOKEN_T_BOOL      , "bool" },
-    { TOKEN_T_STRING    , "string" },
     { TOKEN_T_BYTES     , "bytes" },
+    { TOKEN_PACKAGE     , "package" },
     { 0, nullptr },
 };
 
@@ -147,20 +148,36 @@ const std::string exception::cause() const
     return ss.str();
 }
 
-template <typename Iter> class InputStream {
+template <typename Iter> class InputStream
+{
     protected:
         Iter cur_, end_;
-        int last_ch_;
+        int last_ch_, prev_;
         bool ungot_;
         int line_, column_;
     public:
         InputStream( const Iter& first, const Iter& last ) : cur_(first), end_(last),
-            last_ch_(-1), ungot_(false), line_(1), column_(1)
+            last_ch_(-1), prev_(-1), ungot_(false), line_(1), column_(1)
         {
         }
 
-        int getc()
+        bool eof()
         {
+            return last_ch_ == -2;
+        }
+
+        int prev()
+        {
+            if (prev_ >= 0)
+                return prev_;
+            else
+                return -1;
+        }
+
+        int get()
+        {
+            if (!ungot_) prev_ = last_ch_;
+
             if (ungot_)
             {
                 ungot_ = false;
@@ -169,7 +186,7 @@ template <typename Iter> class InputStream {
 
             if (cur_ == end_)
             {
-                last_ch_ = -1;
+                last_ch_ = -2;
                 return -1;
             }
             if (last_ch_ == '\n')
@@ -183,16 +200,16 @@ template <typename Iter> class InputStream {
             return last_ch_;
         }
 
-        void ungetc()
+        void unget()
         {
-            if (last_ch_ != -1)
+            if (last_ch_ >= 0)
             {
-                PICOJSON_ASSERT(! ungot_);
+                if (ungot_) throw std::runtime_error("unable to unget");
                 ungot_ = true;
             }
         }
 
-        Iter cur() const { return cur_; }
+        int cur() const { return *cur_; }
 
         int line() const { return line_; }
 
@@ -201,10 +218,10 @@ template <typename Iter> class InputStream {
         void skip_ws()
         {
             while (1) {
-                int ch = getc();
+                int ch = get();
                 if (! (ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r'))
                 {
-                    ungetc();
+                    unget();
                     break;
                 }
             }
@@ -212,24 +229,10 @@ template <typename Iter> class InputStream {
 
         bool expect(int expect)
         {
-            skip_ws();
-            if (getc() != expect)
+            if (get() != expect)
             {
-                ungetc();
+                unget();
                 return false;
-            }
-            return true;
-        }
-
-        bool match(const std::string& pattern)
-        {
-            for (std::string::const_iterator pi(pattern.begin()); pi != pattern.end(); ++pi)
-            {
-                if (getc() != *pi)
-                {
-                    ungetc();
-                    return false;
-                }
             }
             return true;
         }
@@ -275,7 +278,7 @@ template <typename Iter> class Tokenizer
             while (true)
             {
                 is.skip_ws();
-                int cur = is.getc();
+                int cur = is.get();
                 if (cur < 0) break;
 
                 if (IS_LETTER(cur))
@@ -323,11 +326,11 @@ template <typename Iter> class Tokenizer
         Token comment()
         {
             Token temp(TOKEN_COMMENT, "");
-            int cur = is.getc();
+            int cur = is.get();
 
             if (cur == '/')
             {
-                while ((cur = is.getc()) != '\n') temp.value += (char) cur;
+                while ((cur = is.get()) != '\n') temp.value += (char) cur;
                 return temp;
             }
             else
@@ -335,7 +338,7 @@ template <typename Iter> class Tokenizer
             {
                 while (true)
                 {
-                    cur = is.getc();
+                    cur = is.get();
                     if (cur == '*' && is.expect('/')) return temp;
                     if (cur < 0) return Token();
                     temp.value += (char) cur;
@@ -350,22 +353,26 @@ template <typename Iter> class Tokenizer
             Token temp(TOKEN_NAME, "");
             if (first != 0) temp.value += (char) first;
             int cur = -1;
-            while ((cur = is.getc()) >= 0)
+            while ((cur = is.get()) >= 0)
             {
-                if (!IS_LETTER_OR_DIGIT(cur) /*&& cur != '.'*/)
+                if (!IS_LETTER_OR_DIGIT(cur) && cur != '.')
                 {
-                    is.ungetc();
+                    is.unget();
                     break;
                 }
+                if (cur == '.') temp.code = TOKEN_QNAME;
                 temp.value += (char)cur;
             }
 
-            for (int i = 0; KEYWORDS[i].keyword != nullptr; ++i)
+            if (temp.code == TOKEN_NAME)
             {
-                if (temp.value == KEYWORDS[i].keyword)
+                for (int i = 0; KEYWORDS[i].keyword != nullptr; ++i)
                 {
-                    temp.code = KEYWORDS[i].code;
-                    break;
+                    if (temp.value == KEYWORDS[i].keyword)
+                    {
+                        temp.code = KEYWORDS[i].code;
+                        break;
+                    }
                 }
             }
 
@@ -379,10 +386,10 @@ template <typename Iter> class Tokenizer
 
             do
             {
-                int cur = is.getc();
+                int cur = is.get();
                 if (!IS_DIGIT(cur))
                 {
-                    is.ungetc();
+                    is.unget();
                     return tt;
                 }
                 tt.value += (char) cur;
@@ -397,7 +404,7 @@ template <typename Iter> class Tokenizer
 
             do
             {
-                int cur = is.getc();
+                int cur = is.get();
                 if (cur == '\n' || cur == 0) return Token();
                 if (cur == '"') return tt;
                 tt.value += (char) cur;
@@ -406,6 +413,23 @@ template <typename Iter> class Tokenizer
             return tt;
         }
 };
+
+
+template<typename T>
+struct Context
+{
+    Tokenizer<T> &tokens;
+    std::string package;
+    Proto3 &tree;
+
+    Context( Tokenizer<T> tokenizer, Proto3 &tree ) : tokens(tokenizer),
+        tree(tree)
+    {
+    }
+};
+
+
+typedef Context< std::istream_iterator<char> > ProtoContext;
 
 
 Field::Field() : type(TYPE_DOUBLE), index(0), repeated(false)
@@ -422,62 +446,94 @@ Proto3::~Proto3()
 }
 
 
-template <typename Iter>
-static Field parseField( Tokenizer<Iter> &tk )
+static void parseField( ProtoContext &ctx, Message &message )
 {
     Field field;
 
-    if (tk.current.code == TOKEN_REPEATED)
+    if (ctx.tokens.current.code == TOKEN_REPEATED)
     {
         field.repeated = true;
-        tk.next();
+        ctx.tokens.next();
     }
 
-    if (tk.current.code >= TOKEN_T_DOUBLE && tk.current.code <= TOKEN_T_BYTES)
-        field.type = (FieldType) tk.current.code;
+    if (ctx.tokens.current.code >= TOKEN_T_DOUBLE && ctx.tokens.current.code <= TOKEN_T_BYTES)
+        field.type = (FieldType) ctx.tokens.current.code;
     else
-    if (tk.current.code == TOKEN_NAME)
+    if (ctx.tokens.current.code == TOKEN_NAME)
     {
         field.type = (FieldType) TOKEN_T_MESSAGE;
-        field.typeName = tk.current.value;
+        field.typeName = ctx.tokens.current.value;
     }
     else
         throw exception("Missing field type");
 
-    if (tk.next().code != TOKEN_NAME) throw exception("Missing field name");
-    field.name = tk.current.value;
-    if (tk.next().code != TOKEN_EQUAL) throw exception("Expected '='");
-    if (tk.next().code != TOKEN_INTEGER) throw exception("Missing field index");
-    field.index = (int) strtol(tk.current.value.c_str(), nullptr, 10);
-    if (tk.next().code != TOKEN_SCOLON) throw exception("Expected ';'");
+    if (ctx.tokens.next().code != TOKEN_NAME) throw exception("Missing field name");
+    field.name = ctx.tokens.current.value;
+    if (ctx.tokens.next().code != TOKEN_EQUAL) throw exception("Expected '='");
+    if (ctx.tokens.next().code != TOKEN_INTEGER) throw exception("Missing field index");
+    field.index = (int) strtol(ctx.tokens.current.value.c_str(), nullptr, 10);
+    if (ctx.tokens.next().code != TOKEN_SCOLON) throw exception("Expected ';'");
 
-    return field;
+    message.fields.push_back(field);
 }
 
 
-template <typename Iter>
-static Message parseMessage( Tokenizer<Iter> &tk )
+static void parseMessage( ProtoContext &ctx )
 {
-    if (tk.current.code == TOKEN_MESSAGE && tk.next().code == TOKEN_NAME)
+    if (ctx.tokens.current.code == TOKEN_MESSAGE && ctx.tokens.next().code == TOKEN_NAME)
     {
         Message message;
-        message.name = tk.current.value;
-        if (tk.next().code == TOKEN_BEGIN)
+        message.name = ctx.tokens.current.value;
+        if (ctx.tokens.next().code == TOKEN_BEGIN)
         {
-            while (tk.next().code != TOKEN_END)
+            while (ctx.tokens.next().code != TOKEN_END)
             {
-                message.fields.push_back(parseField(tk));
+                parseField(ctx, message);
             }
-            return message;
         }
-
+        message.package = ctx.package;
+        ctx.tree.messages.push_back(message);
     }
-
-    throw exception("Invalid message");
+    else
+        throw exception("Invalid message");
 }
 
 
-Proto3 *Proto3::parse( std::istream &input )
+static void parsePackage( ProtoContext &ctx )
+{
+    Token tt = ctx.tokens.next();
+    if ((tt.code == TOKEN_NAME || tt.code == TOKEN_QNAME) && ctx.tokens.next().code == TOKEN_SCOLON)
+    {
+        ctx.package = tt.value;
+    }
+    else
+        throw exception("Invalid package");
+}
+
+
+static void parseProto( ProtoContext &ctx )
+{
+    try {
+        do
+        {
+            ctx.tokens.next();
+            if (ctx.tokens.current.code == TOKEN_MESSAGE)
+                parseMessage(ctx);
+            else
+            if (ctx.tokens.current.code == TOKEN_PACKAGE)
+                parsePackage(ctx);
+        } while (ctx.tokens.current.code != 0);
+    } catch (exception &ex)
+    {
+        //ex.line = is.line();
+        //ex.column = is.column();
+        std::cerr << ex.cause() << std::endl;
+        throw ex;
+    }
+}
+
+
+void Proto3::parse( std::istream &input, Proto3 &tree )
 {
     std::ios_base::fmtflags flags = input.flags();
     std::noskipws(input);
@@ -487,29 +543,13 @@ Proto3 *Proto3::parse( std::istream &input )
     InputStream< std::istream_iterator<char> > is(begin, end);
     Tokenizer< std::istream_iterator<char> > tok(is);
 
-    Proto3 *output = new Proto3();
-
-    try {
-        do
-        {
-            tok.next();
-            if (tok.current.code == TOKEN_MESSAGE)
-            {
-                output->messages.push_back(parseMessage(tok));
-            }
-        } while (tok.current.code != 0);
-    } catch (exception &ex)
-    {
-        ex.line = is.line();
-        ex.column = is.column();
-        std::cerr << ex.cause() << std::endl;
-        throw ex;
-    }
+    ProtoContext ctx(tok, tree);
+    parseProto(ctx);
 
     if (flags & std::ios::skipws) std::skipws(input);
-
-    return output;
 }
+
+
 
 
 } // protogen

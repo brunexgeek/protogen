@@ -55,6 +55,7 @@ class Message
     public:
         std::vector<Field> fields;
         std::string name;
+        std::string package;
 
         operator std::string() const;
 };
@@ -65,14 +66,16 @@ class Proto3
     public:
         std::vector<Message> messages;
 
+        Proto3();
+
         ~Proto3();
 
-        static Proto3 *parse( std::istream &input );
+        static void parse( std::istream &input, Proto3 &tree );
 
         operator std::string() const;
 
     private:
-        Proto3();
+
 };
 
 

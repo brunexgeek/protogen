@@ -13,9 +13,9 @@ int main( int argc, char **argv )
         text << argv[1];
         input = &text;
     }
-    protogen::Proto3 *proto = protogen::Proto3::parse(*input);
+    protogen::Proto3 proto;
+    protogen::Proto3::parse(*input, proto);
     protogen::CppGenerator gen;
-    if (proto != nullptr)
-        gen.generate(*proto, std::cout);
+    gen.generate(proto, std::cout);
     return 0;
 }

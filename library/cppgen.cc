@@ -74,6 +74,22 @@ static std::string toUpper( const std::string &value )
 #endif
 
 
+static std::string nativePackage( const std::string &package, bool append = true )
+{
+    if (package.empty()) return "";
+
+    std::string name;
+
+    for (auto it = package.begin(); it != package.end(); ++it)
+        if (*it == '.')
+            name += "::";
+        else
+            name += *it;
+    if (append) name += "::";
+    return name;
+}
+
+
 static std::string fieldStorage( const Field &field, bool qualified = true )
 {
     if (!qualified)
@@ -313,12 +329,12 @@ static void generateTrait( Printer &printer, const Message &message )
 {
     printer(
         "namespace protogen {\n"
-        "\ttemplate<> struct traits<$1$> {\n"
+        "\ttemplate<> struct traits<$1$$2$> {\n"
         "\tstatic bool isMessage() { return true; }\n"
         "static bool isNumber() { return false; }\n"
         "static bool isString() { return false; }\n"
-        "static void clear( $1$ &value ) { (void) value; }\n"
-        "\b};\n\b}", message.name);
+        "static void clear( $1$$2$ &value ) { (void) value; }\n"
+        "\b};\n\b}\n", nativePackage(message.package), message.name);
 }
 
 static void generateClear( Printer &printer, const Message &message )
@@ -335,7 +351,11 @@ static void generateMessage( Printer &printer, const Message &message )
 {
     generateTrait(printer, message);
 
-    printer("\nclass $1$ : public protogen::Message {\npublic:\n\t", message.name);
+    if (!message.package.empty())
+        printer("namespace $1$ {\n", nativePackage(message.package, false));
+
+    printer(
+        "\nclass $1$ : public protogen::Message {\npublic:\n\t", message.name);
 
     for (auto it = message.fields.begin(); it != message.fields.end(); ++it)
     {
@@ -359,8 +379,11 @@ static void generateMessage( Printer &printer, const Message &message )
     generateDeserializer(printer, message);
     // clear function
     generateClear(printer, message);
-
+    // close class declaration
     printer("\b};\n");
+
+    if (!message.package.empty())
+        printer("} // namespace $1$\n", message.package);
 }
 
 
@@ -381,7 +404,10 @@ static void generateModel( Printer &printer, const Proto3 &proto, const std::str
     printer("\n// forward declarations\n");
     for (auto it = proto.messages.begin(); it != proto.messages.end(); ++it)
     {
-        printer("class $1$;\n", it->name);
+        if (!it->package.empty())
+            printer("namespace $1$ { class $2$; }\n", nativePackage(it->package, false), it->name);
+        else
+            printer("class $1$;\n", it->name);
     }
     // message declarations
     for (auto it = proto.messages.begin(); it != proto.messages.end(); ++it)
