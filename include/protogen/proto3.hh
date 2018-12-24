@@ -36,11 +36,18 @@ enum FieldType
 #endif // PROTOGEN_FIELD_TYPES
 
 
+struct TypeInfo
+{
+    FieldType id;
+    std::string name;
+};
+
+
 class Field
 {
     public:
-        FieldType type;
-        std::string typeName;
+        TypeInfo type;
+        TypeInfo valueType;
         std::string name;
         int index;
         bool repeated;

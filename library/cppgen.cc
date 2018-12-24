@@ -105,14 +105,14 @@ static std::string fieldStorage( const Field &field, bool qualified = true )
 static std::string nativeType( const Field &field )
 {
 
-    if (field.type >= protogen::TYPE_DOUBLE && field.type <= protogen::TYPE_BYTES)
+    if (field.type.id >= protogen::TYPE_DOUBLE && field.type.id <= protogen::TYPE_BYTES)
     {
-        int index = (int)field.type - (int)protogen::TYPE_DOUBLE;
+        int index = (int)field.type.id - (int)protogen::TYPE_DOUBLE;
         return TYPE_MAPPING[index].nativeType;
     }
     else
-    if (field.type == protogen::TYPE_MESSAGE)
-        return field.typeName;
+    if (field.type.id == protogen::TYPE_MESSAGE)
+        return field.type.name;
     else
         throw protogen::exception("Invalid field type");
 }
@@ -129,14 +129,14 @@ static std::string fieldNativeType( const Field &field )
     else
         output += "Field<";
 
-    if (field.type >= protogen::TYPE_DOUBLE && field.type <= protogen::TYPE_BYTES)
+    if (field.type.id >= protogen::TYPE_DOUBLE && field.type.id <= protogen::TYPE_BYTES)
     {
-        int index = (int)field.type - (int)protogen::TYPE_DOUBLE;
+        int index = (int)field.type.id - (int)protogen::TYPE_DOUBLE;
         output += TYPE_MAPPING[index].nativeType;
     }
     else
-    if (field.type == protogen::TYPE_MESSAGE)
-        output += field.typeName;
+    if (field.type.id == protogen::TYPE_MESSAGE)
+        output += field.type.name;
     else
         throw protogen::exception("Invalid field type");
 
@@ -230,7 +230,7 @@ static void generateDeserializer( Printer &printer, const Message &message )
 
     for (auto it = message.fields.begin(); it != message.fields.end(); ++it)
     {
-        if (!IS_VALID_TYPE(it->type)) continue;
+        if (!IS_VALID_TYPE(it->type.id)) continue;
 
         if (!first) printer("else\n");
         printer("if (name == \"$1$\") {\n\t", it->name);
@@ -238,12 +238,12 @@ static void generateDeserializer( Printer &printer, const Message &message )
         if (it->repeated)
         {
             std::string function = "readArray";
-            if (it->type == protogen::TYPE_MESSAGE) function = "readMessageArray";
+            if (it->type.id == protogen::TYPE_MESSAGE) function = "readMessageArray";
             printer("if (!protogen::json::$1$(in, $2$())) return false;\n", function, fieldStorage(*it));
         }
         else
         {
-            if (it->type >= protogen::TYPE_DOUBLE && it->type <= protogen::TYPE_BYTES)
+            if (it->type.id >= protogen::TYPE_DOUBLE && it->type.id <= protogen::TYPE_BYTES)
             {
                 printer(
                     "$1$ value;\n"
@@ -251,7 +251,7 @@ static void generateDeserializer( Printer &printer, const Message &message )
                     "$2$(value);\n", nativeType(*it), fieldStorage(*it));
             }
             else
-            if (it->type == protogen::TYPE_MESSAGE)
+            if (it->type.id == protogen::TYPE_MESSAGE)
                 printer("if (!$1$().deserialize(in)) return false;\n", fieldStorage(*it));
         }
         printer("if (!protogen::json::next(in)) return false;\n");
@@ -283,16 +283,16 @@ static void generateRepeatedSerializer( Printer &printer, const Field &field )
     storage = "(*it)";
 
     // message fields
-    if (field.type == protogen::TYPE_MESSAGE)
+    if (field.type.id == protogen::TYPE_MESSAGE)
         printer("$1$.serialize(out);\n", storage);
     else
     {
         // numerical field
-        if (field.type >= protogen::TYPE_DOUBLE && field.type <= protogen::TYPE_SFIXED64)
+        if (field.type.id >= protogen::TYPE_DOUBLE && field.type.id <= protogen::TYPE_SFIXED64)
             printer("out << $1$;\n", storage);
         else
         // string fields
-        if (field.type == protogen::TYPE_STRING)
+        if (field.type.id == protogen::TYPE_STRING)
             printer("out << '\"' << $1$ << '\"';\n", storage);
     }
     printer("\b}\nout << \" ]\"; \n\b};\n");
@@ -315,11 +315,11 @@ static void generateSerializer( Printer &printer, const Message &message )
         }
         std::string storage = fieldStorage(*it) + "()";
 
-        if (it->type != protogen::TYPE_MESSAGE)
+        if (it->type.id != protogen::TYPE_MESSAGE)
             printer("if (!$1$.undefined()) ", fieldStorage(*it));
 
         printer("protogen::json::write$1$(out, first, \"$2$\", $3$);\n",
-            (it->type == protogen::TYPE_MESSAGE) ? "Message" : "",
+            (it->type.id == protogen::TYPE_MESSAGE) ? "Message" : "",
             it->name, storage);
     }
     printer("out << '}';\n\b}\n");

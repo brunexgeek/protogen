@@ -7,6 +7,7 @@
 #define IS_DIGIT(x)            ( (x) >= '0' && (x) <= '9' )
 #define IS_LETTER_OR_DIGIT(x)  ( IS_LETTER(x) || IS_DIGIT(x) )
 
+#define IS_VALID_TYPE(x)      ( (x) >= protogen::TYPE_DOUBLE && (x) <= protogen::TYPE_MESSAGE )
 
 #define TOKEN_NONE             0
 #define TOKEN_MESSAGE          1
@@ -38,6 +39,10 @@
 #define TOKEN_SCOLON           28
 #define TOKEN_PACKAGE          29
 #define TOKEN_QNAME            30
+#define TOKEN_LT               31
+#define TOKEN_GT               32
+#define TOKEN_MAP              33
+#define TOKEN_COMMA            34
 
 
 static const char *TOKENS[] =
@@ -71,7 +76,11 @@ static const char *TOKENS[] =
     "TOKEN_ENUM",
     "TOKEN_SCOLON",
     "TOKEN_PACKAGE",
-    "TOKEN_QNAME"
+    "TOKEN_QNAME",
+    "TOKEN_LT",
+    "TOKEN_GT",
+    "TOKEN_MAP",
+    "TOKEN_COMMA",
 };
 
 static const char *TYPES[] =
@@ -120,6 +129,7 @@ static const struct
     { TOKEN_T_SFIXED64  , "sfixed64" },
     { TOKEN_T_BYTES     , "bytes" },
     { TOKEN_PACKAGE     , "package" },
+    { TOKEN_MAP         , "map" },
     { 0, nullptr },
 };
 
@@ -311,6 +321,15 @@ template <typename Iter> class Tokenizer
                 if (cur == ';')
                     current = Token(TOKEN_SCOLON);
                 else
+                if (cur == ',')
+                    current = Token(TOKEN_COMMA);
+                else
+                if (cur == '<')
+                    current = Token(TOKEN_LT);
+                else
+                if (cur == '>')
+                    current = Token(TOKEN_GT);
+                else
                     throw exception("Invalid symbol");
 
                 //std::cout << current << std::endl;
@@ -432,7 +451,7 @@ struct Context
 typedef Context< std::istream_iterator<char> > ProtoContext;
 
 
-Field::Field() : type(TYPE_DOUBLE), index(0), repeated(false)
+Field::Field() : index(0), repeated(false)
 {
 }
 
@@ -456,22 +475,43 @@ static void parseField( ProtoContext &ctx, Message &message )
         ctx.tokens.next();
     }
 
+    // type
     if (ctx.tokens.current.code >= TOKEN_T_DOUBLE && ctx.tokens.current.code <= TOKEN_T_BYTES)
-        field.type = (FieldType) ctx.tokens.current.code;
+        field.type.id = (FieldType) ctx.tokens.current.code;
     else
     if (ctx.tokens.current.code == TOKEN_NAME)
     {
-        field.type = (FieldType) TOKEN_T_MESSAGE;
-        field.typeName = ctx.tokens.current.value;
+        field.type.id = (FieldType) TOKEN_T_MESSAGE;
+        field.type.name = ctx.tokens.current.value;
+    }
+    else
+    if (ctx.tokens.current.code == TOKEN_MAP)
+    {
+        if (ctx.tokens.next().code != TOKEN_LT) throw exception("Missing <");
+
+        // key type
+        if (ctx.tokens.next().code != TOKEN_T_STRING) throw exception("Key type must be 'string'");
+        field.type.id = (FieldType) ctx.tokens.current.code;
+        // comma
+        if (ctx.tokens.next().code != TOKEN_COMMA) throw exception("Missing comma");
+        //value type
+        if (ctx.tokens.next().code != TOKEN_T_STRING) throw exception("Key type must be 'string'");
+        field.type.id = (FieldType) ctx.tokens.current.code;
+
+        if (ctx.tokens.next().code != TOKEN_GT) throw exception("Missing >");
     }
     else
         throw exception("Missing field type");
 
+    // name
     if (ctx.tokens.next().code != TOKEN_NAME) throw exception("Missing field name");
     field.name = ctx.tokens.current.value;
+    // equal symbol
     if (ctx.tokens.next().code != TOKEN_EQUAL) throw exception("Expected '='");
+    // index
     if (ctx.tokens.next().code != TOKEN_INTEGER) throw exception("Missing field index");
     field.index = (int) strtol(ctx.tokens.current.value.c_str(), nullptr, 10);
+    // semi-colon
     if (ctx.tokens.next().code != TOKEN_SCOLON) throw exception("Expected ';'");
 
     message.fields.push_back(field);
@@ -560,10 +600,10 @@ std::ostream &operator<<( std::ostream &out, protogen::Field &field )
 {
     if (field.repeated)
         out << "repeated ";
-    if (field.type >= TOKEN_T_DOUBLE && field.type <= TOKEN_T_BYTES)
-        out << TYPES[field.type - TOKEN_T_DOUBLE];
+    if (field.type.id >= TOKEN_T_DOUBLE && field.type.id <= TOKEN_T_BYTES)
+        out << TYPES[field.type.id - TOKEN_T_DOUBLE];
     else
-        out << field.typeName;
+        out << field.type.name;
     out << ' ' << field.name << " = " << field.index << ";";
     return out;
 }
