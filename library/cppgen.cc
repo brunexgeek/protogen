@@ -76,12 +76,9 @@ static std::string nativePackage( const std::vector<std::string> &package, bool 
 }
 
 
-static std::string fieldStorage( const Field &field, bool qualified = true )
+static std::string fieldStorage( const Field &field )
 {
-    if (!qualified)
-        return toLower(field.name);
-    else
-        return "this->" + toLower(field.name);
+    return field.name;
 }
 
 
@@ -134,15 +131,15 @@ static std::string fieldNativeType( const Field &field )
 static void generateVariable( Printer &printer, const Field &field )
 {
     // storage variable
-    printer("$1$ $2$;\n", fieldNativeType(field),fieldStorage(field, false));
+    printer("$1$ $2$;\n", fieldNativeType(field),fieldStorage(field));
 }
 
 
 static void generateCopyCtor( Printer &printer, const Message &message )
 {
     printer("$1$(const $1$ &that) {\n\t", message.name);
-    for (auto it = message.fields.begin(); it != message.fields.end(); ++it)
-        printer("this->$1$ = that.$1$;\n", it->name);
+    for (auto fi = message.fields.begin(); fi != message.fields.end(); ++fi)
+        printer("this->$1$ = that.$1$;\n", fieldStorage(*fi));
     printer("\b}\n");
 }
 
@@ -152,12 +149,9 @@ static void generateMoveCtor( Printer &printer, const Message &message )
     printer(
         "#if __cplusplus >= 201103L\n"
         "$1$($1$ &&that) {\n\t", message.name);
-    for (auto it = message.fields.begin(); it != message.fields.end(); ++it)
+    for (auto fi = message.fields.begin(); fi != message.fields.end(); ++fi)
     {
-        //if (it->repeated || it->type == protogen::TYPE_MESSAGE)
-            printer("this->$1$ = std::move(that.$1$);\n", it->name);
-        //else
-        //    printer("this->$1$ = that.$1$;\n", it->name);
+        printer("this->$1$ = std::move(that.$1$);\n", fieldStorage(*fi));
     }
     printer("\b}\n#endif\n");
 }
@@ -166,8 +160,8 @@ static void generateMoveCtor( Printer &printer, const Message &message )
 static void generateAssignOperator( Printer &printer, const Message &message )
 {
     printer("$1$ &operator=(const $1$ &that) {\n\t", message.name);
-    for (auto it = message.fields.begin(); it != message.fields.end(); ++it)
-        printer("this->$1$ = that.$1$;\n", it->name);
+    for (auto fi = message.fields.begin(); fi != message.fields.end(); ++fi)
+        printer("this->$1$ = that.$1$;\n", fieldStorage(*fi));
     printer("return *this;\n\b}\n");
 }
 
@@ -177,10 +171,10 @@ static void generateEqualityOperator( Printer &printer, const Message &message )
     printer(
         "bool operator==(const $1$&that) const {\n"
         "\treturn\n\t", message.name);
-    for (auto it = message.fields.begin(); it != message.fields.end(); ++it)
+    for (auto fi = message.fields.begin(); fi != message.fields.end(); ++fi)
     {
-        printer("this->$1$ == that.$1$", it->name);
-        if (it + 1 != message.fields.end())
+        printer("this->$1$ == that.$1$", fieldStorage(*fi));
+        if (fi + 1 != message.fields.end())
             printer(" &&\n");
         else
             printer(";\n");
@@ -191,6 +185,7 @@ static void generateEqualityOperator( Printer &printer, const Message &message )
 
 static void generateDeserializer( Printer &printer, const Message &message )
 {
+    // deserializer receiving a 'istream'
     printer(
         "bool deserialize( std::istream &in ) {\n"
         "\tbool skip = in.flags() & std::ios_base::skipws;\n"
@@ -203,6 +198,13 @@ static void generateDeserializer( Printer &printer, const Message &message )
         "\treturn result;\n"
         "\b\b}\n"
 
+    // deserializer receiving a 'string'
+        "bool deserialize( std::string &in ) {\n"
+        "\tprotogen::InputStream<std::string::const_iterator> is(in.begin(), in.end());\n"
+        "return this->deserialize(is);\n"
+        "\b}\n"
+
+    // 'real' deserializer
         "template<typename T>\n"
         "bool deserialize( protogen::InputStream<T> &in ) {\n"
         "\tin.skip_ws();\n"
@@ -214,31 +216,31 @@ static void generateDeserializer( Printer &printer, const Message &message )
 
     bool first = true;
 
-    for (auto it = message.fields.begin(); it != message.fields.end(); ++it)
+    for (auto fi = message.fields.begin(); fi != message.fields.end(); ++fi)
     {
-        if (!IS_VALID_TYPE(it->type.id)) continue;
+        if (!IS_VALID_TYPE(fi->type.id)) continue;
 
         if (!first) printer("else\n");
-        printer("if (name == \"$1$\") {\n\t", it->name);
+        printer("if (name == \"$1$\") {\n\t", fieldStorage(*fi));
 
-        if (it->repeated)
+        if (fi->repeated)
         {
             std::string function = "readArray";
-            if (it->type.id == protogen::TYPE_MESSAGE) function = "readMessageArray";
-            printer("if (!protogen::json::$1$(in, $2$())) return false;\n", function, fieldStorage(*it));
+            if (fi->type.id == protogen::TYPE_MESSAGE) function = "readMessageArray";
+            printer("if (!protogen::json::$1$(in, this->$2$())) return false;\n", function, fieldStorage(*fi));
         }
         else
         {
-            if (it->type.id >= protogen::TYPE_DOUBLE && it->type.id <= protogen::TYPE_BYTES)
+            if (fi->type.id >= protogen::TYPE_DOUBLE && fi->type.id <= protogen::TYPE_BYTES)
             {
                 printer(
                     "$1$ value;\n"
                     "if (!protogen::json::readValue(in, value)) return false;\n"
-                    "$2$(value);\n", nativeType(*it), fieldStorage(*it));
+                    "this->$2$(value);\n", nativeType(*fi), fieldStorage(*fi));
             }
             else
-            if (it->type.id == protogen::TYPE_MESSAGE)
-                printer("if (!$1$().deserialize(in)) return false;\n", fieldStorage(*it));
+            if (fi->type.id == protogen::TYPE_MESSAGE)
+                printer("if (!this->$1$().deserialize(in)) return false;\n", fieldStorage(*fi));
         }
         printer("if (!protogen::json::next(in)) return false;\n");
         printer("\b}\n"); // closes the main 'if'
@@ -253,7 +255,7 @@ static void generateDeserializer( Printer &printer, const Message &message )
 
 static void generateRepeatedSerializer( Printer &printer, const Field &field )
 {
-    std::string storage = fieldStorage(field);
+    std::string storage = "this->" + fieldStorage(field);
 
     printer(
         "if ($1$().size() > 0) {\n\t"
@@ -288,25 +290,34 @@ static void generateRepeatedSerializer( Printer &printer, const Field &field )
 static void generateSerializer( Printer &printer, const Message &message )
 {
     printer(
+        // serializer writing to 'string'
+        "void serialize( std::string &out ) const {\n"
+        "\tstd::stringstream ss;\n"
+        "serialize(ss);\n"
+        "out = ss.str();\n\b}\n"
+
+        // serializer writing to 'ostream'
         "void serialize( std::ostream &out ) const {\n"
         "\tout << '{';\n"
         "bool first = true;\n");
-    for (auto it = message.fields.begin(); it != message.fields.end(); ++it)
+    for (auto fi = message.fields.begin(); fi != message.fields.end(); ++fi)
     {
-        printer("// $1$\n", it->name);
-        if (it->repeated)
+        std::string storage = fieldStorage(*fi);
+
+        printer("// $1$\n", storage);
+        if (fi->repeated)
         {
-            generateRepeatedSerializer(printer, *it);
+            generateRepeatedSerializer(printer, *fi);
             continue;
         }
-        std::string storage = fieldStorage(*it) + "()";
+        ;
 
-        if (it->type.id != protogen::TYPE_MESSAGE)
-            printer("if (!$1$.undefined()) ", fieldStorage(*it));
+        if (fi->type.id != protogen::TYPE_MESSAGE)
+            printer("if (!this->$1$.undefined()) ", storage);
 
-        printer("protogen::json::write$1$(out, first, \"$2$\", $3$);\n",
-            (it->type.id == protogen::TYPE_MESSAGE) ? "Message" : "",
-            it->name, storage);
+        printer("protogen::json::write$1$(out, first, \"$2$\", this->$2$());\n",
+            (fi->type.id == protogen::TYPE_MESSAGE) ? "Message" : "",
+            storage);
     }
     printer("out << '}';\n\b}\n");
 }
@@ -326,9 +337,9 @@ static void generateTrait( Printer &printer, const Message &message )
 static void generateClear( Printer &printer, const Message &message )
 {
     printer("void clear() {\n\t");
-    for (auto it = message.fields.begin(); it != message.fields.end(); ++it)
+    for (auto fi = message.fields.begin(); fi != message.fields.end(); ++fi)
     {
-        printer("this->$1$$2$.clear();\n", it->name, (it->repeated) ? "()" : "");
+        printer("this->$1$$2$.clear();\n", fieldStorage(*fi), (fi->repeated) ? "()" : "");
     }
     printer("\b}\n");
 }
@@ -359,10 +370,10 @@ static void generateMessage( Printer &printer, const Message &message )
     printer(
         "\nclass $1$ : public protogen::Message {\npublic:\n\t", message.name);
 
-    for (auto it = message.fields.begin(); it != message.fields.end(); ++it)
+    for (auto fi = message.fields.begin(); fi != message.fields.end(); ++fi)
     {
         // storage variable
-        generateVariable(printer, *it);
+        generateVariable(printer, *fi);
     }
 
     // default constructor
@@ -415,21 +426,22 @@ static void generateModel( Printer &printer, const Proto3 &proto )
         "#define $4$\n\n"
         "#include <string>\n"
         "#include <stdint.h>\n"
-        "#include <iterator>\n\n"
+        "#include <iterator>\n"
+        "#include <sstream>\n"
         // base template
-        "$2$\n", PROTOGEN_VERSION, BASE_TEMPLATE, proto.fileName, guard);
+        "\n$2$\n", PROTOGEN_VERSION, BASE_TEMPLATE, proto.fileName, guard);
 
     // forward declarations
     printer("\n// forward declarations\n");
-    for (auto it = proto.messages.begin(); it != proto.messages.end(); ++it)
+    for (auto mi = proto.messages.begin(); mi != proto.messages.end(); ++mi)
     {
-        generateNamespace(printer, *it, true);
-        printer("\tclass $1$;\n\b", it->name);
-        generateNamespace(printer, *it, false);
+        generateNamespace(printer, *mi, true);
+        printer("\tclass $1$;\n\b", mi->name);
+        generateNamespace(printer, *mi, false);
     }
     // message declarations
-    for (auto it = proto.messages.begin(); it != proto.messages.end(); ++it)
-        generateMessage(printer, *it);
+    for (auto mi = proto.messages.begin(); mi != proto.messages.end(); ++mi)
+        generateMessage(printer, *mi);
 
     printer("#endif // $1$\n", guard);
 }
