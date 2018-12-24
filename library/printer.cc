@@ -50,7 +50,7 @@ void Printer::print( const char *format, const std::vector<std::string> &vars )
 
             ptr = end + 1;
             //std::cerr << index << "  " << vars[0] << std::endl;;
-            if (index < 0 || index >= vars.size()) continue;
+            if (index < 0 || index >= (int) vars.size()) continue;
 
             if (newLine_)
             {

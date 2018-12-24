@@ -61,7 +61,7 @@ template<typename T> class Field
     public:
         Field() { clear(); flags = 1; }
 #if __cplusplus >= 201103L
-        Field( T &&that ) { that.value = this.value; that.flags = this.flags; }
+        Field( T &&that ) { that.value = this->value; that.flags = this->flags; }
 #endif
         const T &operator()() const { return value; }
         T &operator()() { return value; }
@@ -70,8 +70,8 @@ template<typename T> class Field
         void clear() { traits<T>::clear(value); flags |= 1; }
         //Field<T> &operator=( const T &value ) { this->value = value; this->flags &= ~1; return *this; }
         Field<T> &operator=( const Field<T> &that ) { this->value = that.value; this->flags = that.flags; return *this; }
-        bool operator==( const T &that ) const { return this->value == that && (this.flags & 1) == 0; }
-        bool operator==( const Field<T> &that ) const { return this->value == that.value && this.flags == that.flags; }
+        bool operator==( const T &that ) const { return this->value == that && (this->flags & 1) == 0; }
+        bool operator==( const Field<T> &that ) const { return this->value == that.value && this->flags == that.flags; }
 };
 
 template<typename T> class RepeatedField
@@ -81,7 +81,7 @@ template<typename T> class RepeatedField
     public:
         RepeatedField() {}
 #if __cplusplus >= 201103L
-        RepeatedField( T &&that ) { that.value = std::move(this.value); }
+        RepeatedField( T &&that ) { that.value = std::move(this->value); }
 #endif
         const std::vector<T> &operator()() const { return value; }
         std::vector<T> &operator()() { return value; }

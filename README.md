@@ -26,7 +26,7 @@ message Person {
 Compile ``.proto`` files using ``protogen`` program:
 
 ```
-# ./protogen < model.proto > model.hh
+# ./protogen model.proto model.hh
 ```
 
 Include the generated header file in your source code to use the classes:

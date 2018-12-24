@@ -39,20 +39,6 @@ static struct {
 };
 
 
-static const char *indent( int level = 1 )
-{
-    switch (level)
-    {
-        case 1: return "\t";
-        case 2: return "\t\t";
-        case 3: return "\t\t\t";
-        case 4: return "\t\t\t\t";
-        case 5: return "\t\t\t\t\t";
-    }
-    return "";
-}
-
-
 static std::string toLower( const std::string &value )
 {
     std::string output = value;
@@ -449,7 +435,7 @@ static void generateModel( Printer &printer, const Proto3 &proto )
 }
 
 
-void CppGenerator::generate( Proto3 &proto, std::ostream &out, const std::string &fileName )
+void CppGenerator::generate( Proto3 &proto, std::ostream &out )
 {
     Printer printer(out);
     generateModel(printer, proto);

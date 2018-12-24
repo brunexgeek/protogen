@@ -154,7 +154,7 @@ const char *exception::what() const throw()
 const std::string exception::cause() const
 {
     std::stringstream ss;
-    ss << message << ' ' << line << ':' << column;
+    ss << message << " (" << line << ':' << column << ')';
     return ss.str();
 }
 
@@ -440,8 +440,10 @@ struct Context
     Tokenizer<T> &tokens;
     std::string package;
     Proto3 &tree;
+    InputStream<T> &is;
 
-    Context( Tokenizer<T> tokenizer, Proto3 &tree ) : tokens(tokenizer), tree(tree)
+    Context( Tokenizer<T> tokenizer, Proto3 &tree, InputStream<T> &is ) :
+        tokens(tokenizer), tree(tree), is(is)
     {
     }
 };
@@ -483,6 +485,7 @@ static void parseField( ProtoContext &ctx, Message &message )
         field.type.id = (FieldType) TOKEN_T_MESSAGE;
         field.type.name = ctx.tokens.current.value;
     }
+# if 0
     else
     if (ctx.tokens.current.code == TOKEN_MAP)
     {
@@ -499,6 +502,7 @@ static void parseField( ProtoContext &ctx, Message &message )
 
         if (ctx.tokens.next().code != TOKEN_GT) throw exception("Missing >");
     }
+#endif
     else
         throw exception("Missing field type");
 
@@ -573,7 +577,8 @@ static void parsePackage( ProtoContext &ctx )
 
 static void parseProto( ProtoContext &ctx )
 {
-    try {
+    try
+    {
         do
         {
             ctx.tokens.next();
@@ -585,9 +590,8 @@ static void parseProto( ProtoContext &ctx )
         } while (ctx.tokens.current.code != 0);
     } catch (exception &ex)
     {
-        //ex.line = is.line();
-        //ex.column = is.column();
-        std::cerr << ex.cause() << std::endl;
+        ex.line = ctx.is.line();
+        ex.column = ctx.is.column();
         throw ex;
     }
 }
@@ -603,11 +607,18 @@ void Proto3::parse( Proto3 &tree, std::istream &input, std::string fileName )
     InputStream< std::istream_iterator<char> > is(begin, end);
     Tokenizer< std::istream_iterator<char> > tok(is);
 
-    ProtoContext ctx(tok, tree);
+    ProtoContext ctx(tok, tree, is);
     tree.fileName = fileName;
-    parseProto(ctx);
 
-    if (flags & std::ios::skipws) std::skipws(input);
+    try
+    {
+        parseProto(ctx);
+        if (flags & std::ios::skipws) std::skipws(input);
+    } catch (exception &ex)
+    {
+        if (flags & std::ios::skipws) std::skipws(input);
+        throw ex;
+    }
 }
 
 

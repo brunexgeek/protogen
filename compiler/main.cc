@@ -17,9 +17,17 @@ int main( int argc, char **argv )
     if (input.good() && output.good())
     {
         protogen::Proto3 proto;
-        protogen::Proto3::parse(proto, input, argv[1]);
-        protogen::CppGenerator gen;
-        gen.generate(proto, output);
+        try
+        {
+            protogen::Proto3::parse(proto, input, argv[1]);
+            protogen::CppGenerator gen;
+            gen.generate(proto, output);
+        } catch (protogen::exception &ex)
+        {
+            std::cerr << "ERROR: " << ex.cause() << std::endl;
+        }
+        input.close();
+        output.close();
     }
     return 0;
 }
