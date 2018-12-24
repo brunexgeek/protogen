@@ -62,7 +62,7 @@ class Message
     public:
         std::vector<Field> fields;
         std::string name;
-        std::string package;
+        std::vector<std::string> package;
 
         operator std::string() const;
 };
@@ -72,12 +72,13 @@ class Proto3
 {
     public:
         std::vector<Message> messages;
+        std::string fileName;
 
         Proto3();
 
         ~Proto3();
 
-        static void parse( std::istream &input, Proto3 &tree );
+        static void parse( Proto3 &tree, std::istream &input, std::string fileName = "");
 
         operator std::string() const;
 

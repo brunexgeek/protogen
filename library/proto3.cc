@@ -441,8 +441,7 @@ struct Context
     std::string package;
     Proto3 &tree;
 
-    Context( Tokenizer<T> tokenizer, Proto3 &tree ) : tokens(tokenizer),
-        tree(tree)
+    Context( Tokenizer<T> tokenizer, Proto3 &tree ) : tokens(tokenizer), tree(tree)
     {
     }
 };
@@ -518,6 +517,27 @@ static void parseField( ProtoContext &ctx, Message &message )
 }
 
 
+static void splitPackage(
+    std::vector<std::string> &out,
+    const std::string &package )
+{
+    std::string current;
+
+    const char *ptr = package.c_str();
+    while (true)
+    {
+        if (*ptr == '.' || *ptr == 0)
+        {
+            out.push_back(current);
+            current.clear();
+            if (*ptr == 0) break;
+        }
+        else
+            current += *ptr;
+        ++ptr;
+    }
+}
+
 static void parseMessage( ProtoContext &ctx )
 {
     if (ctx.tokens.current.code == TOKEN_MESSAGE && ctx.tokens.next().code == TOKEN_NAME)
@@ -531,7 +551,7 @@ static void parseMessage( ProtoContext &ctx )
                 parseField(ctx, message);
             }
         }
-        message.package = ctx.package;
+        splitPackage(message.package, ctx.package);
         ctx.tree.messages.push_back(message);
     }
     else
@@ -573,7 +593,7 @@ static void parseProto( ProtoContext &ctx )
 }
 
 
-void Proto3::parse( std::istream &input, Proto3 &tree )
+void Proto3::parse( Proto3 &tree, std::istream &input, std::string fileName )
 {
     std::ios_base::fmtflags flags = input.flags();
     std::noskipws(input);
@@ -584,6 +604,7 @@ void Proto3::parse( std::istream &input, Proto3 &tree )
     Tokenizer< std::istream_iterator<char> > tok(is);
 
     ProtoContext ctx(tok, tree);
+    tree.fileName = fileName;
     parseProto(ctx);
 
     if (flags & std::ios::skipws) std::skipws(input);

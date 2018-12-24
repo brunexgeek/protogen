@@ -1,21 +1,25 @@
 #include <protogen/proto3.hh>
 #include <protogen/protogen.hh>
-#include <sstream>
-
+#include <fstream>
 
 
 int main( int argc, char **argv )
 {
-    std::istream *input = &std::cin;
-    std::stringstream text;
-    if (argc == 2)
+    if (argc != 3)
     {
-        text << argv[1];
-        input = &text;
+        std::cerr << "Usage: protogen <proto3 file> <output file>\n";
+        exit(EXIT_FAILURE);
     }
-    protogen::Proto3 proto;
-    protogen::Proto3::parse(*input, proto);
-    protogen::CppGenerator gen;
-    gen.generate(proto, std::cout);
+
+    std::ifstream input(argv[1]);
+    std::ofstream output(argv[2], std::ios_base::ate);
+
+    if (input.good() && output.good())
+    {
+        protogen::Proto3 proto;
+        protogen::Proto3::parse(proto, input, argv[1]);
+        protogen::CppGenerator gen;
+        gen.generate(proto, output);
+    }
     return 0;
 }

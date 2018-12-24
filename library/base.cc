@@ -1,6 +1,5 @@
-#ifndef PROTOGEN_TEMPLATES
-#define PROTOGEN_TEMPLATES
-
+#ifndef PROTOGEN_BASE
+#define PROTOGEN_BASE
 
 #include <iostream>
 #include <string>
@@ -12,7 +11,6 @@
 #endif
 
 namespace protogen {
-
 
 #ifndef PROTOGEN_FIELD_TYPES
 #define PROTOGEN_FIELD_TYPES
@@ -38,7 +36,6 @@ enum FieldType
 };
 
 #endif // PROTOGEN_FIELD_TYPES
-
 
 template<typename T> struct traits
 {
@@ -77,7 +74,6 @@ template<typename T> class Field
         bool operator==( const Field<T> &that ) const { return this->value == that.value && this.flags == that.flags; }
 };
 
-
 template<typename T> class RepeatedField
 {
     protected:
@@ -92,7 +88,6 @@ template<typename T> class RepeatedField
         bool undefined() const { return value.size() == 0; }
         bool operator==( const RepeatedField<T> &that ) const { return this->value == that.value; }
 };
-
 
 class Message
 {
@@ -191,7 +186,6 @@ template <typename Iter> class InputStream
             return true;
         }
 };
-
 
 namespace json {
 
@@ -431,7 +425,6 @@ static bool ignoreEnclosing( InputStream<I> &in, int begin, int end )
     return count == 0;
 }
 
-
 template<typename I>
 static bool ignore( InputStream<I> &in )
 {
@@ -467,4 +460,4 @@ static bool ignore( InputStream<I> &in )
 } // namespace json
 } // namespace protogen
 
-#endif // PROTOGEN_TEMPLATES
+#endif // PROTOGEN_BASE
