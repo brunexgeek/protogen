@@ -17,7 +17,6 @@
 #include <protogen/exception.hh>
 #include <sstream>
 
-
 namespace protogen {
 
 

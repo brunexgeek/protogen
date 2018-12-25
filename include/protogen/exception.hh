@@ -22,6 +22,8 @@
 
 namespace protogen {
 
+class Token;
+
 class exception : public std::exception
 {
     public:

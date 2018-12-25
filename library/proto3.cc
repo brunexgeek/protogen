@@ -24,6 +24,7 @@
 #define IS_LETTER_OR_DIGIT(x)  ( IS_LETTER(x) || IS_DIGIT(x) )
 
 #define IS_VALID_TYPE(x)      ( (x) >= protogen::TYPE_DOUBLE && (x) <= protogen::TYPE_MESSAGE )
+#define TOKEN_POSITION(t)     (t).line, (t).column
 
 #define TOKEN_NONE             0
 #define TOKEN_MESSAGE          1
@@ -159,13 +160,14 @@ template <typename I> class InputStream
 {
     protected:
         I cur_, end_;
-        int last_, prev_;
+        int last_;
         bool ungot_;
-        int line_, column_;
+        int line_, column_; // current position
+        //int pline_, pcolumn_; // previous position
 
     public:
         InputStream( const I& first, const I& last ) : cur_(first), end_(last),
-            last_(-1), prev_(-1), ungot_(false), line_(1), column_(1)
+            last_(-1), ungot_(false), line_(1), column_(0)
         {
         }
 
@@ -174,22 +176,13 @@ template <typename I> class InputStream
             return last_ == -2;
         }
 
-        int prev()
-        {
-            if (prev_ >= 0)
-                return prev_;
-            else
-                return -1;
-        }
-
         int get()
         {
-            if (!ungot_) prev_ = last_;
-
-            if (ungot_)
+            // the last character was a line feed?
+            if (last_ == '\n')
             {
-                ungot_ = false;
-                return last_;
+                ++line_;
+                column_ = 0;
             }
 
             if (cur_ == end_)
@@ -197,14 +190,17 @@ template <typename I> class InputStream
                 last_ = -2;
                 return -1;
             }
-            if (last_ == '\n')
+
+            if (!ungot_)
             {
-                line_++;
-                column_ = 1;
+                last_ = *cur_ & 0xFF;
+                ++cur_;
+                ++column_;
             }
-            last_ = *cur_ & 0xFF;
-            ++cur_;
-            ++column_;
+
+            //std::cerr << "Found '" << (char) last_ << "' at " << line_ << ':' << column_ << std::endl;
+
+            ungot_ = false;
             return last_;
         }
 
@@ -251,13 +247,18 @@ struct Token
 {
     int code;
     std::string value;
+    int line, column;
 
-    Token( int code = TOKEN_NONE ) : code(code)
+    Token( int code = TOKEN_NONE, const std::string &value = "", int line = 1, int column = 1) :
+        code(code), value(value), line(line), column(column)
     {
     }
 
-    Token( int code, const std::string &value ) : code(code), value(value)
+    template<typename I>
+    Token( int code, const std::string &value, InputStream<I> &is ) : code(code), value(value)
     {
+        line = is.line();
+        column = is.column() - value.length();
     }
 
 };
@@ -277,14 +278,18 @@ template <typename I> class Tokenizer
             while (true)
             {
                 is.skipws();
+
+                int line = is.line();
+                int column = is.column();
+
                 int cur = is.get();
                 if (cur < 0) break;
 
                 if (IS_LETTER(cur))
-                    current = identifier(cur);
+                    current = identifier(cur, line, column);
                 else
                 if (IS_DIGIT(cur))
-                    current = integer(cur);
+                    current = integer(cur, line, column);
                 else
                 if (cur == '/')
                 {
@@ -296,28 +301,28 @@ template <typename I> class Tokenizer
                     continue;
                 else
                 if (cur == '"')
-                    current = literalString();
+                    current = literalString(line, column);
                 else
                 if (cur == '=')
-                    current = Token(TOKEN_EQUAL);
+                    current = Token(TOKEN_EQUAL, "", line, column);
                 else
                 if (cur == '{')
-                    current = Token(TOKEN_BEGIN);
+                    current = Token(TOKEN_BEGIN, "", line, column);
                 else
                 if (cur == '}')
-                    current = Token(TOKEN_END);
+                    current = Token(TOKEN_END, "", line, column);
                 else
                 if (cur == ';')
-                    current = Token(TOKEN_SCOLON);
+                    current = Token(TOKEN_SCOLON, "", line, column);
                 else
                 if (cur == ',')
-                    current = Token(TOKEN_COMMA);
+                    current = Token(TOKEN_COMMA, "", line, column);
                 else
                 if (cur == '<')
-                    current = Token(TOKEN_LT);
+                    current = Token(TOKEN_LT, "", line, column);
                 else
                 if (cur == '>')
-                    current = Token(TOKEN_GT);
+                    current = Token(TOKEN_GT, "", line, column);
                 else
                     throw exception("Invalid symbol");
 
@@ -355,9 +360,9 @@ template <typename I> class Tokenizer
             return Token();
         }
 
-        Token identifier( int first = 0 )
+        Token identifier( int first = 0, int line = 1, int column = 1 )
         {
-            Token temp(TOKEN_NAME, "");
+            Token temp(TOKEN_NAME, "", line, column);
             if (first != 0) temp.value += (char) first;
             int cur = -1;
             while ((cur = is.get()) >= 0)
@@ -386,9 +391,9 @@ template <typename I> class Tokenizer
             return temp;
         }
 
-        Token integer( int first = 0 )
+        Token integer( int first = 0, int line = 1, int column = 1 )
         {
-            Token tt(TOKEN_INTEGER, "");
+            Token tt(TOKEN_INTEGER, "", line, column);
             if (first != 0) tt.value += (char) first;
 
             do
@@ -405,9 +410,9 @@ template <typename I> class Tokenizer
             return tt;
         }
 
-        Token literalString()
+        Token literalString(int line = 1, int column = 1 )
         {
-            Token tt(TOKEN_STRING, "");
+            Token tt(TOKEN_STRING, "", line, column);
 
             do
             {
@@ -438,6 +443,18 @@ struct Context
 
 
 typedef Context< std::istream_iterator<char> > ProtoContext;
+
+} // namespace protogen
+
+#ifdef BUILD_DEBUG
+
+std::ostream &operator<<( std::ostream &out, const protogen::Token &tt );
+std::ostream &operator<<( std::ostream &out, protogen::Message &message );
+std::ostream &operator<<( std::ostream &out, protogen::Proto3 &proto );
+
+#endif
+
+namespace protogen {
 
 
 Field::Field() : index(0), repeated(false)
@@ -495,15 +512,15 @@ static void parseField( ProtoContext &ctx, Message &message )
         throw exception("Missing field type");
 
     // name
-    if (ctx.tokens.next().code != TOKEN_NAME) throw exception("Missing field name");
+    if (ctx.tokens.next().code != TOKEN_NAME) throw exception("Missing field name", TOKEN_POSITION(ctx.tokens.current));
     field.name = ctx.tokens.current.value;
     // equal symbol
-    if (ctx.tokens.next().code != TOKEN_EQUAL) throw exception("Expected '='");
+    if (ctx.tokens.next().code != TOKEN_EQUAL) throw exception("Expected '='", TOKEN_POSITION(ctx.tokens.current));
     // index
-    if (ctx.tokens.next().code != TOKEN_INTEGER) throw exception("Missing field index");
+    if (ctx.tokens.next().code != TOKEN_INTEGER) throw exception("Missing field index", TOKEN_POSITION(ctx.tokens.current));
     field.index = (int) strtol(ctx.tokens.current.value.c_str(), nullptr, 10);
     // semi-colon
-    if (ctx.tokens.next().code != TOKEN_SCOLON) throw exception("Expected ';'");
+    if (ctx.tokens.next().code != TOKEN_SCOLON) throw exception("Expected ';'", TOKEN_POSITION(ctx.tokens.current));
 
     message.fields.push_back(field);
 }
@@ -565,23 +582,30 @@ static void parsePackage( ProtoContext &ctx )
 
 static void parseProto( ProtoContext &ctx )
 {
-    try
+    do
     {
-        do
+        ctx.tokens.next();
+        #if 0
+        std::cerr << ctx.tokens.current << std::endl;
+        #else
+        if (ctx.tokens.current.code == TOKEN_MESSAGE)
+            parseMessage(ctx);
+        else
+        if (ctx.tokens.current.code == TOKEN_PACKAGE)
+            parsePackage(ctx);
+        else
+        if (ctx.tokens.current.code == TOKEN_COMMENT)
+            continue;
+        else
+        if (ctx.tokens.current.code == TOKEN_NONE)
+            break;
+        else
         {
-            ctx.tokens.next();
-            if (ctx.tokens.current.code == TOKEN_MESSAGE)
-                parseMessage(ctx);
-            else
-            if (ctx.tokens.current.code == TOKEN_PACKAGE)
-                parsePackage(ctx);
-        } while (ctx.tokens.current.code != 0);
-    } catch (exception &ex)
-    {
-        ex.line = ctx.is.line();
-        ex.column = ctx.is.column();
-        throw ex;
-    }
+            std::cerr << ctx.tokens.current << std::endl;
+            throw exception("Unexpected token", TOKEN_POSITION(ctx.tokens.current));
+        }
+        #endif
+    } while (ctx.tokens.current.code != 0);
 }
 
 
@@ -619,9 +643,9 @@ void Proto3::parse( Proto3 &tree, std::istream &input, std::string fileName )
 
 std::ostream &operator<<( std::ostream &out, const protogen::Token &tt )
 {
-    out << '[' << TOKENS[tt.code];
-    if (!tt.value.empty()) out << ':' << tt.value;
-    out << ']';
+    out << '[' << TOKENS[tt.code] << ": ";
+    if (!tt.value.empty()) out << "value='" << tt.value << "' ";
+    out << "pos=" << tt.line << ':' << tt.column << "]";
     return out;
 }
 

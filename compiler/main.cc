@@ -17,6 +17,8 @@
 #include <protogen/proto3.hh>
 #include <protogen/protogen.hh>
 #include <fstream>
+#include <limits.h>
+#include <stdlib.h>
 
 
 int main( int argc, char **argv )
@@ -29,6 +31,9 @@ int main( int argc, char **argv )
 
     std::ifstream input(argv[1]);
     std::ofstream output(argv[2], std::ios_base::ate);
+    int result = 0;
+    char fullPath[PATH_MAX] = { 0 };
+    if (realpath(argv[1], fullPath) == nullptr) return 1;
 
     if (input.good() && output.good())
     {
@@ -40,10 +45,11 @@ int main( int argc, char **argv )
             gen.generate(proto, output);
         } catch (protogen::exception &ex)
         {
-            std::cerr << "ERROR: " << ex.cause() << std::endl;
+            std::cerr << fullPath << ':' << ex.line << ':' << ex.column << ": error: " << ex.cause() << std::endl;
+            result = 1;
         }
         input.close();
         output.close();
     }
-    return 0;
+    return result;
 }
