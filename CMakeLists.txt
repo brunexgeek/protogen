@@ -3,12 +3,21 @@ project(webster)
 cmake_minimum_required(VERSION 2.8)
 
 set(PROTOGEN_MAJOR 0)
-set(PROTOGEN_MINOR 2)
+set(PROTOGEN_MINOR 3)
 set(PROTOGEN_PATCH 0)
 
 add_definitions(-DPROTOGEN_VERSION="${PROTOGEN_MAJOR}.${PROTOGEN_MINOR}.${PROTOGEN_PATCH}")
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wfatal-errors -pedantic -std=c++11 -Wl,--no-undefined -fPIC -Wall -Wextra -Wconversion -Werror=return-type -Werror=implicit-function-declaration")
+set(CMAKE_CXX_FLAGS_RELEASE "-O3")
+
+if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+    add_definitions(-DBUILD_DEBUG)
+else()
+    set(CMAKE_BUILD_TYPE "Release")
+    add_definitions(-DBUILD_RELEASE)
+endif()
+message("Build type: ${CMAKE_BUILD_TYPE}")
 
 function(fileToSource inputFileName outputFileName variableName)
     FILE(READ "${inputFileName}" CONTENT)

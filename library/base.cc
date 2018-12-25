@@ -97,22 +97,23 @@ class Message
         virtual void clear() = 0;
 };
 
-template <typename Iter> class InputStream
+template <typename I> class InputStream
 {
     protected:
-        Iter cur_, end_;
-        int last_ch_, prev_;
+        I cur_, end_;
+        int last_, prev_;
         bool ungot_;
         int line_, column_;
+
     public:
-        InputStream( const Iter& first, const Iter& last ) : cur_(first), end_(last),
-            last_ch_(-1), prev_(-1), ungot_(false), line_(1), column_(1)
+        InputStream( const I& first, const I& last ) : cur_(first), end_(last),
+            last_(-1), prev_(-1), ungot_(false), line_(1), column_(1)
         {
         }
 
         bool eof()
         {
-            return last_ch_ == -2;
+            return last_ == -2;
         }
 
         int prev()
@@ -125,33 +126,33 @@ template <typename Iter> class InputStream
 
         int get()
         {
-            if (!ungot_) prev_ = last_ch_;
+            if (!ungot_) prev_ = last_;
 
             if (ungot_)
             {
                 ungot_ = false;
-                return last_ch_;
+                return last_;
             }
 
             if (cur_ == end_)
             {
-                last_ch_ = -2;
+                last_ = -2;
                 return -1;
             }
-            if (last_ch_ == '\n')
+            if (last_ == '\n')
             {
                 line_++;
                 column_ = 1;
             }
-            last_ch_ = *cur_ & 0xff;
+            last_ = *cur_ & 0xFF;
             ++cur_;
             ++column_;
-            return last_ch_;
+            return last_;
         }
 
         void unget()
         {
-            if (last_ch_ >= 0)
+            if (last_ >= 0)
             {
                 if (ungot_) throw std::runtime_error("unable to unget");
                 ungot_ = true;
@@ -164,7 +165,7 @@ template <typename Iter> class InputStream
 
         int column() const { return column_; }
 
-        void skip_ws()
+        void skipws()
         {
             while (1) {
                 int ch = get();
@@ -194,7 +195,7 @@ template<typename T>
 static void write( std::ostream &out, bool &first, const std::string &name, const T &value )
 {
     if (!first) out << ',';
-    out << '"' << name << "\" : " << value;
+    out << '"' << name << "\":" << value;
     first = false;
 }
 
@@ -202,7 +203,7 @@ static void write( std::ostream &out, bool &first, const std::string &name, cons
 static void write( std::ostream &out, bool &first, const std::string &name, const bool &value)
 {
     if (!first) out << ',';
-    out << '"' << name << "\" : " << ((value) ? "true" : "false");
+    out << '"' << name << "\":" << ((value) ? "true" : "false");
     first = false;
 }
 
@@ -210,7 +211,7 @@ static void write( std::ostream &out, bool &first, const std::string &name, cons
 static void write( std::ostream &out, bool &first, const std::string &name, const std::string &value)
 {
     if (!first) out << ',';
-    out << '"' << name << "\" : \"";
+    out << '"' << name << "\":\"";
     for (std::string::const_iterator it = value.begin(); it != value.end(); ++it)
     {
         switch (*it)
@@ -234,7 +235,7 @@ static void write( std::ostream &out, bool &first, const std::string &name, cons
 static void writeMessage( std::ostream &out, bool &first, const std::string &name, const Message &value)
 {
     if (!first) out << ',';
-    out << '"' << name << "\" : ";
+    out << '"' << name << "\":";
     value.serialize(out);
     first = false;
 }
@@ -242,7 +243,7 @@ static void writeMessage( std::ostream &out, bool &first, const std::string &nam
 template<typename I>
 static bool next( InputStream<I> &in )
 {
-    in.skip_ws();
+    in.skipws();
     int ch = in.get();
     if (ch == ',') return true;
     if (ch == '}' || ch == ']')
@@ -256,7 +257,7 @@ static bool next( InputStream<I> &in )
 template<typename I>
 static bool readValue( InputStream<I> &in, std::string &value )
 {
-    in.skip_ws();
+    in.skipws();
     if (in.get() != '"') return false;
     while (1)
     {
@@ -289,7 +290,7 @@ static bool readValue( InputStream<I> &in, std::string &value )
 template<typename I, typename T>
 static bool readValue( InputStream<I> &in, T &value )
 {
-    in.skip_ws();
+    in.skipws();
     std::string temp;
     while (true)
     {
@@ -314,7 +315,7 @@ static bool readValue( InputStream<I> &in, T &value )
 template<typename I>
 static bool readValue( InputStream<I> &in, bool &value )
 {
-    in.skip_ws();
+    in.skipws();
     std::string temp;
     while (true)
     {
@@ -350,15 +351,15 @@ ESCAPE:
 template<typename I, typename T>
 static bool readMessageArray( InputStream<I> &in, std::vector<T> &array )
 {
-    in.skip_ws();
+    in.skipws();
     if (in.get() != '[') return false;
-    in.skip_ws();
+    in.skipws();
     while (true)
     {
         T value;
         value.deserialize(in);
         array.push_back(value);
-        in.skip_ws();
+        in.skipws();
         if (!in.expect(',')) break;
     }
     if (in.get() != ']') return false;
@@ -369,15 +370,15 @@ static bool readMessageArray( InputStream<I> &in, std::vector<T> &array )
 template<typename I, typename T>
 static bool readArray( InputStream<I> &in, std::vector<T> &array )
 {
-    in.skip_ws();
+    in.skipws();
     if (in.get() != '[') return false;
-    in.skip_ws();
+    in.skipws();
     while (true)
     {
         T value;
         if (!readValue(in, value)) return false;
         array.push_back(value);
-        in.skip_ws();
+        in.skipws();
         if (!in.expect(',')) break;
     }
     if (in.get() != ']') return false;
@@ -389,14 +390,14 @@ template<typename I>
 static bool readName( InputStream<I> &in, std::string &name )
 {
     if (!readValue(in, name)) return false;
-    in.skip_ws();
+    in.skipws();
     return (in.get() == ':');
 }
 
 template<typename I>
 static bool ignoreEnclosing( InputStream<I> &in, int begin, int end )
 {
-    in.skip_ws();
+    in.skipws();
     if (in.get() != begin) return false;
 
     int count = 1;
@@ -419,7 +420,7 @@ static bool ignoreEnclosing( InputStream<I> &in, int begin, int end )
         }
     }
 
-    in.skip_ws();
+    in.skipws();
     if (in.get() != ',') in.unget();
 
     return count == 0;
@@ -428,7 +429,7 @@ static bool ignoreEnclosing( InputStream<I> &in, int begin, int end )
 template<typename I>
 static bool ignore( InputStream<I> &in )
 {
-    in.skip_ws();
+    in.skipws();
     int ch = in.get();
     in.unget();
     if (ch == '[')
@@ -450,7 +451,7 @@ static bool ignore( InputStream<I> &in )
                 return true;
             }
         }
-        in.skip_ws();
+        in.skipws();
         if (in.get() != ',') in.unget();
     }
 

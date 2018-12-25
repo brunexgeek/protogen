@@ -39,6 +39,8 @@ static struct {
 };
 
 
+#if 0
+
 static std::string toLower( const std::string &value )
 {
     std::string output = value;
@@ -48,7 +50,6 @@ static std::string toLower( const std::string &value )
     return output;
 }
 
-#if 0
 static std::string toUpper( const std::string &value )
 {
     std::string output = value;
@@ -207,7 +208,7 @@ static void generateDeserializer( Printer &printer, const Message &message )
     // 'real' deserializer
         "template<typename T>\n"
         "bool deserialize( protogen::InputStream<T> &in ) {\n"
-        "\tin.skip_ws();\n"
+        "\tin.skipws();\n"
         "if (in.get() != '{') return false;\n"
         "std::string name;\n"
         "while (true) {\n\t"
@@ -260,12 +261,12 @@ static void generateRepeatedSerializer( Printer &printer, const Field &field )
     printer(
         "if ($1$().size() > 0) {\n\t"
         // this 'first' variable is from 'generateSerializer'
-        "if (!first) { out << \", \"; first = false; };\n"
+        "if (!first) { out << \",\"; first = false; };\n"
         // redeclaring 'first'
         "bool first = true;\n"
-        "out << \"\\\"$2$\\\" : [ \";\n"
+        "out << \"\\\"$2$\\\":[\";\n"
         "for (std::vector<$3$>::const_iterator it = $1$().begin(); it != $1$().end(); ++it) {\n"
-        "\tif (!first) out << \", \";\n"
+        "\tif (!first) out << \",\";\n"
         "first = false;\n", storage, field.name, nativeType(field));
 
     storage = "(*it)";
@@ -283,7 +284,7 @@ static void generateRepeatedSerializer( Printer &printer, const Field &field )
         if (field.type.id == protogen::TYPE_STRING)
             printer("out << '\"' << $1$ << '\"';\n", storage);
     }
-    printer("\b}\nout << \" ]\"; \n\b};\n");
+    printer("\b}\nout << \"]\"; \n\b};\n");
 }
 
 
@@ -310,7 +311,6 @@ static void generateSerializer( Printer &printer, const Message &message )
             generateRepeatedSerializer(printer, *fi);
             continue;
         }
-        ;
 
         if (fi->type.id != protogen::TYPE_MESSAGE)
             printer("if (!this->$1$.undefined()) ", storage);

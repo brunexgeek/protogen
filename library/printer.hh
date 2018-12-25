@@ -31,7 +31,6 @@ class Printer
         bool newLine_;
         int tab_;
 
-
         static std::string toString( const std::string& s ) { return s; }
 
         void print( const char *format, const std::vector<std::string> &vars );

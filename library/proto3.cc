@@ -44,6 +44,7 @@
 #define TOKEN_MAP              33
 #define TOKEN_COMMA            34
 
+#ifdef BUILD_DEBUG
 
 static const char *TOKENS[] =
 {
@@ -103,6 +104,7 @@ static const char *TYPES[] =
     nullptr,
 };
 
+#endif
 
 static const struct
 {
@@ -137,22 +139,23 @@ static const struct
 namespace protogen {
 
 
-template <typename Iter> class InputStream
+template <typename I> class InputStream
 {
     protected:
-        Iter cur_, end_;
-        int last_ch_, prev_;
+        I cur_, end_;
+        int last_, prev_;
         bool ungot_;
         int line_, column_;
+
     public:
-        InputStream( const Iter& first, const Iter& last ) : cur_(first), end_(last),
-            last_ch_(-1), prev_(-1), ungot_(false), line_(1), column_(1)
+        InputStream( const I& first, const I& last ) : cur_(first), end_(last),
+            last_(-1), prev_(-1), ungot_(false), line_(1), column_(1)
         {
         }
 
         bool eof()
         {
-            return last_ch_ == -2;
+            return last_ == -2;
         }
 
         int prev()
@@ -165,33 +168,33 @@ template <typename Iter> class InputStream
 
         int get()
         {
-            if (!ungot_) prev_ = last_ch_;
+            if (!ungot_) prev_ = last_;
 
             if (ungot_)
             {
                 ungot_ = false;
-                return last_ch_;
+                return last_;
             }
 
             if (cur_ == end_)
             {
-                last_ch_ = -2;
+                last_ = -2;
                 return -1;
             }
-            if (last_ch_ == '\n')
+            if (last_ == '\n')
             {
                 line_++;
                 column_ = 1;
             }
-            last_ch_ = *cur_ & 0xff;
+            last_ = *cur_ & 0xFF;
             ++cur_;
             ++column_;
-            return last_ch_;
+            return last_;
         }
 
         void unget()
         {
-            if (last_ch_ >= 0)
+            if (last_ >= 0)
             {
                 if (ungot_) throw std::runtime_error("unable to unget");
                 ungot_ = true;
@@ -204,7 +207,7 @@ template <typename Iter> class InputStream
 
         int column() const { return column_; }
 
-        void skip_ws()
+        void skipws()
         {
             while (1) {
                 int ch = get();
@@ -244,21 +247,12 @@ struct Token
 };
 
 
-std::ostream &operator<<( std::ostream &out, const Token &tt )
-{
-    out << '[' << TOKENS[tt.code];
-    if (!tt.value.empty()) out << ':' << tt.value;
-    out << ']';
-    return out;
-}
-
-
-template <typename Iter> class Tokenizer
+template <typename I> class Tokenizer
 {
     public:
         Token current;
 
-        Tokenizer( InputStream<Iter> &is ) : is(is)
+        Tokenizer( InputStream<I> &is ) : is(is)
         {
         }
 
@@ -266,7 +260,7 @@ template <typename Iter> class Tokenizer
         {
             while (true)
             {
-                is.skip_ws();
+                is.skipws();
                 int cur = is.get();
                 if (cur < 0) break;
 
@@ -311,7 +305,6 @@ template <typename Iter> class Tokenizer
                 else
                     throw exception("Invalid symbol");
 
-                //std::cout << current << std::endl;
                 return current;
             }
 
@@ -319,7 +312,7 @@ template <typename Iter> class Tokenizer
         }
 
     private:
-        InputStream<Iter> &is;
+        InputStream<I> &is;
 
         Token comment()
         {
@@ -417,11 +410,11 @@ template<typename T>
 struct Context
 {
     Tokenizer<T> &tokens;
-    std::string package;
     Proto3 &tree;
     InputStream<T> &is;
+    std::string package;
 
-    Context( Tokenizer<T> tokenizer, Proto3 &tree, InputStream<T> &is ) :
+    Context( Tokenizer<T> &tokenizer, Proto3 &tree, InputStream<T> &is ) :
         tokens(tokenizer), tree(tree), is(is)
     {
     }
@@ -606,6 +599,16 @@ void Proto3::parse( Proto3 &tree, std::istream &input, std::string fileName )
 } // protogen
 
 
+#ifdef BUILD_DEBUG
+
+std::ostream &operator<<( std::ostream &out, const protogen::Token &tt )
+{
+    out << '[' << TOKENS[tt.code];
+    if (!tt.value.empty()) out << ':' << tt.value;
+    out << ']';
+    return out;
+}
+
 
 std::ostream &operator<<( std::ostream &out, protogen::Field &field )
 {
@@ -641,3 +644,5 @@ std::ostream &operator<<( std::ostream &out, protogen::Proto3 &proto )
     }
     return out;
 }
+
+#endif
