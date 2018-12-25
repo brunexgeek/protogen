@@ -5,6 +5,7 @@
 #include <string>
 #include <vector>
 #include <iostream>
+#include <protogen/exception.hh>
 
 
 namespace protogen {
@@ -87,18 +88,7 @@ class Proto3
 };
 
 
-class exception : public std::exception
-{
-    public:
-        int line, column;
 
-        exception( const std::string &message, int line = 1, int column = 1 );
-        ~exception();
-        const char *what() const throw();
-        const std::string cause() const;
-    private:
-        std::string message;
-};
 
 
 } // protogen

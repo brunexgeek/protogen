@@ -26,6 +26,7 @@ fileToSource("library/base.cc" "library/base-auto.cc" "BASE_TEMPLATE")
 add_library(libprotogen_static STATIC
     "library/proto3.cc"
     "library/printer.cc"
+    "library/exception.cc"
     "library/base-auto.cc"
     "library/cppgen.cc" )
 target_include_directories(libprotogen_static
