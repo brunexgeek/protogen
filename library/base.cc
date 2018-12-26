@@ -101,13 +101,12 @@ template <typename I> class InputStream
 {
     protected:
         I cur_, end_;
-        int last_, prev_;
+        int last_, line_, column_;
         bool ungot_;
-        int line_, column_;
 
     public:
         InputStream( const I& first, const I& last ) : cur_(first), end_(last),
-            last_(-1), prev_(-1), ungot_(false), line_(1), column_(1)
+            last_(-1), line_(1), column_(1), ungot_(false)
         {
         }
 
@@ -116,34 +115,24 @@ template <typename I> class InputStream
             return last_ == -2;
         }
 
-        int prev()
-        {
-            if (prev_ >= 0)
-                return prev_;
-            else
-                return -1;
-        }
-
         int get()
         {
-            if (!ungot_) prev_ = last_;
-
             if (ungot_)
             {
                 ungot_ = false;
                 return last_;
             }
-
+            if (last_ == '\n')
+            {
+                ++line_;
+                column_ = 0;
+            }
             if (cur_ == end_)
             {
                 last_ = -2;
                 return -1;
             }
-            if (last_ == '\n')
-            {
-                line_++;
-                column_ = 1;
-            }
+
             last_ = *cur_ & 0xFF;
             ++cur_;
             ++column_;
@@ -397,17 +386,41 @@ static bool readName( InputStream<I> &in, std::string &name )
 template<typename I>
 static bool ignoreEnclosing( InputStream<I> &in, int begin, int end )
 {
-    in.skipws();
     if (in.get() != begin) return false;
 
     int count = 1;
 
     bool text = false;
+    bool escape = false;
     while (count != 0 && !in.eof())
     {
         int ch = in.get();
-        std::cerr << "-- '" << (char)ch << '\'' << std::endl;
-        if (in.prev() != '\\' && ch == '"' && begin != '"')
+        if (escape)
+        {
+            switch (ch)
+            {
+                case '"':
+                case '\\':
+                case '/':
+                case 'b':
+                case 'f':
+                case 'r':
+                case 'n':
+                case 't':
+                    escape = false;
+                    break;
+                default: // invalid escape sequence
+                    return false;
+            }
+        }
+        else
+        if (ch == '\\')
+        {
+            if (!text) return false; // escape sequence not allowed outside strings
+            escape = true;
+        }
+        else
+        if (ch == '"' && !escape)
             text = !text;
         else
         if (!text)

@@ -26,7 +26,7 @@
 #define IS_VALID_TYPE(x)      ( (x) >= protogen::TYPE_DOUBLE && (x) <= protogen::TYPE_MESSAGE )
 #define TOKEN_POSITION(t)     (t).line, (t).column
 
-#define TOKEN_NONE             0
+#define TOKEN_EOF              0
 #define TOKEN_MESSAGE          1
 #define TOKEN_NAME             2
 #define TOKEN_EQUAL            3
@@ -60,12 +60,14 @@
 #define TOKEN_GT               32
 #define TOKEN_MAP              33
 #define TOKEN_COMMA            34
+#define TOKEN_SYNTAX           35
+
 
 #ifdef BUILD_DEBUG
 
 static const char *TOKENS[] =
 {
-    "TOKEN_NONE",
+    "TOKEN_EOF",
     "TOKEN_MESSAGE",
     "TOKEN_NAME",
     "TOKEN_EQUAL",
@@ -99,6 +101,7 @@ static const char *TOKENS[] =
     "TOKEN_GT",
     "TOKEN_MAP",
     "TOKEN_COMMA",
+    "TOKEN_SYNTAX"
 };
 
 static const char *TYPES[] =
@@ -148,6 +151,7 @@ static const struct
     { TOKEN_T_SFIXED64  , "sfixed64" },
     { TOKEN_T_BYTES     , "bytes" },
     { TOKEN_PACKAGE     , "package" },
+    { TOKEN_SYNTAX      , "syntax" },
     { TOKEN_MAP         , "map" },
     { 0, nullptr },
 };
@@ -160,10 +164,8 @@ template <typename I> class InputStream
 {
     protected:
         I cur_, end_;
-        int last_;
+        int last_, line_, column_;
         bool ungot_;
-        int line_, column_; // current position
-        //int pline_, pcolumn_; // previous position
 
     public:
         InputStream( const I& first, const I& last ) : cur_(first), end_(last),
@@ -178,29 +180,26 @@ template <typename I> class InputStream
 
         int get()
         {
-            // the last character was a line feed?
+            if (ungot_)
+            {
+                ungot_ = false;
+                return last_;
+            }
             if (last_ == '\n')
             {
                 ++line_;
                 column_ = 0;
             }
-
             if (cur_ == end_)
             {
                 last_ = -2;
                 return -1;
             }
 
-            if (!ungot_)
-            {
-                last_ = *cur_ & 0xFF;
-                ++cur_;
-                ++column_;
-            }
-
+            last_ = *cur_ & 0xFF;
+            ++cur_;
+            ++column_;
             //std::cerr << "Found '" << (char) last_ << "' at " << line_ << ':' << column_ << std::endl;
-
-            ungot_ = false;
             return last_;
         }
 
@@ -249,7 +248,7 @@ struct Token
     std::string value;
     int line, column;
 
-    Token( int code = TOKEN_NONE, const std::string &value = "", int line = 1, int column = 1) :
+    Token( int code = TOKEN_EOF, const std::string &value = "", int line = 1, int column = 1) :
         code(code), value(value), line(line), column(column)
     {
     }
@@ -275,12 +274,15 @@ template <typename I> class Tokenizer
 
         Token next()
         {
+            int line = 1;
+            int column = 1;
+
             while (true)
             {
                 is.skipws();
 
-                int line = is.line();
-                int column = is.column();
+                line = is.line();
+                column = is.column();
 
                 int cur = is.get();
                 if (cur < 0) break;
@@ -324,12 +326,12 @@ template <typename I> class Tokenizer
                 if (cur == '>')
                     current = Token(TOKEN_GT, "", line, column);
                 else
-                    throw exception("Invalid symbol");
+                    throw exception("Invalid symbol", line, column);
 
                 return current;
             }
 
-            return current = Token();
+            return current = Token(TOKEN_EOF, "", line, column);
         }
 
     private:
@@ -509,7 +511,7 @@ static void parseField( ProtoContext &ctx, Message &message )
     }
 #endif
     else
-        throw exception("Missing field type");
+        throw exception("Missing field type", TOKEN_POSITION(ctx.tokens.current));
 
     // name
     if (ctx.tokens.next().code != TOKEN_NAME) throw exception("Missing field name", TOKEN_POSITION(ctx.tokens.current));
@@ -580,6 +582,19 @@ static void parsePackage( ProtoContext &ctx )
 }
 
 
+static void parseSyntax( ProtoContext &ctx )
+{
+    if (ctx.tokens.next().code != TOKEN_EQUAL) throw exception("Expected '='", TOKEN_POSITION(ctx.tokens.current));
+    Token tt = ctx.tokens.next();
+    if (tt.code == TOKEN_STRING && ctx.tokens.next().code == TOKEN_SCOLON)
+    {
+        if (tt.value != "proto3") throw exception("Invalid language version", TOKEN_POSITION(ctx.tokens.current));
+    }
+    else
+        throw exception("Invalid package");
+}
+
+
 static void parseProto( ProtoContext &ctx )
 {
     do
@@ -597,7 +612,10 @@ static void parseProto( ProtoContext &ctx )
         if (ctx.tokens.current.code == TOKEN_COMMENT)
             continue;
         else
-        if (ctx.tokens.current.code == TOKEN_NONE)
+        if (ctx.tokens.current.code == TOKEN_SYNTAX)
+            parseSyntax(ctx);
+        else
+        if (ctx.tokens.current.code == TOKEN_EOF)
             break;
         else
         {
