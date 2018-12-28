@@ -169,7 +169,7 @@ template <typename I> class InputStream
 
     public:
         InputStream( const I& first, const I& last ) : cur_(first), end_(last),
-            last_(-1), ungot_(false), line_(1), column_(0)
+            last_(-1), line_(1), column_(0), ungot_(false)
         {
         }
 

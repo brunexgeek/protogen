@@ -6,6 +6,9 @@ set(PROTOGEN_MAJOR 0)
 set(PROTOGEN_MINOR 4)
 set(PROTOGEN_PATCH 0)
 
+add_definitions(-DPROTOGEN_MAJOR=${PROTOGEN_MAJOR})
+add_definitions(-DPROTOGEN_MINOR=${PROTOGEN_MINOR})
+add_definitions(-DPROTOGEN_PATCH=${PROTOGEN_PATCH})
 add_definitions(-DPROTOGEN_VERSION="${PROTOGEN_MAJOR}.${PROTOGEN_MINOR}.${PROTOGEN_PATCH}")
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wfatal-errors -pedantic -std=c++11 -Wl,--no-undefined -fPIC -Wall -Wextra -Wconversion -Werror=return-type -Werror=implicit-function-declaration")
