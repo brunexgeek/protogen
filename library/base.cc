@@ -92,8 +92,10 @@ template<typename T> class RepeatedField
 class Message
 {
     public:
+        virtual void serialize( std::string &out ) const = 0;
         virtual void serialize( std::ostream &out ) const = 0;
         virtual bool deserialize( std::istream &in ) = 0;
+        virtual bool deserialize( std::string &in ) = 0;
         virtual void clear() = 0;
 };
 
