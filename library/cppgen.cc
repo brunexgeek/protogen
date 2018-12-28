@@ -392,8 +392,8 @@ static void generateMessage( Printer &printer, const Message &message )
         generateVariable(printer, *fi);
     }
 
-    // default constructor
-    printer("$1$() {}\n", message.name);
+    // default constructor and destructor
+    printer("$1$() {}\nvirtual ~$1$() {}\n", message.name);
     // copy constructor
     generateCopyCtor(printer, message);
     // move constructor
@@ -443,7 +443,8 @@ static void generateModel( Printer &printer, const Proto3 &proto )
         "#include <string>\n"
         "#include <stdint.h>\n"
         "#include <iterator>\n"
-        "#include <sstream>\n"
+        "#include <sstream>\n\n"
+        "#pragma GCC diagnostic ignored \"-Wunused-function\"\n\n"
         // base template
         "\n$2$\n", PROTOGEN_VERSION, BASE_TEMPLATE, proto.fileName, guard);
 
