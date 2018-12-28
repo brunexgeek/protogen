@@ -1,8 +1,8 @@
 # protogen
 
-Experimental tool to compile ``proto3`` schemas and generate C++ classes which serialize and deserialize JSON messages.
+Experimental tool to compile ``proto3`` schemas and generate C++ classes which serialize and deserialize JSON messages. The compiler generates a C++ header file to be included in your program. This file is all you need: no external libraries.
 
-The compiler generates a C++ header file to be included in your program. This file is all you need: no external libraries.
+There is also the ``libprotogen_static`` library you can use to create your own compiler or enable your application to compile ``proto3`` to C++.
 
 ## Build
 
@@ -26,13 +26,13 @@ message Person {
 Compile ``.proto`` files using ``protogen`` program:
 
 ```
-# ./protogen model.proto model.hh
+# ./protogen model.proto model.pg.hh
 ```
 
 Include the generated header file in your source code to use the classes:
 
 ```c++
-#include "model.hh"
+#include "model.pg.hh"
 
 ...
 

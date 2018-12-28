@@ -43,7 +43,18 @@ add_library(libprotogen_static STATIC
     "library/cppgen.cc" )
 target_include_directories(libprotogen_static
     PUBLIC "include/")
+set_target_properties(libprotogen_static PROPERTIES
+    OUTPUT_NAME "protogen_static"
+    ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
+    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
+    PREFIX "lib" )
 
 add_executable(protogen
     "compiler/main.cc")
 target_link_libraries(protogen libprotogen_static)
+set_target_properties(protogen PROPERTIES
+    OUTPUT_NAME "protogen"
+    ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
+    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}" )
