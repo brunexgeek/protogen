@@ -80,6 +80,7 @@ template<typename T> class RepeatedField
         const std::vector<T> &operator()() const { return value; }
         std::vector<T> &operator()() { return value; }
         bool undefined() const { return value.size() == 0; }
+        void clear() { value.clear(); }
         bool operator==( const RepeatedField<T> &that ) const { return this->value == that.value; }
 };
 

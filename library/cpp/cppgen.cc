@@ -238,7 +238,8 @@ static void generateDeserializer( Printer &printer, const Message &message )
         if (!IS_VALID_TYPE(fi->type.id)) continue;
 
         if (!first) printer("else\n");
-        printer("if (name == \"$1$\") {\n\t", fieldStorage(*fi));
+        printer("// $1$\n", fi->name);
+        printer("if (name == \"$1$\") {\n\t", fieldStorage(*fi)); // open the main 'if'
 
         if (fi->repeated)
         {
@@ -266,7 +267,7 @@ static void generateDeserializer( Printer &printer, const Message &message )
     printer(
         "else\n"
         "\tif (!protogen::json::ignore(in)) return false;\n\b\b"
-        "}\nreturn true;\n\b}\n\n");
+        "}\nreturn true;\n\b}\n");
 }
 
 
@@ -343,7 +344,7 @@ static void generateTrait( Printer &printer, const Message &message )
     printer(
         "namespace protogen {\n"
         "\ttemplate<> struct traits<$1$$2$> {\n"
-        "\tstatic void clear( $1$$2$ &value ) { (void) value; }\n"
+        "\tstatic void clear( $1$$2$ &value ) { value.clear(); }\n"
         "\b};\n\b}\n", nativePackage(message.package), message.name);
 }
 
@@ -352,7 +353,7 @@ static void generateClear( Printer &printer, const Message &message )
     printer("void clear() {\n\t");
     for (auto fi = message.fields.begin(); fi != message.fields.end(); ++fi)
     {
-        printer("this->$1$$2$.clear();\n", fieldStorage(*fi), (fi->repeated) ? "()" : "");
+        printer("this->$1$.clear();\n", fieldStorage(*fi));
     }
     printer("\b}\n");
 }
@@ -374,10 +375,9 @@ static void generateNamespace( Printer &printer, const Message &message, bool st
 
 static void generateMessage( Printer &printer, const Message &message )
 {
-    generateTrait(printer, message);
+    printer("\n//\n// $1$\n//\n", message.name);
 
-    //if (!message.package.empty())
-    //    printer("namespace $1$ {\n", nativePackage(message.package, false));
+    // begin namespace
     generateNamespace(printer, message, true);
 
     printer(
@@ -407,8 +407,11 @@ static void generateMessage( Printer &printer, const Message &message )
     generateClear(printer, message);
     // close class declaration
     printer("\b};\n");
-
+    // end namespace
     generateNamespace(printer, message, false);
+
+    // message trait
+    generateTrait(printer, message);
 }
 
 
