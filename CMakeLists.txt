@@ -32,15 +32,15 @@ function(fileToSource inputFileName outputFileName variableName)
     FILE(APPEND "${outputFileName}" "\";\n\n")
 endfunction(fileToSource)
 
-file(REMOVE "library/base-auto.cc")
-fileToSource("library/base.cc" "library/base-auto.cc" "BASE_TEMPLATE")
+file(REMOVE "library/cpp/base-auto.cc")
+fileToSource("library/cpp/base.cc" "library/cpp/base-auto.cc" "BASE_TEMPLATE")
 
 add_library(libprotogen_static STATIC
     "library/proto3.cc"
     "library/printer.cc"
     "library/exception.cc"
-    "library/base-auto.cc"
-    "library/cppgen.cc" )
+    "library/cpp/base-auto.cc"
+    "library/cpp/cppgen.cc" )
 target_include_directories(libprotogen_static
     PUBLIC "include/")
 set_target_properties(libprotogen_static PROPERTIES

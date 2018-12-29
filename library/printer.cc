@@ -33,19 +33,21 @@ void Printer::print( const char *format )
 }
 
 
-static const char *indent( int level )
+static void indent( std::ostream &out, int level )
 {
+    if (level < 1 || level > 20) return;
     switch (level)
     {
-        case 1: return "\t";
-        case 2: return "\t\t";
-        case 3: return "\t\t\t";
-        case 4: return "\t\t\t\t";
-        case 5: return "\t\t\t\t\t";
-        case 6: return "\t\t\t\t\t\t";
-        case 7: return "\t\t\t\t\t\t\t";
+        case 1:  out << '\t'; break;
+        case 2:  out << "\t\t"; break;
+        case 3:  out << "\t\t\t"; break;
+        case 4:  out << "\t\t\t\t"; break;
+        case 5:  out << "\t\t\t\t\t"; break;
+        case 6:  out << "\t\t\t\t\t\t"; break;
+        case 7:  out << "\t\t\t\t\t\t\t"; break;
+        default:
+            for (int i = 0; i < level; ++i) out << '\t';
     }
-    return "";
 }
 
 
@@ -70,7 +72,7 @@ void Printer::print( const char *format, const std::vector<std::string> &vars )
 
             if (newLine_)
             {
-                out_ << indent(tab_);
+                indent(out_, tab_);
                 newLine_ = false;
             }
             out_ << vars[index];
@@ -95,7 +97,7 @@ void Printer::print( const char *format, const std::vector<std::string> &vars )
         {
             if (newLine_)
             {
-                out_ << indent(tab_);
+                indent(out_, tab_);
                 newLine_ = false;
             }
             out_ << *ptr;

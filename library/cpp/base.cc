@@ -39,17 +39,11 @@ enum FieldType
 
 template<typename T> struct traits
 {
-    static bool isMessage() { return false; }
-    static bool isNumber() { return true; }
-    static bool isString() { return false; }
     static void clear( T &value ) { value = (T) 0; }
 };
 
 template<> struct traits<std::string>
 {
-    static bool isMessage() { return false; }
-    static bool isNumber() { return false; }
-    static bool isString() { return true; }
     static void clear( std::string &value ) { value.clear(); }
 };
 

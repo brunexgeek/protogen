@@ -15,7 +15,7 @@
  */
 
 #include <protogen/protogen.hh>
-#include "printer.hh"
+#include "../printer.hh"
 
 
 extern const char *BASE_TEMPLATE;
@@ -343,10 +343,7 @@ static void generateTrait( Printer &printer, const Message &message )
     printer(
         "namespace protogen {\n"
         "\ttemplate<> struct traits<$1$$2$> {\n"
-        "\tstatic bool isMessage() { return true; }\n"
-        "static bool isNumber() { return false; }\n"
-        "static bool isString() { return false; }\n"
-        "static void clear( $1$$2$ &value ) { (void) value; }\n"
+        "\tstatic void clear( $1$$2$ &value ) { (void) value; }\n"
         "\b};\n\b}\n", nativePackage(message.package), message.name);
 }
 
