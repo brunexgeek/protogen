@@ -50,7 +50,7 @@ static struct {
     { false, protogen::TYPE_SFIXED64, "sfixed64",  "int64_t"     , "0" },
     { true,  protogen::TYPE_BOOL,     "bool",      "bool"        , "false" },
     { true,  protogen::TYPE_STRING,   "string",    "std::string" , "\"\"" },
-    { true,  protogen::TYPE_BYTES,    "bytes",     "std::string" , "\"\"" },
+    { true,  protogen::TYPE_BYTES,    "bytes",     "uint8_t"     , nullptr },
     { false, protogen::TYPE_MESSAGE,  nullptr,     nullptr       , nullptr }
 };
 
@@ -105,11 +105,14 @@ static std::string fieldStorage( const Field &field )
 static std::string nativeType( const Field &field )
 {
 
-    if (field.type.id >= protogen::TYPE_DOUBLE && field.type.id <= protogen::TYPE_BYTES)
+    if (field.type.id >= protogen::TYPE_DOUBLE && field.type.id <= protogen::TYPE_STRING)
     {
         int index = (int)field.type.id - (int)protogen::TYPE_DOUBLE;
         return TYPE_MAPPING[index].nativeType;
     }
+    else
+    if (field.type.id == protogen::TYPE_BYTES)
+        return "uint8_t";
     else
     if (field.type.id == protogen::TYPE_MESSAGE)
         return field.type.name;
@@ -124,7 +127,7 @@ static std::string fieldNativeType( const Field &field )
 {
     std::string output = "protogen::";
 
-    if (field.repeated)
+    if (field.repeated || field.type.id == protogen::TYPE_BYTES)
         output += "RepeatedField<";
     else
         output += "Field<";
@@ -241,7 +244,7 @@ static void generateDeserializer( Printer &printer, const Message &message )
         printer("// $1$\n", fi->name);
         printer("if (name == \"$1$\") {\n\t", fieldStorage(*fi)); // open the main 'if'
 
-        if (fi->repeated)
+        if (fi->repeated || fi->type.id == protogen::TYPE_BYTES)
         {
             std::string function = "readArray";
             if (fi->type.id == protogen::TYPE_MESSAGE) function = "readMessageArray";
@@ -249,7 +252,7 @@ static void generateDeserializer( Printer &printer, const Message &message )
         }
         else
         {
-            if (fi->type.id >= protogen::TYPE_DOUBLE && fi->type.id <= protogen::TYPE_BYTES)
+            if (fi->type.id >= protogen::TYPE_DOUBLE && fi->type.id <= protogen::TYPE_STRING)
             {
                 printer(
                     "$1$ value;\n"
@@ -279,6 +282,7 @@ static void generateRepeatedSerializer( Printer &printer, const Field &field )
         "if ($1$().size() > 0) {\n\t"
         // this 'first' variable is from 'generateSerializer'
         "if (!first) { out << \",\"; first = false; };\n"
+        "first = false;\n"
         // redeclaring 'first'
         "bool first = true;\n"
         "out << \"\\\"$2$\\\":[\";\n"
@@ -296,6 +300,10 @@ static void generateRepeatedSerializer( Printer &printer, const Field &field )
         // numerical field
         if (field.type.id >= protogen::TYPE_DOUBLE && field.type.id <= protogen::TYPE_SFIXED64)
             printer("out << $1$;\n", storage);
+        else
+        // bytes
+        if (field.type.id == protogen::TYPE_BYTES)
+            printer("out << (int) $1$;\n", storage);
         else
         // string fields
         if (field.type.id == protogen::TYPE_STRING)
@@ -318,12 +326,13 @@ static void generateSerializer( Printer &printer, const Message &message )
         "void serialize( std::ostream &out ) const {\n"
         "\tout << '{';\n"
         "bool first = true;\n");
+
     for (auto fi = message.fields.begin(); fi != message.fields.end(); ++fi)
     {
         std::string storage = fieldStorage(*fi);
 
         printer("// $1$\n", storage);
-        if (fi->repeated)
+        if (fi->repeated || fi->type.id == protogen::TYPE_BYTES)
         {
             generateRepeatedSerializer(printer, *fi);
             continue;

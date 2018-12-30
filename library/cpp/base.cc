@@ -185,6 +185,13 @@ static void write( std::ostream &out, bool &first, const std::string &name, cons
     first = false;
 }
 
+static void write( std::ostream &out, bool &first, const std::string &name, const uint8_t &value )
+{
+    if (!first) out << ',';
+    out << '"' << name << "\":" << (int) value;
+    first = false;
+}
+
 // boolean
 static void write( std::ostream &out, bool &first, const std::string &name, const bool &value)
 {

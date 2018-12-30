@@ -47,21 +47,20 @@
 #define TOKEN_T_STRING         19
 #define TOKEN_T_BYTES          20
 #define TOKEN_T_MESSAGE        21
-#define TOKEN_BEGIN            22
-#define TOKEN_END              23
+#define TOKEN_SYNTAX           22
+#define TOKEN_QNAME            23
 #define TOKEN_STRING           24
 #define TOKEN_INTEGER          25
 #define TOKEN_COMMENT          26
 #define TOKEN_ENUM             27
 #define TOKEN_SCOLON           28
 #define TOKEN_PACKAGE          29
-#define TOKEN_QNAME            30
-#define TOKEN_LT               31
-#define TOKEN_GT               32
-#define TOKEN_MAP              33
-#define TOKEN_COMMA            34
-#define TOKEN_SYNTAX           35
-
+#define TOKEN_LT               30
+#define TOKEN_GT               31
+#define TOKEN_MAP              32
+#define TOKEN_COMMA            33
+#define TOKEN_BEGIN            34
+#define TOKEN_END              35
 
 #ifdef BUILD_DEBUG
 
@@ -486,6 +485,12 @@ static void parseField( ProtoContext &ctx, Message &message )
     // type
     if (ctx.tokens.current.code >= TOKEN_T_DOUBLE && ctx.tokens.current.code <= TOKEN_T_BYTES)
         field.type.id = (FieldType) ctx.tokens.current.code;
+    /*else
+    if (ctx.tokens.current.code == TOKEN_T_BYTES)
+    {
+        field.repeated = true;
+        field.type.id = (FieldType) TOKEN_T_UINT8;
+    }*/
     else
     if (ctx.tokens.current.code == TOKEN_NAME)
     {
