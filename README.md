@@ -68,7 +68,7 @@ Supported field types:
 - [x] sfixed64
 - [x] bool
 - [x] string
-- [ ] bytes
+- [x] bytes
 - [ ] any
 - [ ] oneof
 - [ ] maps

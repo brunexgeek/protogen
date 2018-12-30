@@ -332,17 +332,16 @@ static void generateSerializer( Printer &printer, const Message &message )
         std::string storage = fieldStorage(*fi);
 
         printer("// $1$\n", storage);
-        if (fi->repeated || fi->type.id == protogen::TYPE_BYTES)
+        /*if (fi->repeated || fi->type.id == protogen::TYPE_BYTES)
         {
             generateRepeatedSerializer(printer, *fi);
             continue;
-        }
+        }*/
 
         if (fi->type.id != protogen::TYPE_MESSAGE)
             printer("if (!this->$1$.undefined()) ", storage);
 
-        printer("protogen::json::write$1$(out, first, \"$2$\", this->$2$());\n",
-            (fi->type.id == protogen::TYPE_MESSAGE) ? "Message" : "",
+        printer("protogen::json::write(out, first, \"$1$\", this->$1$());\n",
             storage);
     }
     printer("out << '}';\n\b}\n");
@@ -354,6 +353,7 @@ static void generateTrait( Printer &printer, const Message &message )
         "namespace protogen {\n"
         "\ttemplate<> struct traits<$1$$2$> {\n"
         "\tstatic void clear( $1$$2$ &value ) { value.clear(); }\n"
+        "\tstatic void write( std::ostream &out, const $1$$2$ &value ) { value.serialize(out); }\n"
         "\b};\n\b}\n", nativePackage(message.package), message.name);
 }
 
@@ -382,9 +382,34 @@ static void generateNamespace( Printer &printer, const Message &message, bool st
 }
 
 
+static void generateWriterPrototype( Printer &printer, const Message &message )
+{
+    printer("namespace protogen {\n"
+        "namespace json {\n\t"
+        "static void write( std::ostream &out, bool &first, const std::string &name, \n\tconst $1$$2$ &value);\n\b\b"
+        "}}\n",
+        nativePackage(message.package), message.name);
+}
+
+static void generateWriter( Printer &printer, const Message &message )
+{
+    printer("namespace protogen {\n"
+    "namespace json {\n\t"
+    "static void write( std::ostream &out, bool &first, const std::string &name, const $1$$2$ &value) {\n"
+    "\tif (!first) out << ',';\n"
+    "out << '\"' << name << \"\\\":\";\n"
+    "value.serialize(out);\n"
+    "first = false;\n\b}\n\b"
+    "}}\n", nativePackage(message.package), message.name);
+}
+
+
 static void generateMessage( Printer &printer, const Message &message )
 {
     printer("\n//\n// $1$\n//\n", message.name);
+
+    // JSON writer
+    generateWriterPrototype(printer, message);
 
     // begin namespace
     generateNamespace(printer, message, true);
@@ -421,6 +446,8 @@ static void generateMessage( Printer &printer, const Message &message )
 
     // message trait
     generateTrait(printer, message);
+    // JSON writer
+    generateWriter(printer, message);
 }
 
 

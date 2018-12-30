@@ -40,11 +40,44 @@ enum FieldType
 template<typename T> struct traits
 {
     static void clear( T &value ) { value = (T) 0; }
+    static void write( std::ostream &out, const T &value ) { out << value; }
+};
+
+template<> struct traits<bool>
+{
+    static void clear( bool &value ) { value = false; }
+    static void write( std::ostream &out, const bool &value ) { out << ((value) ? "true" : "false"); }
+};
+
+template<> struct traits<uint8_t>
+{
+    static void clear( uint8_t &value ) { value = 0; }
+    static void write( std::ostream &out, const uint8_t &value ) { out << (int) value; }
 };
 
 template<> struct traits<std::string>
 {
     static void clear( std::string &value ) { value.clear(); }
+    static void write( std::ostream &out, const std::string &value )
+    {
+        out << '"';
+        for (std::string::const_iterator it = value.begin(); it != value.end(); ++it)
+        {
+            switch (*it)
+            {
+                case '"':  out << "\\\""; break;
+                case '\\': out << "\\\\"; break;
+                case '/':  out << "\\/"; break;
+                case '\b': out << "\\b"; break;
+                case '\f': out << "\\f"; break;
+                case '\r': out << "\\r"; break;
+                case '\n': out << "\\n"; break;
+                case '\t': out << "\\t"; break;
+                default:   out << *it;
+            }
+        }
+        out << '"';
+    }
 };
 
 template<typename T> class Field
@@ -60,9 +93,8 @@ template<typename T> class Field
         const T &operator()() const { return value; }
         T &operator()() { return value; }
         void operator ()(const T &value ) { this->value = value; flags &= ~1; }
-        bool undefined() const { return (flags & 1) != 0; }
+        bool undefined() const { return (flags & 1) != 0; } // TODO: use traits for 'undefined' (at least with messages)
         void clear() { traits<T>::clear(value); flags |= 1; }
-        //Field<T> &operator=( const T &value ) { this->value = value; this->flags &= ~1; return *this; }
         Field<T> &operator=( const Field<T> &that ) { this->value = that.value; this->flags = that.flags; return *this; }
         bool operator==( const T &that ) const { return this->value == that && (this->flags & 1) == 0; }
         bool operator==( const Field<T> &that ) const { return this->value == that.value && this->flags == that.flags; }
@@ -178,59 +210,32 @@ namespace json {
 
 // numeric types
 template<typename T>
-static void write( std::ostream &out, bool &first, const std::string &name, const T &value )
-{
-    if (!first) out << ',';
-    out << '"' << name << "\":" << value;
-    first = false;
-}
-
-static void write( std::ostream &out, bool &first, const std::string &name, const uint8_t &value )
-{
-    if (!first) out << ',';
-    out << '"' << name << "\":" << (int) value;
-    first = false;
-}
-
-// boolean
-static void write( std::ostream &out, bool &first, const std::string &name, const bool &value)
-{
-    if (!first) out << ',';
-    out << '"' << name << "\":" << ((value) ? "true" : "false");
-    first = false;
-}
-
-// string
-static void write( std::ostream &out, bool &first, const std::string &name, const std::string &value)
-{
-    if (!first) out << ',';
-    out << '"' << name << "\":\"";
-    for (std::string::const_iterator it = value.begin(); it != value.end(); ++it)
-    {
-        switch (*it)
-        {
-            case '"':  out << "\\\""; break;
-            case '\\': out << "\\\\"; break;
-            case '/':  out << "\\/"; break;
-            case '\b': out << "\\b"; break;
-            case '\f': out << "\\f"; break;
-            case '\r': out << "\\r"; break;
-            case '\n': out << "\\n"; break;
-            case '\t': out << "\\t"; break;
-            default:   out << *it;
-        }
-    }
-    out << '"';
-    first = false;
-}
-
-// message
-static void writeMessage( std::ostream &out, bool &first, const std::string &name, const Message &value)
+static bool write( std::ostream &out, bool &first, const std::string &name, const T &value )
 {
     if (!first) out << ',';
     out << '"' << name << "\":";
-    value.serialize(out);
+    traits<T>::write(out, value);
     first = false;
+    return true;
+}
+
+template<typename T>
+static bool write( std::ostream &out, bool &first, const std::string &name, const std::vector<T> &value )
+{
+    if (!first) out << ",";
+
+    bool begin = true;
+    out << '"' << name << "\":[";
+    for (typename std::vector<T>::const_iterator it = value.begin(); it != value.end(); ++it)
+    {
+        if (!begin) out << ",";
+        begin = false;
+        traits<T>::write(out, *it);
+    }
+    out << "]";
+
+    first = false;
+    return true;
 }
 
 template<typename I>
