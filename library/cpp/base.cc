@@ -83,37 +83,38 @@ template<> struct traits<std::string>
 template<typename T> class Field
 {
     protected:
-        T value;
-        uint32_t flags;
+        T value_;
+        uint32_t flags_;
     public:
-        Field() { clear(); flags = 1; }
+        Field() { clear(); flags_ = 1; }
 #if __cplusplus >= 201103L
-        Field( T &&that ) { that.value = this->value; that.flags = this->flags; }
+        Field( T &&that ) { that.value_ = this->value_; that.flags_ = this->flags_; }
 #endif
-        const T &operator()() const { return value; }
-        T &operator()() { return value; }
-        void operator ()(const T &value ) { this->value = value; flags &= ~1; }
-        bool undefined() const { return (flags & 1) != 0; } // TODO: use traits for 'undefined' (at least with messages)
-        void clear() { traits<T>::clear(value); flags |= 1; }
-        Field<T> &operator=( const Field<T> &that ) { this->value = that.value; this->flags = that.flags; return *this; }
-        bool operator==( const T &that ) const { return this->value == that && (this->flags & 1) == 0; }
-        bool operator==( const Field<T> &that ) const { return this->value == that.value && this->flags == that.flags; }
+        const T &operator()() const { return value_; }
+        T &operator()() { return value_; }
+        void operator ()(const T &value ) { this->value_ = value; this->flags_ &= ~1; }
+        bool undefined() const { return (flags_ & 1) != 0; } // TODO: use traits for 'undefined' (at least with messages)
+        void clear() { traits<T>::clear(value_); flags_ |= 1; }
+        Field<T> &operator=( const Field<T> &that ) { this->value_ = that.value_; this->flags_ = that.flags_; return *this; }
+        bool operator==( const T &that ) const { return this->value_ == that && (this->flags_ & 1) == 0; }
+        bool operator==( const Field<T> &that ) const { return this->value_ == that.value_ && this->flags_ == that.flags_; }
 };
 
 template<typename T> class RepeatedField
 {
     protected:
-        std::vector<T> value;
+        std::vector<T> value_;
+        int number_;
     public:
         RepeatedField() {}
 #if __cplusplus >= 201103L
-        RepeatedField( T &&that ) { that.value = std::move(this->value); }
+        RepeatedField( T &&that ) { that.value_ = std::move(this->value_); }
 #endif
-        const std::vector<T> &operator()() const { return value; }
-        std::vector<T> &operator()() { return value; }
-        bool undefined() const { return value.size() == 0; }
-        void clear() { value.clear(); }
-        bool operator==( const RepeatedField<T> &that ) const { return this->value == that.value; }
+        const std::vector<T> &operator()() const { return value_; }
+        std::vector<T> &operator()() { return value_; }
+        bool undefined() const { return value_.size() == 0; }
+        void clear() { value_.clear(); }
+        bool operator==( const RepeatedField<T> &that ) const { return this->value_ == that.value_; }
 };
 
 class Message

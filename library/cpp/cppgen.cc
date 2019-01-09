@@ -65,6 +65,7 @@ static std::string toLower( const std::string &value )
 
     return output;
 }
+#endif
 
 static std::string toUpper( const std::string &value )
 {
@@ -74,7 +75,7 @@ static std::string toUpper( const std::string &value )
 
     return output;
 }
-#endif
+
 
 
 static std::string nativePackage( const std::vector<std::string> &package )
@@ -150,8 +151,15 @@ static std::string fieldNativeType( const Field &field )
 
 static void generateVariable( Printer &printer, const Field &field )
 {
-    // storage variable
-    printer("$1$ $2$;\n", fieldNativeType(field),fieldStorage(field));
+    std::string storage = fieldStorage(field);
+
+    char number[10];
+    snprintf(number, sizeof(number), "%d", field.index);
+    number[9] = 0;
+
+    printer(
+        "static const int $3$_NO = $4$;\n"
+        "$1$ $2$;\n", fieldNativeType(field), storage, toUpper(storage), number);
 }
 
 
