@@ -624,7 +624,7 @@ static void parseProto( ProtoContext &ctx )
             break;
         else
         {
-            std::cerr << ctx.tokens.current << std::endl;
+            //std::cerr << ctx.tokens.current << std::endl;
             throw exception("Unexpected token", TOKEN_POSITION(ctx.tokens.current));
         }
         #endif

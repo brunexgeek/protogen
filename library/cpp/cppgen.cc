@@ -77,18 +77,18 @@ static std::string toUpper( const std::string &value )
 #endif
 
 
-static std::string nativePackage( const std::vector<std::string> &package, bool append = true )
+static std::string nativePackage( const std::vector<std::string> &package )
 {
-    std::string name = "::";
+    // extra space because the compiler may complain about '<::' (i.e. using in templates)
+    std::string name = " ::";
 
-    if (package.empty()) return name;
+    if (package.empty() || package[0].empty()) return name;
 
     for (auto it = package.begin(); it != package.end(); ++it)
     {
         name += *it;
         if (it + 1 != package.end()) name += "::";
     }
-    if (append) name += "::";
     return name;
 }
 
@@ -205,8 +205,8 @@ static void generateEqualityOperator( Printer &printer, const Message &message )
 
 static void generateDeserializer( Printer &printer, const Message &message )
 {
-    // deserializer receiving a 'istream'
     printer(
+        // deserializer receiving a 'istream'
         "bool deserialize( std::istream &in ) {\n"
         "\tbool skip = in.flags() & std::ios_base::skipws;\n"
         "std::noskipws(in);\n"
@@ -218,13 +218,19 @@ static void generateDeserializer( Printer &printer, const Message &message )
         "\treturn result;\n"
         "\b\b}\n"
 
-    // deserializer receiving a 'string'
+        // deserializer receiving a 'string'
         "bool deserialize( std::string &in ) {\n"
         "\tprotogen::InputStream<std::string::const_iterator> is(in.begin(), in.end());\n"
         "return this->deserialize(is);\n"
         "\b}\n"
 
-    // 'real' deserializer
+        // deserializer receiving a 'vector'
+        "bool deserialize( std::vector<char> &in ) {\n"
+        "\tprotogen::InputStream<std::vector<char>::const_iterator> is(in.begin(), in.end());\n"
+        "return this->deserialize(is);\n"
+        "\b}\n"
+
+        // 'real' deserializer
         "template<typename T>\n"
         "bool deserialize( protogen::InputStream<T> &in ) {\n"
         "\tin.skipws();\n"
@@ -269,47 +275,9 @@ static void generateDeserializer( Printer &printer, const Message &message )
     }
     printer(
         "else\n"
+        "// ignore the current field\n"
         "\tif (!protogen::json::ignore(in)) return false;\n\b\b"
         "}\nreturn true;\n\b}\n");
-}
-
-
-static void generateRepeatedSerializer( Printer &printer, const Field &field )
-{
-    std::string storage = "this->" + fieldStorage(field);
-
-    printer(
-        "if ($1$().size() > 0) {\n\t"
-        // this 'first' variable is from 'generateSerializer'
-        "if (!first) { out << \",\"; first = false; };\n"
-        "first = false;\n"
-        // redeclaring 'first'
-        "bool first = true;\n"
-        "out << \"\\\"$2$\\\":[\";\n"
-        "for (std::vector<$3$>::const_iterator it = $1$().begin(); it != $1$().end(); ++it) {\n"
-        "\tif (!first) out << \",\";\n"
-        "first = false;\n", storage, field.name, nativeType(field));
-
-    storage = "(*it)";
-
-    // message fields
-    if (field.type.id == protogen::TYPE_MESSAGE)
-        printer("$1$.serialize(out);\n", storage);
-    else
-    {
-        // numerical field
-        if (field.type.id >= protogen::TYPE_DOUBLE && field.type.id <= protogen::TYPE_SFIXED64)
-            printer("out << $1$;\n", storage);
-        else
-        // bytes
-        if (field.type.id == protogen::TYPE_BYTES)
-            printer("out << (int) $1$;\n", storage);
-        else
-        // string fields
-        if (field.type.id == protogen::TYPE_STRING)
-            printer("out << '\"' << $1$ << '\"';\n", storage);
-    }
-    printer("\b}\nout << \"]\"; \n\b};\n");
 }
 
 
@@ -322,6 +290,13 @@ static void generateSerializer( Printer &printer, const Message &message )
         "serialize(ss);\n"
         "out = ss.str();\n\b}\n"
 
+        // serializer writing to 'vector'
+        "void serialize( std::vector<char> &out ) const {\n"
+        "\tstd::string temp;\n"
+        "serialize(temp);\n"
+        "out.resize(temp.length());\n"
+        "memcpy(&out.front(), temp.c_str(), temp.length());\n\b}\n"
+
         // serializer writing to 'ostream'
         "void serialize( std::ostream &out ) const {\n"
         "\tout << '{';\n"
@@ -332,11 +307,6 @@ static void generateSerializer( Printer &printer, const Message &message )
         std::string storage = fieldStorage(*fi);
 
         printer("// $1$\n", storage);
-        /*if (fi->repeated || fi->type.id == protogen::TYPE_BYTES)
-        {
-            generateRepeatedSerializer(printer, *fi);
-            continue;
-        }*/
 
         if (fi->type.id != protogen::TYPE_MESSAGE)
             printer("if (!this->$1$.undefined()) ", storage);
@@ -370,7 +340,7 @@ static void generateClear( Printer &printer, const Message &message )
 
 static void generateNamespace( Printer &printer, const Message &message, bool start )
 {
-    if (message.package.empty()) return;
+    if (message.package.empty() || message.package[0].empty()) return;
 
     for (auto it = message.package.begin(); it != message.package.end(); ++it)
     {
@@ -481,6 +451,7 @@ static void generateModel( Printer &printer, const Proto3 &proto )
         "\n#ifndef $4$\n"
         "#define $4$\n\n"
         "#include <string>\n"
+        "#include <cstring>\n"
         "#include <stdint.h>\n"
         "#include <iterator>\n"
         "#include <sstream>\n\n"

@@ -25,6 +25,7 @@ int main( int argc, char **argv )
 {
     if (argc != 3)
     {
+        std::cerr << "protogen " << PROTOGEN_VERSION << std::endl;
         std::cerr << "Usage: protogen <proto3 file> <output file>\n";
         exit(EXIT_FAILURE);
     }
