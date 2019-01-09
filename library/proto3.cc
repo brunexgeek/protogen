@@ -544,8 +544,11 @@ static void splitPackage(
     {
         if (*ptr == '.' || *ptr == 0)
         {
-            out.push_back(current);
-            current.clear();
+            if (!current.empty())
+            {
+                out.push_back(current);
+                current.clear();
+            }
             if (*ptr == 0) break;
         }
         else
