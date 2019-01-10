@@ -84,20 +84,16 @@ template<typename T> class Field
 {
     protected:
         T value_;
-        uint32_t flags_;
+        bool undefined_;
     public:
-        Field() { clear(); flags_ = 1; }
-#if __cplusplus >= 201103L
-        Field( T &&that ) { that.value_ = this->value_; that.flags_ = this->flags_; }
-#endif
+        Field() { clear(); }
         const T &operator()() const { return value_; }
-        T &operator()() { return value_; }
-        void operator ()(const T &value ) { this->value_ = value; this->flags_ &= ~1; }
-        bool undefined() const { return (flags_ & 1) != 0; } // TODO: use traits for 'undefined' (at least with messages)
-        void clear() { traits<T>::clear(value_); flags_ |= 1; }
-        Field<T> &operator=( const Field<T> &that ) { this->value_ = that.value_; this->flags_ = that.flags_; return *this; }
-        bool operator==( const T &that ) const { return this->value_ == that && (this->flags_ & 1) == 0; }
-        bool operator==( const Field<T> &that ) const { return this->value_ == that.value_ && this->flags_ == that.flags_; }
+        void operator ()(const T &value ) { this->value_ = value; this->undefined_ = false; }
+        bool undefined() const { return undefined_; }
+        void clear() { traits<T>::clear(value_); undefined_ = true; }
+        Field<T> &operator=( const Field<T> &that ) { this->value_ = that.value_; this->undefined_ = that.undefined_; return *this; }
+        bool operator==( const T &that ) const { return !this->undefined_ && this->value_ == that; }
+        bool operator==( const Field<T> &that ) const { return this->undefined_ == that.undefined_ && this->value_ == that.value_;  }
 };
 
 template<typename T> class RepeatedField
@@ -107,9 +103,6 @@ template<typename T> class RepeatedField
         int number_;
     public:
         RepeatedField() {}
-#if __cplusplus >= 201103L
-        RepeatedField( T &&that ) { that.value_ = std::move(this->value_); }
-#endif
         const std::vector<T> &operator()() const { return value_; }
         std::vector<T> &operator()() { return value_; }
         bool undefined() const { return value_.size() == 0; }
@@ -125,7 +118,25 @@ class Message
         virtual bool deserialize( std::istream &in ) = 0;
         virtual bool deserialize( std::string &in ) = 0;
         virtual void clear() = 0;
+        virtual bool undefined() const = 0;
 };
+
+#if 1
+class MemoryBuffer : public std::basic_streambuf<uint8_t>
+{
+    public:
+		MemoryBuffer( uint8_t* data, size_t size ) : data_(data), size_(size), ptr_(data) {}
+        uint8_t* pbase() const { return data_; }
+		uint8_t* pptr() const { return ptr_; }
+		uint8_t* epptr() const { return data_ + size_; }
+
+    private:
+        uint8_t *data_;
+        size_t size_;
+        uint8_t *ptr_;
+};
+#endif
+
 
 template <typename I> class InputStream
 {

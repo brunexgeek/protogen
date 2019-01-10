@@ -325,15 +325,25 @@ static void generateSerializer( Printer &printer, const Message &message )
     printer("out << '}';\n\b}\n");
 }
 
+
+static void generateTraitMacro( Printer &printer )
+{
+    printer(
+        "\n#define PROTOGEN_TRAIT_MACRO(MSGTYPE) \\\n"
+        "\tnamespace protogen { \\\n"
+        "\ttemplate<> struct traits<MSGTYPE> { \\\n"
+        "\tstatic void clear( MSGTYPE &value ) { value.clear(); } \\\n"
+        "\tstatic void write( std::ostream &out, const MSGTYPE &value ) { value.serialize(out); } \\\n"
+        "\b}; \\\n\b} \n\b\b");
+}
+
+
 static void generateTrait( Printer &printer, const Message &message )
 {
     printer(
-        "namespace protogen {\n"
-        "\ttemplate<> struct traits<$1$$2$> {\n"
-        "\tstatic void clear( $1$$2$ &value ) { value.clear(); }\n"
-        "\tstatic void write( std::ostream &out, const $1$$2$ &value ) { value.serialize(out); }\n"
-        "\b};\n\b}\n", nativePackage(message.package), message.name);
+        "PROTOGEN_TRAIT_MACRO($1$::$2$)\n", nativePackage(message.package), message.name);
 }
+
 
 static void generateClear( Printer &printer, const Message &message )
 {
@@ -364,21 +374,77 @@ static void generateWriterPrototype( Printer &printer, const Message &message )
 {
     printer("namespace protogen {\n"
         "namespace json {\n\t"
-        "static void write( std::ostream &out, bool &first, const std::string &name, \n\tconst $1$$2$ &value);\n\b\b"
+        "static void write( std::ostream &out, bool &first, const std::string &name, \n\tconst $1$::$2$ &value);\n\b\b"
         "}}\n",
         nativePackage(message.package), message.name);
 }
 
+
+static void generateWriterMacro( Printer &printer )
+{
+    printer(
+        "\n#define PROTOGEN_WRITER_TEMPLATE(MSGTYPE) \\\n"
+        "\tnamespace protogen { \\\n"
+        "namespace json { \\\n\t"
+        "static void write( std::ostream &out, bool &first, const std::string &name, const MSGTYPE &value) { \\\n"
+        "\tif (!first) out << ',';\\\n"
+        "out << '\"' << name << \"\\\":\"; \\\n"
+        "value.serialize(out); \\\n"
+        "first = false; \\\n\b} \\\n\b"
+        "}}\n\b");
+}
+
 static void generateWriter( Printer &printer, const Message &message )
 {
-    printer("namespace protogen {\n"
-    "namespace json {\n\t"
-    "static void write( std::ostream &out, bool &first, const std::string &name, const $1$$2$ &value) {\n"
-    "\tif (!first) out << ',';\n"
-    "out << '\"' << name << \"\\\":\";\n"
-    "value.serialize(out);\n"
-    "first = false;\n\b}\n\b"
-    "}}\n", nativePackage(message.package), message.name);
+    printer("PROTOGEN_WRITER_TEMPLATE($1$::$2$)\n", nativePackage(message.package), message.name);
+}
+
+
+static void generateFieldTemplateMacro( Printer &printer )
+{
+    //std::string typeName = nativePackage(message.package) + message.name;
+
+    printer(
+        "\n#define PROTOGEN_FIELD_TEMPLATE(MSGTYPE) \\\n"
+        "\tnamespace protogen { \\\n"
+        "template<> class Field<MSGTYPE> { \\\n"
+        "\tprotected: \\\n"
+        "\tMSGTYPE value_; \\\n"
+        "\bpublic: \\\n"
+        "\tField() { clear(); } \\\n"
+        "const MSGTYPE &operator()() const { return value_; } \\\n"
+        "MSGTYPE &operator()() { return value_; } \\\n"
+        "void operator ()(const MSGTYPE &value ) { this->value_ = value; } \\\n"
+        "bool undefined() const { return value_.undefined(); } \\\n"
+        "void clear() { traits<MSGTYPE>::clear(value_); } \\\n"
+        "Field<MSGTYPE> &operator=( const Field<MSGTYPE> &that ) { this->value_ = that.value_; return *this; } \\\n"
+        "bool operator==( const MSGTYPE &that ) const { return this->value_ == that; } \\\n"
+        "bool operator==( const Field<MSGTYPE> &that ) const { return this->value_ == that.value_; } \\\n"
+        "\b\b}; \\\n}\n\b");
+}
+
+
+static void generateFieldTemplate( Printer &printer, const Message &message )
+{
+    printer(
+        "PROTOGEN_FIELD_TEMPLATE($1$::$2$)\n", nativePackage(message.package), message.name);
+}
+
+
+static void generateUndefined( Printer &printer, const Message &message )
+{
+    printer(
+        "bool undefined() const {\n"
+        "\treturn\n\t", message.name);
+    for (auto fi = message.fields.begin(); fi != message.fields.end(); ++fi)
+    {
+        printer("this->$1$.undefined()", fieldStorage(*fi));
+        if (fi + 1 != message.fields.end())
+            printer(" &&\n");
+        else
+            printer(";\n");
+    }
+    printer("\b\b}\n");
 }
 
 
@@ -406,11 +472,13 @@ static void generateMessage( Printer &printer, const Message &message )
     // copy constructor
     generateCopyCtor(printer, message);
     // move constructor
-    generateMoveCtor(printer, message);
+    //generateMoveCtor(printer, message);
     // assign operator
     generateAssignOperator(printer, message);
     // equality operator
     generateEqualityOperator(printer, message);
+    // undefined function
+    generateUndefined(printer, message);
     // message serializer
     generateSerializer(printer, message);
     // message deserializer
@@ -426,6 +494,8 @@ static void generateMessage( Printer &printer, const Message &message )
     generateTrait(printer, message);
     // JSON writer
     generateWriter(printer, message);
+    // 'Field' template specializarion
+    generateFieldTemplate(printer, message);
 }
 
 
@@ -472,6 +542,11 @@ static void generateModel( Printer &printer, const Proto3 &proto )
         "#endif\n"
         // base template
         "\n$2$\n", PROTOGEN_VERSION, BASE_TEMPLATE, proto.fileName, guard, version);
+
+    // macros for custom templates
+    generateTraitMacro(printer);
+    generateWriterMacro(printer);
+    generateFieldTemplateMacro(printer);
 
     // forward declarations
     printer("\n// forward declarations\n");
