@@ -81,10 +81,9 @@ static std::string toUpper( const std::string &value )
 static std::string nativePackage( const std::vector<std::string> &package )
 {
     // extra space because the compiler may complain about '<::' (i.e. using in templates)
+    if (package.empty() || package[0].empty()) return "";
+
     std::string name = " ::";
-
-    if (package.empty() || package[0].empty()) return name;
-
     for (auto it = package.begin(); it != package.end(); ++it)
     {
         name += *it;
@@ -370,13 +369,22 @@ static void generateNamespace( Printer &printer, const Message &message, bool st
 }
 
 
+
+static void generateWriterPrototypeMacro( Printer &printer )
+{
+    printer(
+        "\n#define PROTOGEN_WRITER_PROTO_TEMPLATE(MSGTYPE) \\\n"
+        "\tnamespace protogen { \\\n"
+        "\tstatic void write( std::ostream &out, bool &first, const std::string &name, \\\n"
+        "\tconst MSGTYPE &value); \\\n\b\b"
+        "}\n\b");
+}
+
+
+
 static void generateWriterPrototype( Printer &printer, const Message &message )
 {
-    printer("namespace protogen {\n"
-        "namespace json {\n\t"
-        "static void write( std::ostream &out, bool &first, const std::string &name, \n\tconst $1$::$2$ &value);\n\b\b"
-        "}}\n",
-        nativePackage(message.package), message.name);
+    printer("PROTOGEN_WRITER_PROTO_TEMPLATE($1$::$2$)\n", nativePackage(message.package), message.name);
 }
 
 
@@ -394,6 +402,7 @@ static void generateWriterMacro( Printer &printer )
         "}}\n\b");
 }
 
+
 static void generateWriter( Printer &printer, const Message &message )
 {
     printer("PROTOGEN_WRITER_TEMPLATE($1$::$2$)\n", nativePackage(message.package), message.name);
@@ -402,8 +411,6 @@ static void generateWriter( Printer &printer, const Message &message )
 
 static void generateFieldTemplateMacro( Printer &printer )
 {
-    //std::string typeName = nativePackage(message.package) + message.name;
-
     printer(
         "\n#define PROTOGEN_FIELD_TEMPLATE(MSGTYPE) \\\n"
         "\tnamespace protogen { \\\n"
@@ -546,6 +553,7 @@ static void generateModel( Printer &printer, const Proto3 &proto )
     // macros for custom templates
     generateTraitMacro(printer);
     generateWriterMacro(printer);
+    generateWriterPrototypeMacro(printer);
     generateFieldTemplateMacro(printer);
 
     // forward declarations
