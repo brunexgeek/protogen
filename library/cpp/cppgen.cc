@@ -214,42 +214,46 @@ static void generateDeserializer( Printer &printer, const Message &message )
 {
     printer(
         // deserializer receiving a 'istream'
-        "bool deserialize( std::istream &in ) {\n"
+        "bool deserialize( std::istream &in, bool required = false ) {\n"
         "\tbool skip = in.flags() & std::ios_base::skipws;\n"
         "std::noskipws(in);\n"
         "std::istream_iterator<char> itb(in);\n"
         "std::istream_iterator<char> ite;\n"
         "protogen::InputStream< std::istream_iterator<char> > is(itb, ite);\n"
-        "bool result = this->deserialize(is);\n"
+        "bool result = this->deserialize(is, required);\n"
         "if (skip) std::skipws(in);\n"
         "\treturn result;\n"
         "\b\b}\n"
 
         // deserializer receiving a 'string'
-        "bool deserialize( const std::string &in ) {\n"
+        "bool deserialize( const std::string &in, bool required = false ) {\n"
         "\tprotogen::InputStream<std::string::const_iterator> is(in.begin(), in.end());\n"
-        "return this->deserialize(is);\n"
+        "return this->deserialize(is, required);\n"
         "\b}\n"
 
         // deserializer receiving a 'vector'
-        "bool deserialize( const std::vector<char> &in ) {\n"
+        "bool deserialize( const std::vector<char> &in, bool required = false ) {\n"
         "\tprotogen::InputStream<std::vector<char>::const_iterator> is(in.begin(), in.end());\n"
-        "return this->deserialize(is);\n"
+        "return this->deserialize(is, required);\n"
         "\b}\n"
 
         // 'real' deserializer
         "template<typename T>\n"
-        "bool deserialize( protogen::InputStream<T> &in ) {\n"
+        "bool deserialize( protogen::InputStream<T> &in, bool required = false ) {\n"
         "\tin.skipws();\n"
         "if (in.get() != '{') return false;\n"
-        "std::string name;\n"
+        "std::string name;\n");
+
+    printer(
+        "bool hasField[$1$] = {false};\n"
         "while (true) {\n\t"
         "name.clear();\n"
-        "if (!protogen::json::readName(in, name)) break;\n");
+        "if (!protogen::json::readName(in, name)) break;\n", message.fields.size());
 
     bool first = true;
+    size_t count = 0;
 
-    for (auto fi = message.fields.begin(); fi != message.fields.end(); ++fi)
+    for (auto fi = message.fields.begin(); fi != message.fields.end(); ++fi, ++count)
     {
         if (!IS_VALID_TYPE(fi->type.id)) continue;
 
@@ -274,17 +278,24 @@ static void generateDeserializer( Printer &printer, const Message &message )
             }
             else
             if (fi->type.id == protogen::TYPE_MESSAGE)
-                printer("if (!this->$1$().deserialize(in)) return false;\n", fieldStorage(*fi));
+                printer("if (!this->$1$().deserialize(in, required)) return false;\n", fieldStorage(*fi));
         }
-        printer("if (!protogen::json::next(in)) return false;\n");
-        printer("\b}\n"); // closes the main 'if'
+        printer(
+            "if (!protogen::json::next(in)) return false;\n"
+            "hasField[$1$] = true;\n"
+            "\b}\n", // closes the main 'if'
+            count);
         first = false;
     }
     printer(
         "else\n"
         "// ignore the current field\n"
-        "\tif (!protogen::json::ignore(in)) return false;\n\b\b"
-        "}\nreturn true;\n\b}\n");
+        "\tif (!protogen::json::ignore(in)) return false;\n\b\b}\n");
+
+    printer(
+        "if (required) {\n"
+        "\tfor (size_t i = 0; i < $1$; ++i) if (!hasField[i]) return false;\n\b}\n"
+        "return true;\n\b}\n", message.fields.size());
 }
 
 

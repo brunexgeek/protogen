@@ -115,9 +115,9 @@ class Message
     public:
         virtual void serialize( std::string &out ) const = 0;
         virtual void serialize( std::ostream &out ) const = 0;
-        virtual bool deserialize( std::istream &in ) = 0;
-        virtual bool deserialize( const std::string &in ) = 0;
-        virtual bool deserialize( const std::vector<char> &in ) = 0;
+        virtual bool deserialize( std::istream &in, bool required = false ) = 0;
+        virtual bool deserialize( const std::string &in, bool required = false ) = 0;
+        virtual bool deserialize( const std::vector<char> &in, bool required = false ) = 0;
         virtual void clear() = 0;
         virtual bool undefined() const = 0;
 };

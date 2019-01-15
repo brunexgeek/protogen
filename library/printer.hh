@@ -47,7 +47,20 @@ class Printer
         bool newLine_;
         int tab_;
 
-        static std::string toString( const std::string& s ) { return s; }
+        static std::string toString( const std::string& value ) { return value; }
+        static std::string toString( const size_t value )
+        {
+            char temp[24] = { 0 };
+            snprintf(temp, sizeof(temp) - 1, "%lu", value);
+            return std::string(temp);
+        }
+
+        static std::string toString( const ssize_t value )
+        {
+            char temp[24] = { 0 };
+            snprintf(temp, sizeof(temp) - 1, "%ld", value);
+            return std::string(temp);
+        }
 
         void print( const char *format, const std::vector<std::string> &vars );
 };
