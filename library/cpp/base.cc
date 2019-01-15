@@ -491,14 +491,12 @@ static bool ignore( InputStream<I> &in )
         while (!in.eof())
         {
             int ch = in.get();
-            if (ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r' || ch == ',')
+            if (ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r' || ch == ',' || ch == ']' || ch == '}')
             {
                 in.unget();
                 return true;
             }
         }
-        in.skipws();
-        if (in.get() != ',') in.unget();
     }
 
     return false;
