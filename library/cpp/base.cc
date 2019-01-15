@@ -116,12 +116,13 @@ class Message
         virtual void serialize( std::string &out ) const = 0;
         virtual void serialize( std::ostream &out ) const = 0;
         virtual bool deserialize( std::istream &in ) = 0;
-        virtual bool deserialize( std::string &in ) = 0;
+        virtual bool deserialize( const std::string &in ) = 0;
+        virtual bool deserialize( const std::vector<char> &in ) = 0;
         virtual void clear() = 0;
         virtual bool undefined() const = 0;
 };
 
-#if 1
+#if 0
 class MemoryBuffer : public std::basic_streambuf<uint8_t>
 {
     public:
@@ -404,16 +405,14 @@ static bool readName( InputStream<I> &in, std::string &name )
     return (in.get() == ':');
 }
 
+
 template<typename I>
-static bool ignoreEnclosing( InputStream<I> &in, int begin, int end )
+static bool ignoreString( InputStream<I> &in )
 {
-    if (in.get() != begin) return false;
+    if (in.get() != '"') return false;
 
-    int count = 1;
-
-    bool text = false;
     bool escape = false;
-    while (count != 0 && !in.eof())
+    while (!in.eof())
     {
         int ch = in.get();
         if (escape)
@@ -435,23 +434,36 @@ static bool ignoreEnclosing( InputStream<I> &in, int begin, int end )
             }
         }
         else
-        if (ch == '\\')
+        if (ch == '"')
+            return true;
+    }
+
+    return false;
+}
+
+
+template<typename I>
+static bool ignoreEnclosing( InputStream<I> &in, int begin, int end )
+{
+    if (in.get() != begin) return false;
+
+    int count = 1;
+
+    bool text = false;
+    while (count != 0 && !in.eof())
+    {
+        int ch = in.get();
+        if (ch == '"' && !text)
         {
-            if (!text) return false; // escape sequence not allowed outside strings
-            escape = true;
+            in.unget();
+            if (!ignoreString(in)) return false;
         }
         else
-        if (ch == '"' && !escape)
-            text = !text;
+        if (ch == end)
+            --count;
         else
-        if (!text)
-        {
-            if (ch == end)
-                --count;
-            else
-            if (ch == begin)
-                ++count;
-        }
+        if (ch == begin)
+            ++count;
     }
 
     in.skipws();
@@ -473,7 +485,7 @@ static bool ignore( InputStream<I> &in )
         return ignoreEnclosing(in, '{', '}');
     else
     if (ch == '"')
-        return ignoreEnclosing(in, '"', '"');
+        return ignoreString(in);
     else
     {
         while (!in.eof())

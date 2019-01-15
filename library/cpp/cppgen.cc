@@ -226,13 +226,13 @@ static void generateDeserializer( Printer &printer, const Message &message )
         "\b\b}\n"
 
         // deserializer receiving a 'string'
-        "bool deserialize( std::string &in ) {\n"
+        "bool deserialize( const std::string &in ) {\n"
         "\tprotogen::InputStream<std::string::const_iterator> is(in.begin(), in.end());\n"
         "return this->deserialize(is);\n"
         "\b}\n"
 
         // deserializer receiving a 'vector'
-        "bool deserialize( std::vector<char> &in ) {\n"
+        "bool deserialize( const std::vector<char> &in ) {\n"
         "\tprotogen::InputStream<std::vector<char>::const_iterator> is(in.begin(), in.end());\n"
         "return this->deserialize(is);\n"
         "\b}\n"
