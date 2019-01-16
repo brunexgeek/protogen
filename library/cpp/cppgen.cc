@@ -237,6 +237,12 @@ static void generateDeserializer( Printer &printer, const Message &message )
         "return this->deserialize(is, required);\n"
         "\b}\n"
 
+        // deserializer receiving iterators
+       	"template <typename IT>\n"
+        "bool deserialize( IT begin, IT end, bool required = false ){\n"
+        "\tprotogen::InputStream<IT> is(begin, end);\n"
+        "return this->deserialize(is, required);\n\b}\n"
+
         // 'real' deserializer
         "template<typename T>\n"
         "bool deserialize( protogen::InputStream<T> &in, bool required = false ) {\n"
