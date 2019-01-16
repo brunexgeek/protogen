@@ -77,6 +77,21 @@ static std::string toUpper( const std::string &value )
 }
 
 
+static std::string obfuscate( const std::string &value )
+{
+    size_t len = value.length();
+	std::string result;
+	for (size_t i = 0; i < len; ++i)
+    {
+        int cur = value[i] ^ 0x33;
+        static const char *ALPHABET = "0123456789ABCDEF";
+        result += "\\x";
+        result += ALPHABET[ (cur & 0xF0) >> 4 ];
+        result += ALPHABET[ cur & 0x0F ];
+    }
+	return result;
+}
+
 
 static std::string nativePackage( const std::vector<std::string> &package )
 {
@@ -263,15 +278,17 @@ static void generateDeserializer( Printer &printer, const Message &message )
     {
         if (!IS_VALID_TYPE(fi->type.id)) continue;
 
+        std::string storage = fieldStorage(*fi);
+
         if (!first) printer("else\n");
         printer("// $1$\n", fi->name);
-        printer("if (name == \"$1$\") {\n\t", fieldStorage(*fi)); // open the main 'if'
+        printer("if (name == PROTOGEN_FN_$1$) {\n\t", storage); // open the main 'if'
 
         if (fi->repeated || fi->type.id == protogen::TYPE_BYTES)
         {
             std::string function = "readArray";
             if (fi->type.id == protogen::TYPE_MESSAGE) function = "readMessageArray";
-            printer("if (!protogen::json::$1$(in, this->$2$())) return false;\n", function, fieldStorage(*fi));
+            printer("if (!protogen::json::$1$(in, this->$2$())) return false;\n", function, storage);
         }
         else
         {
@@ -280,11 +297,11 @@ static void generateDeserializer( Printer &printer, const Message &message )
                 printer(
                     "$1$ value;\n"
                     "if (!protogen::json::readValue(in, value)) return false;\n"
-                    "this->$2$(value);\n", nativeType(*fi), fieldStorage(*fi));
+                    "this->$2$(value);\n", nativeType(*fi), storage);
             }
             else
             if (fi->type.id == protogen::TYPE_MESSAGE)
-                printer("if (!this->$1$().deserialize(in, required)) return false;\n", fieldStorage(*fi));
+                printer("if (!this->$1$().deserialize(in, required)) return false;\n", storage);
         }
         printer(
             "if (!protogen::json::next(in)) return false;\n"
@@ -335,8 +352,7 @@ static void generateSerializer( Printer &printer, const Message &message )
         if (fi->type.id != protogen::TYPE_MESSAGE)
             printer("if (!this->$1$.undefined()) ", storage);
 
-        printer("protogen::json::write(out, first, \"$1$\", this->$1$());\n",
-            storage);
+        printer("protogen::json::write(out, first, PROTOGEN_FN_$1$, this->$1$());\n", storage);
     }
     printer("out << '}';\n\b}\n");
 }
@@ -487,6 +503,20 @@ static void generateMessage( Printer &printer, const Message &message )
 
     for (auto fi = message.fields.begin(); fi != message.fields.end(); ++fi)
     {
+        std::string storage = fieldStorage(*fi);
+
+        printer(
+            "#undef PROTOGEN_FN_$1$\n"
+            "#ifdef PROTOGEN_OBFUSCATE_NAMES\n"
+            "\t#define PROTOGEN_FN_$1$ protogen::json::reveal(\"$2$\", $3$)\n"
+            "\b#else\n"
+            "\t#define PROTOGEN_FN_$1$ \"$1$\"\n"
+            "\b#endif\n",
+                storage, obfuscate(storage), storage.length());
+    }
+
+    for (auto fi = message.fields.begin(); fi != message.fields.end(); ++fi)
+    {
         // storage variable
         generateVariable(printer, *fi);
     }
@@ -520,6 +550,12 @@ static void generateMessage( Printer &printer, const Message &message )
     generateWriter(printer, message);
     // 'Field' template specializarion
     generateFieldTemplate(printer, message);
+
+    for (auto fi = message.fields.begin(); fi != message.fields.end(); ++fi)
+    {
+        std::string storage = fieldStorage(*fi);
+        printer("#undef PROTOGEN_FN_$1$\n", storage);
+    }
 }
 
 

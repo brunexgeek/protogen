@@ -221,6 +221,16 @@ template <typename I> class InputStream
 
 namespace json {
 
+
+static std::string reveal( const char *value, size_t length )
+{
+	std::string result(length, ' ');
+	for (size_t i = 0; i < length; ++i)
+		result[i] = (char) ((int) value[i] ^ 0x33);
+	return result;
+}
+
+
 // numeric types
 template<typename T>
 static bool write( std::ostream &out, bool &first, const std::string &name, const T &value )
