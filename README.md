@@ -50,6 +50,13 @@ Compile your program as usual (no additional library is required). In the exampl
 {"name":"Michelle","age":24,"colors":["yellow"]}
 ```
 
+You can define `PROTOGEN_OBFUSCATE_NAMES` before the inclusion to enable obfuscated JSON field names. This feature can be used to make a little difficult for curious people to find out your JSON field names (e.g. internal microservices).
+
+```
+#define PROTOGEN_OBFUSCATE_NAMES
+#include "model.pg.hh"
+```
+
 ## Features
 
 Supported field types:
