@@ -286,8 +286,8 @@ static void generateDeserializer( Printer &printer, const Message &message )
 
         if (fi->repeated || fi->type.id == protogen::TYPE_BYTES)
         {
-            std::string function = "readArray";
-            if (fi->type.id == protogen::TYPE_MESSAGE) function = "readMessageArray";
+            std::string function = "read";
+            //if (fi->type.id == protogen::TYPE_MESSAGE) function = "readMessageArray";
             printer("if (!protogen::json::$1$(in, this->$2$())) return false;\n", function, storage);
         }
         else
@@ -296,7 +296,7 @@ static void generateDeserializer( Printer &printer, const Message &message )
             {
                 printer(
                     "$1$ value;\n"
-                    "if (!protogen::json::readValue(in, value)) return false;\n"
+                    "if (!protogen::traits<$1$>::read(in, value)) return false;\n"
                     "this->$2$(value);\n", nativeType(*fi), storage);
             }
             else
@@ -365,7 +365,9 @@ static void generateTraitMacro( Printer &printer )
         "\tnamespace protogen { \\\n"
         "\ttemplate<> struct traits<MSGTYPE> { \\\n"
         "\tstatic void clear( MSGTYPE &value ) { value.clear(); } \\\n"
-        "\tstatic void write( std::ostream &out, const MSGTYPE &value ) { value.serialize(out); } \\\n"
+        "static void write( std::ostream &out, const MSGTYPE &value ) { value.serialize(out); } \\\n"
+        "template<typename I> \\\n"
+        "static bool read( protogen::InputStream<I> &in, MSGTYPE &value ) { return value.deserialize(in); } \\\n"
         "\b}; \\\n\b} \n\b\b");
 }
 
@@ -412,7 +414,6 @@ static void generateWriterPrototypeMacro( Printer &printer )
         "\tconst MSGTYPE &value); \\\n\b\b"
         "}\n\b");
 }
-
 
 
 static void generateWriterPrototype( Printer &printer, const Message &message )

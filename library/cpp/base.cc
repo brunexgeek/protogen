@@ -37,108 +37,6 @@ enum FieldType
 
 #endif // PROTOGEN_FIELD_TYPES
 
-template<typename T> struct traits
-{
-    static void clear( T &value ) { value = (T) 0; }
-    static void write( std::ostream &out, const T &value ) { out << value; }
-};
-
-template<> struct traits<bool>
-{
-    static void clear( bool &value ) { value = false; }
-    static void write( std::ostream &out, const bool &value ) { out << ((value) ? "true" : "false"); }
-};
-
-template<> struct traits<uint8_t>
-{
-    static void clear( uint8_t &value ) { value = 0; }
-    static void write( std::ostream &out, const uint8_t &value ) { out << (int) value; }
-};
-
-template<> struct traits<std::string>
-{
-    static void clear( std::string &value ) { value.clear(); }
-    static void write( std::ostream &out, const std::string &value )
-    {
-        out << '"';
-        for (std::string::const_iterator it = value.begin(); it != value.end(); ++it)
-        {
-            switch (*it)
-            {
-                case '"':  out << "\\\""; break;
-                case '\\': out << "\\\\"; break;
-                case '/':  out << "\\/"; break;
-                case '\b': out << "\\b"; break;
-                case '\f': out << "\\f"; break;
-                case '\r': out << "\\r"; break;
-                case '\n': out << "\\n"; break;
-                case '\t': out << "\\t"; break;
-                default:   out << *it;
-            }
-        }
-        out << '"';
-    }
-};
-
-template<typename T> class Field
-{
-    protected:
-        T value_;
-        bool undefined_;
-    public:
-        Field() { clear(); }
-        const T &operator()() const { return value_; }
-        void operator ()(const T &value ) { this->value_ = value; this->undefined_ = false; }
-        bool undefined() const { return undefined_; }
-        void clear() { traits<T>::clear(value_); undefined_ = true; }
-        Field<T> &operator=( const Field<T> &that ) { this->value_ = that.value_; this->undefined_ = that.undefined_; return *this; }
-        bool operator==( const T &that ) const { return !this->undefined_ && this->value_ == that; }
-        bool operator==( const Field<T> &that ) const { return this->undefined_ == that.undefined_ && this->value_ == that.value_;  }
-};
-
-template<typename T> class RepeatedField
-{
-    protected:
-        std::vector<T> value_;
-        int number_;
-    public:
-        RepeatedField() {}
-        const std::vector<T> &operator()() const { return value_; }
-        std::vector<T> &operator()() { return value_; }
-        bool undefined() const { return value_.size() == 0; }
-        void clear() { value_.clear(); }
-        bool operator==( const RepeatedField<T> &that ) const { return this->value_ == that.value_; }
-};
-
-class Message
-{
-    public:
-        virtual void serialize( std::string &out ) const = 0;
-        virtual void serialize( std::ostream &out ) const = 0;
-        virtual bool deserialize( std::istream &in, bool required = false ) = 0;
-        virtual bool deserialize( const std::string &in, bool required = false ) = 0;
-        virtual bool deserialize( const std::vector<char> &in, bool required = false ) = 0;
-        virtual void clear() = 0;
-        virtual bool undefined() const = 0;
-};
-
-#if 0
-class MemoryBuffer : public std::basic_streambuf<uint8_t>
-{
-    public:
-		MemoryBuffer( uint8_t* data, size_t size ) : data_(data), size_(size), ptr_(data) {}
-        uint8_t* pbase() const { return data_; }
-		uint8_t* pptr() const { return ptr_; }
-		uint8_t* epptr() const { return data_ + size_; }
-
-    private:
-        uint8_t *data_;
-        size_t size_;
-        uint8_t *ptr_;
-};
-#endif
-
-
 template <typename I> class InputStream
 {
     protected:
@@ -219,6 +117,196 @@ template <typename I> class InputStream
         }
 };
 
+// proto3 numerics
+template<typename T> struct traits
+{
+    static void clear( T &value ) { value = (T) 0; }
+    static void write( std::ostream &out, const T &value ) { out << value; }
+    template<typename I>
+    static bool read( InputStream<I> &in, T &value )
+    {
+        in.skipws();
+        std::string temp;
+        while (true)
+        {
+            int ch = in.get();
+            if (ch != '.' && (ch < '0' || ch > '9'))
+            {
+                in.unget();
+                break;
+            }
+            temp += (char) ch;
+        }
+        if (temp.empty()) return false;
+
+        static locale_t loc = newlocale(LC_NUMERIC_MASK | LC_MONETARY_MASK, "C", 0);
+        if (loc == 0) return false;
+        uselocale(loc);
+        value = (T) strtod(temp.c_str(), NULL);
+        uselocale(LC_GLOBAL_LOCALE);
+        return true;
+    }
+};
+
+// proto3 'bool'
+template<> struct traits<bool>
+{
+    static void clear( bool &value ) { value = false; }
+    static void write( std::ostream &out, const bool &value ) { out << ((value) ? "true" : "false"); }
+    template<typename I>
+    static bool read( InputStream<I> &in, bool &value )
+    {
+        in.skipws();
+        std::string temp;
+        while (true)
+        {
+            int ch = in.get();
+            switch (ch)
+            {
+                case 't':
+                case 'r':
+                case 'u':
+                case 'e':
+                case 'f':
+                case 'a':
+                case 'l':
+                case 's':
+                    temp += (int) ch;
+                    break;
+                default:
+                    in.unget();
+                    goto ESCAPE;
+            }
+        }
+    ESCAPE:
+        if (temp == "true")
+            value = true;
+        else
+        if (temp == "false")
+            value = false;
+        else
+            return false;
+        return true;
+    }
+};
+
+// proto3 'string'
+template<> struct traits<std::string>
+{
+    static void clear( std::string &value ) { value.clear(); }
+    static void write( std::ostream &out, const std::string &value )
+    {
+        out << '"';
+        for (std::string::const_iterator it = value.begin(); it != value.end(); ++it)
+        {
+            switch (*it)
+            {
+                case '"':  out << "\\\""; break;
+                case '\\': out << "\\\\"; break;
+                case '/':  out << "\\/"; break;
+                case '\b': out << "\\b"; break;
+                case '\f': out << "\\f"; break;
+                case '\r': out << "\\r"; break;
+                case '\n': out << "\\n"; break;
+                case '\t': out << "\\t"; break;
+                default:   out << *it;
+            }
+        }
+        out << '"';
+    }
+    template <typename I>
+    static bool read( InputStream<I> &in, std::string &value )
+    {
+        in.skipws();
+        if (in.get() != '"') return false;
+        while (1)
+        {
+            int c = in.get();
+            if (c == '"') return true;
+
+            if (c == '\\')
+            {
+                c = in.get();
+                switch (c)
+                {
+                    case '"':  c = '"'; break;
+                    case '\\': c = '\\'; break;
+                    case '/':  c = '/'; break;
+                    case 'b':  c = '\b'; break;
+                    case 'f':  c = '\f'; break;
+                    case 'r':  c = '\r'; break;
+                    case 'n':  c = '\n'; break;
+                    case 't':  c = '\t'; break;
+                }
+            }
+
+            if (c <= 0) return false;
+            value += (char) c;
+        }
+
+        return false;
+    }
+};
+
+template<typename T> class Field
+{
+    protected:
+        T value_;
+        bool undefined_;
+    public:
+        Field() { clear(); }
+        const T &operator()() const { return value_; }
+        void operator ()(const T &value ) { this->value_ = value; this->undefined_ = false; }
+        bool undefined() const { return undefined_; }
+        void clear() { traits<T>::clear(value_); undefined_ = true; }
+        Field<T> &operator=( const Field<T> &that ) { this->value_ = that.value_; this->undefined_ = that.undefined_; return *this; }
+        bool operator==( const T &that ) const { return !this->undefined_ && this->value_ == that; }
+        bool operator==( const Field<T> &that ) const { return this->undefined_ == that.undefined_ && this->value_ == that.value_;  }
+};
+
+template<typename T> class RepeatedField
+{
+    protected:
+        std::vector<T> value_;
+        int number_;
+    public:
+        RepeatedField() {}
+        const std::vector<T> &operator()() const { return value_; }
+        std::vector<T> &operator()() { return value_; }
+        bool undefined() const { return value_.size() == 0; }
+        void clear() { value_.clear(); }
+        bool operator==( const RepeatedField<T> &that ) const { return this->value_ == that.value_; }
+};
+
+class Message
+{
+    public:
+        virtual void serialize( std::string &out ) const = 0;
+        virtual void serialize( std::ostream &out ) const = 0;
+        virtual bool deserialize( std::istream &in, bool required = false ) = 0;
+        virtual bool deserialize( const std::string &in, bool required = false ) = 0;
+        virtual bool deserialize( const std::vector<char> &in, bool required = false ) = 0;
+        virtual void clear() = 0;
+        virtual bool undefined() const = 0;
+};
+
+#if 0
+class MemoryBuffer : public std::basic_streambuf<uint8_t>
+{
+    public:
+		MemoryBuffer( uint8_t* data, size_t size ) : data_(data), size_(size), ptr_(data) {}
+        uint8_t* pbase() const { return data_; }
+		uint8_t* pptr() const { return ptr_; }
+		uint8_t* epptr() const { return data_ + size_; }
+
+    private:
+        uint8_t *data_;
+        size_t size_;
+        uint8_t *ptr_;
+};
+#endif
+
+
 namespace json {
 
 
@@ -230,7 +318,7 @@ static std::string reveal( const char *value, size_t length )
 	return result;
 }
 
-// numeric types
+// proto3 primitives
 template<typename T>
 static bool write( std::ostream &out, bool &first, const std::string &name, const T &value )
 {
@@ -241,6 +329,7 @@ static bool write( std::ostream &out, bool &first, const std::string &name, cons
     return true;
 }
 
+// proto3 'repeated'
 template<typename T>
 static bool write( std::ostream &out, bool &first, const std::string &name, const std::vector<T> &value )
 {
@@ -275,6 +364,7 @@ int b64_int( int ch )
 	return 0;
 }
 
+// proto3 'bytes'
 template<>
 bool write( std::ostream &out, bool &first, const std::string &name, const std::vector<uint8_t> &value )
 {
@@ -331,103 +421,9 @@ static bool next( InputStream<I> &in )
     return false;
 }
 
-template<typename I>
-static bool readValue( InputStream<I> &in, std::string &value )
-{
-    in.skipws();
-    if (in.get() != '"') return false;
-    while (1)
-    {
-        int c = in.get();
-        if (c == '"') return true;
-
-        if (c == '\\')
-        {
-            c = in.get();
-            switch (c)
-            {
-                case '"':  c = '"'; break;
-                case '\\': c = '\\'; break;
-                case '/':  c = '/'; break;
-                case 'b':  c = '\b'; break;
-                case 'f':  c = '\f'; break;
-                case 'r':  c = '\r'; break;
-                case 'n':  c = '\n'; break;
-                case 't':  c = '\t'; break;
-            }
-        }
-
-        if (c <= 0) return false;
-        value += (char) c;
-    }
-
-    return false;
-}
-
+// proto3 'repeated'
 template<typename I, typename T>
-static bool readValue( InputStream<I> &in, T &value )
-{
-    in.skipws();
-    std::string temp;
-    while (true)
-    {
-        int ch = in.get();
-        if (ch != '.' && (ch < '0' || ch > '9'))
-        {
-            in.unget();
-            break;
-        }
-        temp += (char) ch;
-    }
-    if (temp.empty()) return false;
-
-    static locale_t loc = newlocale(LC_NUMERIC_MASK | LC_MONETARY_MASK, "C", 0);
-    if (loc == 0) return false;
-    uselocale(loc);
-    value = (T) strtod(temp.c_str(), NULL);
-    uselocale(LC_GLOBAL_LOCALE);
-    return true;
-}
-
-template<typename I>
-static bool readValue( InputStream<I> &in, bool &value )
-{
-    in.skipws();
-    std::string temp;
-    while (true)
-    {
-        int ch = in.get();
-        switch (ch)
-        {
-            case 't':
-            case 'r':
-            case 'u':
-            case 'e':
-            case 'f':
-            case 'a':
-            case 'l':
-            case 's':
-                temp += (int) ch;
-                break;
-            default:
-                in.unget();
-                goto ESCAPE;
-        }
-    }
-ESCAPE:
-    if (temp == "true")
-        value = true;
-    else
-    if (temp == "false")
-        value = false;
-    else
-        return false;
-    return true;
-}
-
-// proto3 'repeated' message
-template<typename I, typename T>
-static bool readMessageArray( InputStream<I> &in, std::vector<T> &array )
+static bool read( InputStream<I> &in, std::vector<T> &array )
 {
     in.skipws();
     if (in.get() != '[') return false;
@@ -435,27 +431,7 @@ static bool readMessageArray( InputStream<I> &in, std::vector<T> &array )
     while (true)
     {
         T value;
-        value.deserialize(in);
-        array.push_back(value);
-        in.skipws();
-        if (!in.expect(',')) break;
-    }
-    if (in.get() != ']') return false;
-
-    return true;
-}
-
-// proto3 'repeated' primitives
-template<typename I, typename T>
-static bool readArray( InputStream<I> &in, std::vector<T> &array )
-{
-    in.skipws();
-    if (in.get() != '[') return false;
-    in.skipws();
-    while (true)
-    {
-        T value;
-        if (!readValue(in, value)) return false;
+        if (!traits<T>::read(in, value)) return false;
         array.push_back(value);
         in.skipws();
         if (!in.expect(',')) break;
@@ -467,7 +443,7 @@ static bool readArray( InputStream<I> &in, std::vector<T> &array )
 
 // proto3 'bytes'
 template<typename I>
-static bool readArray( InputStream<I> &in, std::vector<uint8_t> &array )
+static bool read( InputStream<I> &in, std::vector<uint8_t> &array )
 {
 	size_t k = 0, j;
     int s[4];
@@ -504,7 +480,7 @@ static bool readArray( InputStream<I> &in, std::vector<uint8_t> &array )
 template<typename I>
 static bool readName( InputStream<I> &in, std::string &name )
 {
-    if (!readValue(in, name)) return false;
+    if (!traits<std::string>::read(in, name)) return false;
     in.skipws();
     return (in.get() == ':');
 }
