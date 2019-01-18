@@ -248,6 +248,135 @@ template<> struct traits<std::string>
     }
 };
 
+template <typename T> struct traits< std::vector<T> >
+{
+    static void clear( std::vector<T> &value ) { value.clear(); }
+
+    static bool write( std::ostream &out, const std::vector<T> &value )
+    {
+        bool begin = true;
+        out << '[';
+        for (typename std::vector<T>::const_iterator it = value.begin(); it != value.end(); ++it)
+        {
+            if (!begin) out << ",";
+            begin = false;
+            traits<T>::write(out, *it);
+        }
+        out << ']';
+        return true;
+    }
+
+    template<typename I>
+    static bool read( InputStream<I> &in, std::vector<T> &value )
+    {
+        in.skipws();
+        if (in.get() != '[') return false;
+        in.skipws();
+        while (true)
+        {
+            T entry;
+            if (!traits<T>::read(in, entry)) return false;
+            value.push_back(entry);
+            in.skipws();
+            if (!in.expect(',')) break;
+        }
+        if (in.get() != ']') return false;
+
+        return true;
+    }
+};
+
+// Base64 encoder/decoder based on Joe DF's implementation
+// Original source at <https://github.com/joedf/base64.c> (MIT licensed)
+static const char *B64_SYMBOLS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+template <> struct traits< std::vector<uint8_t> >
+{
+    static void clear( std::vector<uint8_t> &value ) { value.clear(); }
+
+    static int b64_int( int ch )
+    {
+        if (ch == '+') return 62;
+        if (ch == '/') return 63;
+        if (ch == '=') return 64;
+        if (ch >= '0' && ch <= '9') return ch + 4;
+        if (ch >= 'A' && ch <= 'Z') return ch - 'A';
+        if (ch >= 'a' && ch <= 'z') return (ch - 'a') + 26;
+        return 0;
+    }
+
+    static bool write( std::ostream &out, const std::vector<uint8_t> &value )
+    {
+        char o[5] = { 0 };
+        size_t i = 0;
+        size_t size = value.size();
+
+        out << '"';
+
+        for (i = 0; i + 2 < size; i += 3)
+        {
+            o[0] = B64_SYMBOLS[ (value[i] & 0xFF) >> 2 ];
+            o[1] = B64_SYMBOLS[ ((value[i] & 0x03) << 4) | ((value[i + 1] & 0xF0) >> 4) ];
+            o[2] = B64_SYMBOLS[ ((value[i+1] & 0x0F) << 2) | ((value[i+2] & 0xC0) >> 6) ];
+            o[3] = B64_SYMBOLS[ value[i+2] & 0x3F ];
+            out << o;
+        }
+
+        if (size - i)
+        {
+            o[0] = B64_SYMBOLS[ (value[i] & 0xFF) >> 2 ];
+            o[1] = B64_SYMBOLS[ ((value[i] & 0x03) << 4) ];
+            o[2] = '=';
+            o[3] = '=';
+
+            if (size - i == 2)
+            {
+                o[1] = B64_SYMBOLS[ ((value[i] & 0x03) << 4) | ((value[i + 1] & 0xF0) >> 4) ];
+                o[2] = B64_SYMBOLS[ ((value[i+1] & 0x0F) << 2) ];
+            }
+
+            out << o;
+        }
+        out << '"';
+
+        return true;
+    }
+
+    template<typename I>
+    static bool read( InputStream<I> &in, std::vector<uint8_t> &array )
+    {
+        size_t k = 0;
+        int s[4];
+
+        if (in.get() != '"') return false;
+
+        while (true)
+        {
+            // read 4 characters
+            for (size_t j = 0; j < 4; ++j)
+            {
+                int ch = in.get();
+                if (ch == '"') return j == 0;
+                s[j] = protogen::traits< std::vector<uint8_t> >::b64_int(ch);
+            }
+            // decode base64 tuple
+            array.push_back( ((s[0] & 0xFF) << 2 ) | ((s[1] & 0x30) >> 4) );
+            if (s[2] != 64)
+            {
+                array.push_back( ((s[1] & 0x0F) << 4) | ((s[2] & 0x3C) >> 2) );
+                if ((s[3]!=64))
+                {
+                    array.push_back( ((s[2] & 0x03) << 6) | s[3] );
+                    k+=3;
+                }
+                else
+                    k+=2;
+            }
+            else
+                k+=1;
+        }
+    }
+};
+
 template<typename T> class Field
 {
     protected:
@@ -309,7 +438,6 @@ class MemoryBuffer : public std::basic_streambuf<uint8_t>
 
 namespace json {
 
-
 static std::string reveal( const char *value, size_t length )
 {
 	std::string result(length, ' ');
@@ -318,7 +446,7 @@ static std::string reveal( const char *value, size_t length )
 	return result;
 }
 
-// proto3 primitives
+// Write a complete JSON field
 template<typename T>
 static bool write( std::ostream &out, bool &first, const std::string &name, const T &value )
 {
@@ -328,84 +456,6 @@ static bool write( std::ostream &out, bool &first, const std::string &name, cons
     first = false;
     return true;
 }
-
-// proto3 'repeated'
-template<typename T>
-static bool write( std::ostream &out, bool &first, const std::string &name, const std::vector<T> &value )
-{
-    if (!first) out << ",";
-
-    bool begin = true;
-    out << '"' << name << "\":[";
-    for (typename std::vector<T>::const_iterator it = value.begin(); it != value.end(); ++it)
-    {
-        if (!begin) out << ",";
-        begin = false;
-        traits<T>::write(out, *it);
-    }
-    out << "]";
-
-    first = false;
-    return true;
-}
-
-// Base64 encoder/decoder based on Joe DF's implementation
-// Original source at <https://github.com/joedf/base64.c> (MIT licensed)
-static char B64_SYMBOLS[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-
-int b64_int( int ch )
-{
-	if (ch == '+') return 62;
-	if (ch == '/') return 63;
-	if (ch == '=') return 64;
-	if (ch >= '0' && ch <= '9') return ch + 4;
-	if (ch >= 'A' && ch <= 'Z') return ch - 'A';
-	if (ch >= 'a' && ch <= 'z') return (ch - 'a') + 26;
-	return 0;
-}
-
-// proto3 'bytes'
-template<>
-bool write( std::ostream &out, bool &first, const std::string &name, const std::vector<uint8_t> &value )
-{
-    char o[5] = { 0 };
-    size_t i = 0;
-    size_t size = value.size();
-
-    if (!first) out << ',';
-    first = true;
-
-    out << '"' << name << "\":\"";
-
-	for (i = 0; i + 2 < size; i += 3)
-    {
-        o[0] = B64_SYMBOLS[ (value[i] & 0xFF) >> 2 ];
-        o[1] = B64_SYMBOLS[ ((value[i] & 0x03) << 4) | ((value[i + 1] & 0xF0) >> 4) ];
-        o[2] = B64_SYMBOLS[ ((value[i+1] & 0x0F) << 2) | ((value[i+2] & 0xC0) >> 6) ];
-        o[3] = B64_SYMBOLS[ value[i+2] & 0x3F ];
-        out << o;
-	}
-
-	if (size - i)
-    {
-        o[0] = B64_SYMBOLS[ (value[i] & 0xFF) >> 2 ];
-        o[1] = B64_SYMBOLS[ ((value[i] & 0x03) << 4) ];
-        o[2] = '=';
-        o[3] = '=';
-
-		if (size - i == 2)
-        {
-			o[1] = B64_SYMBOLS[ ((value[i] & 0x03) << 4) | ((value[i + 1] & 0xF0) >> 4) ];
-            o[2] = B64_SYMBOLS[ ((value[i+1] & 0x0F) << 2) ];
-        }
-
-        out << o;
-	}
-    out << '"';
-
-    return true;
-}
-
 
 template<typename I>
 static bool next( InputStream<I> &in )
@@ -421,62 +471,6 @@ static bool next( InputStream<I> &in )
     return false;
 }
 
-// proto3 'repeated'
-template<typename I, typename T>
-static bool read( InputStream<I> &in, std::vector<T> &array )
-{
-    in.skipws();
-    if (in.get() != '[') return false;
-    in.skipws();
-    while (true)
-    {
-        T value;
-        if (!traits<T>::read(in, value)) return false;
-        array.push_back(value);
-        in.skipws();
-        if (!in.expect(',')) break;
-    }
-    if (in.get() != ']') return false;
-
-    return true;
-}
-
-// proto3 'bytes'
-template<typename I>
-static bool read( InputStream<I> &in, std::vector<uint8_t> &array )
-{
-	size_t k = 0, j;
-    int s[4];
-
-    if (in.get() != '"') return false;
-
-	while (true)
-    {
-        // read 4 characters
-        for (j = 0; j < 4; ++j)
-        {
-            int ch = in.get();
-            if (ch == '"') return j == 0;
-		    s[j] = b64_int(ch);
-        }
-        // decode base64 tuple
-		array.push_back( ((s[0] & 0xFF) << 2 ) | ((s[1] & 0x30) >> 4) );
-        if (s[2] != 64)
-        {
-            array.push_back( ((s[1] & 0x0F) << 4) | ((s[2] & 0x3C) >> 2) );
-            if ((s[3]!=64))
-            {
-                array.push_back( ((s[2] & 0x03) << 6) | s[3] );
-                k+=3;
-            }
-            else
-                k+=2;
-        }
-        else
-            k+=1;
-	}
-}
-
 template<typename I>
 static bool readName( InputStream<I> &in, std::string &name )
 {
@@ -484,7 +478,6 @@ static bool readName( InputStream<I> &in, std::string &name )
     in.skipws();
     return (in.get() == ':');
 }
-
 
 template<typename I>
 static bool ignoreString( InputStream<I> &in )
@@ -520,7 +513,6 @@ static bool ignoreString( InputStream<I> &in )
 
     return false;
 }
-
 
 template<typename I>
 static bool ignoreEnclosing( InputStream<I> &in, int begin, int end )

@@ -279,6 +279,7 @@ static void generateDeserializer( Printer &printer, const Message &message )
         if (!IS_VALID_TYPE(fi->type.id)) continue;
 
         std::string storage = fieldStorage(*fi);
+        std::string type = nativeType(*fi);
 
         if (!first) printer("else\n");
         printer("// $1$\n", fi->name);
@@ -286,9 +287,7 @@ static void generateDeserializer( Printer &printer, const Message &message )
 
         if (fi->repeated || fi->type.id == protogen::TYPE_BYTES)
         {
-            std::string function = "read";
-            //if (fi->type.id == protogen::TYPE_MESSAGE) function = "readMessageArray";
-            printer("if (!protogen::json::$1$(in, this->$2$())) return false;\n", function, storage);
+            printer("if (!protogen::traits< std::vector<$1$> >::read(in, this->$2$())) return false;\n", type, storage);
         }
         else
         {
