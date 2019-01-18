@@ -190,12 +190,10 @@ static void generateMoveCtor( Printer &printer, const Message &message )
 {
     printer(
         "#if __cplusplus >= 201103L\n"
-        "$1$($1$ &&that) {\n\t", message.name);
-    for (auto fi = message.fields.begin(); fi != message.fields.end(); ++fi)
-    {
-        printer("this->$1$ = std::move(that.$1$);\n", fieldStorage(*fi));
-    }
-    printer("\b}\n#endif\n");
+        "$1$($1$ &&that) {\n"
+        "\tthis->swap(that);\n"
+        "\b}\n"
+        "#endif\n", message.name);
 }
 
 
@@ -367,6 +365,7 @@ static void generateTraitMacro( Printer &printer )
         "static void write( std::ostream &out, const MSGTYPE &value ) { value.serialize(out); } \\\n"
         "template<typename I> \\\n"
         "static bool read( protogen::InputStream<I> &in, MSGTYPE &value ) { return value.deserialize(in); } \\\n"
+        "static void swap( MSGTYPE &a, MSGTYPE &b ) { a.swap(b); } \\\n"
         "\b}; \\\n\b} \n\b\b");
 }
 
@@ -389,6 +388,17 @@ static void generateClear( Printer &printer, const Message &message )
 }
 
 
+static void generateSwap( Printer &printer, const Message &message )
+{
+    printer("void swap($1$ &that) {\n\t", message.name);
+    for (auto fi = message.fields.begin(); fi != message.fields.end(); ++fi)
+    {
+        printer("this->$1$.swap(that.$1$);\n", fieldStorage(*fi));
+    }
+    printer("\b}\n");
+}
+
+
 static void generateNamespace( Printer &printer, const Message &message, bool start )
 {
     if (message.package.empty() || message.package[0].empty()) return;
@@ -403,55 +413,31 @@ static void generateNamespace( Printer &printer, const Message &message, bool st
 }
 
 
-
-static void generateWriterPrototypeMacro( Printer &printer )
-{
-    printer(
-        "\n#define PROTOGEN_WRITER_PROTO_TEMPLATE(MSGTYPE) \\\n"
-        "\tnamespace protogen { \\\n"
-        "\tstatic void write( std::ostream &out, bool &first, const std::string &name, \\\n"
-        "\tconst MSGTYPE &value); \\\n\b\b"
-        "}\n\b");
-}
+/*
 
 
-static void generateWriterPrototype( Printer &printer, const Message &message )
-{
-    printer("PROTOGEN_WRITER_PROTO_TEMPLATE($1$::$2$)\n", nativePackage(message.package), message.name);
-}
-
-
-static void generateWriterMacro( Printer &printer )
-{
-    printer(
-        "\n#define PROTOGEN_WRITER_TEMPLATE(MSGTYPE) \\\n"
-        "\tnamespace protogen { \\\n"
-        "namespace json { \\\n\t"
-        "static void write( std::ostream &out, bool &first, const std::string &name, const MSGTYPE &value) { \\\n"
-        "\tif (!first) out << ',';\\\n"
-        "out << '\"' << name << \"\\\":\"; \\\n"
-        "value.serialize(out); \\\n"
-        "first = false; \\\n\b} \\\n\b"
-        "}}\n\b");
-}
-
-
-static void generateWriter( Printer &printer, const Message &message )
-{
-    printer("PROTOGEN_WRITER_TEMPLATE($1$::$2$)\n", nativePackage(message.package), message.name);
-}
+*/
 
 
 static void generateFieldTemplateMacro( Printer &printer )
 {
     printer(
+        "\n#if __cplusplus >= 201103L\n"
+        "#define PROTOGEN_FIELD_MOVECTOR_TEMPLATE(MSGTYPE) Field( Field<MSGTYPE> &&that ) { this->value_.swap(that.value_); }\n"
+        "#else\n"
+        "#define PROTOGEN_FIELD_MOVECTOR_TEMPLATE(MSGTYPE) \n"
+        "#endif\n");
+
+    printer(
         "\n#define PROTOGEN_FIELD_TEMPLATE(MSGTYPE) \\\n"
-        "\tnamespace protogen { \\\n"
+        "\tnamespace protogen {"
         "template<> class Field<MSGTYPE> { \\\n"
         "\tprotected: \\\n"
         "\tMSGTYPE value_; \\\n"
         "\bpublic: \\\n"
         "\tField() { clear(); } \\\n"
+        "PROTOGEN_FIELD_MOVECTOR_TEMPLATE(MSGTYPE); \\\n"
+        "void swap( Field<MSGTYPE> &that ) { traits<MSGTYPE>::swap(this->value_, that.value_); } \\\n"
         "const MSGTYPE &operator()() const { return value_; } \\\n"
         "MSGTYPE &operator()() { return value_; } \\\n"
         "void operator ()(const MSGTYPE &value ) { this->value_ = value; } \\\n"
@@ -460,7 +446,7 @@ static void generateFieldTemplateMacro( Printer &printer )
         "Field<MSGTYPE> &operator=( const Field<MSGTYPE> &that ) { this->value_ = that.value_; return *this; } \\\n"
         "bool operator==( const MSGTYPE &that ) const { return this->value_ == that; } \\\n"
         "bool operator==( const Field<MSGTYPE> &that ) const { return this->value_ == that.value_; } \\\n"
-        "\b\b}; \\\n}\n\b");
+        "\b\b}; }\n\b");
 }
 
 
@@ -491,9 +477,6 @@ static void generateUndefined( Printer &printer, const Message &message )
 static void generateMessage( Printer &printer, const Message &message )
 {
     printer("\n//\n// $1$\n//\n", message.name);
-
-    // JSON writer
-    generateWriterPrototype(printer, message);
 
     // begin namespace
     generateNamespace(printer, message, true);
@@ -526,9 +509,11 @@ static void generateMessage( Printer &printer, const Message &message )
     // copy constructor
     generateCopyCtor(printer, message);
     // move constructor
-    //generateMoveCtor(printer, message);
+    generateMoveCtor(printer, message);
     // assign operator
     generateAssignOperator(printer, message);
+    // swap function
+    generateSwap(printer, message);
     // equality operator
     generateEqualityOperator(printer, message);
     // undefined function
@@ -546,8 +531,6 @@ static void generateMessage( Printer &printer, const Message &message )
 
     // message trait
     generateTrait(printer, message);
-    // JSON writer
-    generateWriter(printer, message);
     // 'Field' template specializarion
     generateFieldTemplate(printer, message);
 
@@ -626,7 +609,7 @@ static void generateModel( Printer &printer, const Proto3 &proto )
         "#include <stdint.h>\n"
         "#include <iterator>\n"
         "#include <sstream>\n\n"
-        "#pragma GCC diagnostic ignored \"-Wunused-function\"\n\n"
+        "//#pragma GCC diagnostic ignored \"-Wunused-function\"\n\n"
         "#ifndef PROTOGEN_VERSION\n"
         "    #define PROTOGEN_VERSION 0x$5$ // $1$\n"
         "#endif\n"
@@ -638,8 +621,6 @@ static void generateModel( Printer &printer, const Proto3 &proto )
 
     // macros for custom templates
     generateTraitMacro(printer);
-    generateWriterMacro(printer);
-    generateWriterPrototypeMacro(printer);
     generateFieldTemplateMacro(printer);
 
     // forward declarations

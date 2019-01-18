@@ -6,9 +6,6 @@
 #include <vector>
 #include <cstdlib>
 #include <locale.h>
-#if __cplusplus >= 201103L
-    #include <algorithm>
-#endif
 
 namespace protogen {
 
@@ -146,6 +143,7 @@ template<typename T> struct traits
         uselocale(LC_GLOBAL_LOCALE);
         return true;
     }
+    static void swap( T &a, T &b ) { T temp = a; a = b; b = temp; }
 };
 
 // proto3 'bool'
@@ -188,6 +186,7 @@ template<> struct traits<bool>
             return false;
         return true;
     }
+    static void swap( bool &a, bool &b ) { bool temp = a; a = b; b = temp; }
 };
 
 // proto3 'string'
@@ -246,6 +245,7 @@ template<> struct traits<std::string>
 
         return false;
     }
+    static void swap( std::string &a, std::string &b ) { a.swap(b); }
 };
 
 template <typename T> struct traits< std::vector<T> >
@@ -284,6 +284,8 @@ template <typename T> struct traits< std::vector<T> >
 
         return true;
     }
+
+    static void swap( std::vector<T> &a, std::vector<T> &b ) { a.swap(b); }
 };
 
 // Base64 encoder/decoder based on Joe DF's implementation
@@ -375,8 +377,11 @@ template <> struct traits< std::vector<uint8_t> >
                 k+=1;
         }
     }
+
+    static void swap( std::vector<uint8_t> &a, std::vector<uint8_t> &b ) { a.swap(b); }
 };
 
+// primitive fields
 template<typename T> class Field
 {
     protected:
@@ -384,11 +389,16 @@ template<typename T> class Field
         bool undefined_;
     public:
         Field() { clear(); }
+        Field( const Field<T> &that ) { this->undefined_ = that.undefined_; if (!undefined_) this->value_ = that.value_; }
+        #if __cplusplus >= 201103L
+        Field( Field<T> &&that ) { this->undefined_ = that.undefined_; if (!undefined_) this->value_.swap(that.value_); }
+        #endif
+        void swap( Field<T> &that ) { traits<T>::swap(this->value_, that.value_); }
         const T &operator()() const { return value_; }
         void operator ()(const T &value ) { this->value_ = value; this->undefined_ = false; }
         bool undefined() const { return undefined_; }
         void clear() { traits<T>::clear(value_); undefined_ = true; }
-        Field<T> &operator=( const Field<T> &that ) { this->value_ = that.value_; this->undefined_ = that.undefined_; return *this; }
+        Field<T> &operator=( const Field<T> &that ) { this->undefined_ = that.undefined_; if (!undefined_) this->value_ = that.value_; return *this; }
         bool operator==( const T &that ) const { return !this->undefined_ && this->value_ == that; }
         bool operator==( const Field<T> &that ) const { return this->undefined_ == that.undefined_ && this->value_ == that.value_;  }
 };
@@ -397,13 +407,18 @@ template<typename T> class RepeatedField
 {
     protected:
         std::vector<T> value_;
-        int number_;
     public:
         RepeatedField() {}
+        RepeatedField( const RepeatedField<T> &that ) { this->value_ = that.value_; }
+        #if __cplusplus >= 201103L
+        RepeatedField( RepeatedField<T> &&that ) { this->value_.swap(that.value_); }
+        #endif
+        void swap( RepeatedField<T> &that ) { traits< std::vector<T> >::swap(this->value_, that.value_); }
         const std::vector<T> &operator()() const { return value_; }
         std::vector<T> &operator()() { return value_; }
         bool undefined() const { return value_.size() == 0; }
         void clear() { value_.clear(); }
+        RepeatedField<T> &operator=( const RepeatedField<T> &that ) { this->value_ = that.value_; return *this; }
         bool operator==( const RepeatedField<T> &that ) const { return this->value_ == that.value_; }
 };
 
@@ -438,6 +453,8 @@ class MemoryBuffer : public std::basic_streambuf<uint8_t>
 
 namespace json {
 
+#ifdef PROTOGEN_OBFUSCATE_NAMES
+
 static std::string reveal( const char *value, size_t length )
 {
 	std::string result(length, ' ');
@@ -445,6 +462,8 @@ static std::string reveal( const char *value, size_t length )
 		result[i] = (char) ((int) value[i] ^ 0x33);
 	return result;
 }
+
+#endif
 
 // Write a complete JSON field
 template<typename T>
