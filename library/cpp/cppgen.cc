@@ -179,10 +179,7 @@ static void generateVariable( Printer &printer, const Field &field )
 
 static void generateCopyCtor( Printer &printer, const Message &message )
 {
-    printer("$1$(const $1$ &that) {\n\t", message.name);
-    for (auto fi = message.fields.begin(); fi != message.fields.end(); ++fi)
-        printer("this->$1$ = that.$1$;\n", fieldStorage(*fi));
-    printer("\b}\n");
+    printer("$1$(const $1$ &that) { *this = that; }\n", message.name);
 }
 
 
@@ -190,9 +187,7 @@ static void generateMoveCtor( Printer &printer, const Message &message )
 {
     printer(
         "#if __cplusplus >= 201103L\n"
-        "$1$($1$ &&that) {\n"
-        "\tthis->swap(that);\n"
-        "\b}\n"
+        "$1$($1$ &&that) { this->swap(that); }\n"
         "#endif\n", message.name);
 }
 
@@ -344,12 +339,10 @@ static void generateSerializer( Printer &printer, const Message &message )
     {
         std::string storage = fieldStorage(*fi);
 
-        printer("// $1$\n", storage);
-
-        if (fi->type.id != protogen::TYPE_MESSAGE)
-            printer("if (!this->$1$.undefined()) ", storage);
-
-        printer("protogen::json::write(out, first, PROTOGEN_FN_$1$, this->$1$());\n", storage);
+        printer(
+            "// $1$\n"
+            "if (!this->$1$.undefined()) "
+            "protogen::json::write(out, first, PROTOGEN_FN_$1$, this->$1$());\n", storage);
     }
     printer("out << '}';\n\b}\n");
 }
@@ -411,12 +404,6 @@ static void generateNamespace( Printer &printer, const Message &message, bool st
             printer("} // namespace $1$\n", *it);
     }
 }
-
-
-/*
-
-
-*/
 
 
 static void generateFieldTemplateMacro( Printer &printer )

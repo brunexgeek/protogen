@@ -434,23 +434,6 @@ class Message
         virtual bool undefined() const = 0;
 };
 
-#if 0
-class MemoryBuffer : public std::basic_streambuf<uint8_t>
-{
-    public:
-		MemoryBuffer( uint8_t* data, size_t size ) : data_(data), size_(size), ptr_(data) {}
-        uint8_t* pbase() const { return data_; }
-		uint8_t* pptr() const { return ptr_; }
-		uint8_t* epptr() const { return data_ + size_; }
-
-    private:
-        uint8_t *data_;
-        size_t size_;
-        uint8_t *ptr_;
-};
-#endif
-
-
 namespace json {
 
 #ifdef PROTOGEN_OBFUSCATE_NAMES
