@@ -50,7 +50,7 @@ Compile your program as usual (no additional library is required). In the exampl
 {"name":"Michelle","age":24,"colors":["yellow"]}
 ```
 
-You can define `PROTOGEN_OBFUSCATE_NAMES` before the inclusion to enable obfuscated JSON field names. This feature can be used to make a little difficult for curious people to find out your JSON field names (e.g. internal microservices).
+You can define `PROTOGEN_OBFUSCATE_NAMES` before the inclusion to enable obfuscated JSON field names. This feature can be used to make a little difficult for curious people to find out your JSON field names by inspecting binary files.
 
 ```
 #define PROTOGEN_OBFUSCATE_NAMES
@@ -100,6 +100,12 @@ Proto3 parser:
 JSON parser:
 - Strings do not support ``\u`` to specify unicode endpoints;
 - ``null`` values are not recognized.
+
+## Next steps
+
+- Add support for maps
+- Add support for imports
+- Enable to use field numbers as JSON field names;
 
 ## License
 
