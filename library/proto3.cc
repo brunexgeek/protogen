@@ -61,6 +61,12 @@
 #define TOKEN_COMMA            33
 #define TOKEN_BEGIN            34
 #define TOKEN_END              35
+#define TOKEN_OPTION           36
+#define TOKEN_TRUE             37
+#define TOKEN_FALSE            38
+#define TOKEN_LBRACKET         39
+#define TOKEN_RBRACKET         40
+
 
 #ifdef BUILD_DEBUG
 
@@ -87,20 +93,25 @@ static const char *TOKENS[] =
     "TOKEN_T_STRING",
     "TOKEN_T_BYTES",
     "TOKEN_T_MESSAGE",
-    "TOKEN_BEGIN",
-    "TOKEN_END",
+    "TOKEN_SYNTAX",
+    "TOKEN_QNAME",
     "TOKEN_STRING",
     "TOKEN_INTEGER",
     "TOKEN_COMMENT",
     "TOKEN_ENUM",
     "TOKEN_SCOLON",
     "TOKEN_PACKAGE",
-    "TOKEN_QNAME",
     "TOKEN_LT",
     "TOKEN_GT",
     "TOKEN_MAP",
     "TOKEN_COMMA",
-    "TOKEN_SYNTAX"
+    "TOKEN_BEGIN",
+    "TOKEN_END",
+    "TOKEN_OPTION",
+    "TOKEN_TRUE",
+    "TOKEN_FALSE",
+    "TOKEN_LBRACKET",
+    "TOKEN_RBRACKET",
 };
 
 static const char *TYPES[] =
@@ -152,6 +163,9 @@ static const struct
     { TOKEN_PACKAGE     , "package" },
     { TOKEN_SYNTAX      , "syntax" },
     { TOKEN_MAP         , "map" },
+    { TOKEN_OPTION      , "option" },
+    { TOKEN_TRUE        , "true" },
+    { TOKEN_FALSE       , "false" },
     { 0, nullptr },
 };
 
@@ -266,9 +280,17 @@ template <typename I> class Tokenizer
 {
     public:
         Token current;
+        bool ungot;
 
-        Tokenizer( InputStream<I> &is ) : is(is)
+        Tokenizer( InputStream<I> &is ) : is(is), ungot(false)
         {
+        }
+
+        void unget()
+        {
+            if (ungot)
+                throw exception("Already ungot", current.line, current.column);
+            ungot = true;
         }
 
         Token next()
@@ -278,6 +300,11 @@ template <typename I> class Tokenizer
 
             while (true)
             {
+                if (ungot)
+                {
+                    ungot = false;
+                    return current;
+                }
                 is.skipws();
 
                 line = is.line();
@@ -324,6 +351,12 @@ template <typename I> class Tokenizer
                 else
                 if (cur == '>')
                     current = Token(TOKEN_GT, "", line, column);
+                else
+                if (cur == '[')
+                    current = Token(TOKEN_LBRACKET, "", line, column);
+                else
+                if (cur == ']')
+                    current = Token(TOKEN_RBRACKET, "", line, column);
                 else
                     throw exception("Invalid symbol", line, column);
 
@@ -472,6 +505,71 @@ Proto3::~Proto3()
 }
 
 
+static OptionEntry parseOption( ProtoContext &ctx )
+{
+    // the token 'option' is already consumed at this point
+    OptionEntry temp;
+
+    // option name
+    ctx.tokens.next();
+    if (ctx.tokens.current.code != TOKEN_NAME && ctx.tokens.current.code != TOKEN_QNAME)
+        throw exception("Missing option name", TOKEN_POSITION(ctx.tokens.current));
+    temp.name = ctx.tokens.current.value;
+    // equal symbol
+    if (ctx.tokens.next().code != TOKEN_EQUAL)
+        throw exception("Expected '='", TOKEN_POSITION(ctx.tokens.current));
+    // option value
+    ctx.tokens.next();
+    switch (ctx.tokens.current.code)
+    {
+        case TOKEN_TRUE:
+        case TOKEN_FALSE:
+            temp.type = OptionType::BOOLEAN; break;
+        case TOKEN_NAME:
+        case TOKEN_QNAME:
+            temp.type = OptionType::IDENTIFIER; break;
+        case TOKEN_INTEGER:
+            temp.type = OptionType::INTEGER; break;
+        case TOKEN_STRING:
+            temp.type = OptionType::STRING; break;
+        default:
+            throw exception("Invalid option value", TOKEN_POSITION(ctx.tokens.current));
+    }
+    temp.value = ctx.tokens.current.value;
+    std::cerr << "Found option '" << temp.name << "' = " << temp.value << std::endl;
+    return temp;
+}
+
+
+static void parseFieldOptions( ProtoContext &ctx, OptionMap &entries )
+{
+    while (true)
+    {
+        if (ctx.tokens.next().code == TOKEN_RBRACKET) break;
+        ctx.tokens.unget();
+        OptionEntry option = parseOption(ctx);
+        if (ctx.tokens.next().code != TOKEN_COMMA) ctx.tokens.unget();
+        entries[option.name] = option;
+    }
+    // give back the TOKEN_RBRACKET
+    ctx.tokens.unget();
+}
+
+
+static void parseStandardOption( ProtoContext &ctx, OptionMap &entries )
+{
+    // the token 'option' is already consumed at this point
+
+    OptionEntry option = parseOption(ctx);
+
+    // semicolon symbol
+    if (ctx.tokens.next().code != TOKEN_SCOLON)
+        throw exception("Expected '='", TOKEN_POSITION(ctx.tokens.current));
+
+    entries[option.name] = option;
+}
+
+
 static void parseField( ProtoContext &ctx, Message &message )
 {
     Field field;
@@ -485,12 +583,6 @@ static void parseField( ProtoContext &ctx, Message &message )
     // type
     if (ctx.tokens.current.code >= TOKEN_T_DOUBLE && ctx.tokens.current.code <= TOKEN_T_BYTES)
         field.type.id = (FieldType) ctx.tokens.current.code;
-    /*else
-    if (ctx.tokens.current.code == TOKEN_T_BYTES)
-    {
-        field.repeated = true;
-        field.type.id = (FieldType) TOKEN_T_UINT8;
-    }*/
     else
     if (ctx.tokens.current.code == TOKEN_NAME)
     {
@@ -526,8 +618,21 @@ static void parseField( ProtoContext &ctx, Message &message )
     // index
     if (ctx.tokens.next().code != TOKEN_INTEGER) throw exception("Missing field index", TOKEN_POSITION(ctx.tokens.current));
     field.index = (int) strtol(ctx.tokens.current.value.c_str(), nullptr, 10);
+
+    ctx.tokens.next();
+
+    // options
+    if (ctx.tokens.current.code == TOKEN_LBRACKET)
+    {
+        parseFieldOptions(ctx, field.options);
+        if (ctx.tokens.next().code != TOKEN_RBRACKET)
+            throw exception("Expected ']'", TOKEN_POSITION(ctx.tokens.current));
+        ctx.tokens.next();
+    }
+
     // semi-colon
-    if (ctx.tokens.next().code != TOKEN_SCOLON) throw exception("Expected ';'", TOKEN_POSITION(ctx.tokens.current));
+    if (ctx.tokens.current.code != TOKEN_SCOLON)
+        throw exception("Expected ';'", TOKEN_POSITION(ctx.tokens.current));
 
     message.fields.push_back(field);
 }
@@ -557,6 +662,7 @@ static void splitPackage(
     }
 }
 
+
 static void parseMessage( ProtoContext &ctx )
 {
     if (ctx.tokens.current.code == TOKEN_MESSAGE && ctx.tokens.next().code == TOKEN_NAME)
@@ -567,7 +673,10 @@ static void parseMessage( ProtoContext &ctx )
         {
             while (ctx.tokens.next().code != TOKEN_END)
             {
-                parseField(ctx, message);
+                if (ctx.tokens.current.code == TOKEN_OPTION)
+                    parseStandardOption(ctx, message.options);
+                else
+                    parseField(ctx, message);
             }
         }
         splitPackage(message.package, ctx.package);
@@ -592,7 +701,10 @@ static void parsePackage( ProtoContext &ctx )
 
 static void parseSyntax( ProtoContext &ctx )
 {
-    if (ctx.tokens.next().code != TOKEN_EQUAL) throw exception("Expected '='", TOKEN_POSITION(ctx.tokens.current));
+    // the token 'syntax' is already consumed at this point
+
+    if (ctx.tokens.next().code != TOKEN_EQUAL)
+        throw exception("Expected '='", TOKEN_POSITION(ctx.tokens.current));
     Token tt = ctx.tokens.next();
     if (tt.code == TOKEN_STRING && ctx.tokens.next().code == TOKEN_SCOLON)
     {
@@ -622,6 +734,9 @@ static void parseProto( ProtoContext &ctx )
         else
         if (ctx.tokens.current.code == TOKEN_SYNTAX)
             parseSyntax(ctx);
+        else
+        if (ctx.tokens.current.code == TOKEN_OPTION)
+            parseStandardOption(ctx, ctx.tree.options);
         else
         if (ctx.tokens.current.code == TOKEN_EOF)
             break;

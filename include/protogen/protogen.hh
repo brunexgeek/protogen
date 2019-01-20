@@ -23,6 +23,11 @@
 
 namespace protogen {
 
+
+// Obfuscate generated strings (true) or keep them in plain text (false).
+// The default is to keep strings in plain text.
+#define PROTOGEN_O_OBFUSCATE_STRINGS  "obfuscate_strings"
+
 class Generator
 {
     public:

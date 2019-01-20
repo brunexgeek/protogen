@@ -436,7 +436,7 @@ class Message
 
 namespace json {
 
-#ifdef PROTOGEN_OBFUSCATE_NAMES
+#ifdef PROTOGEN_OBFUSCATE_STRINGS
 
 static std::string reveal( const char *value, size_t length )
 {

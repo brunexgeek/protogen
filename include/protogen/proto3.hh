@@ -20,6 +20,7 @@
 
 #include <string>
 #include <vector>
+#include <unordered_map>
 #include <iostream>
 #include <protogen/exception.hh>
 
@@ -60,6 +61,26 @@ struct TypeInfo
 };
 
 
+enum class OptionType
+{
+    IDENTIFIER,
+    STRING,
+    INTEGER,
+    BOOLEAN
+};
+
+
+struct OptionEntry
+{
+    std::string name;
+    OptionType type;
+    std::string value;
+};
+
+
+typedef std::unordered_map<std::string, OptionEntry> OptionMap;
+
+
 class Field
 {
     public:
@@ -68,6 +89,7 @@ class Field
         std::string name;
         int index;
         bool repeated;
+        OptionMap options;
 
         Field();
         operator std::string() const;
@@ -80,6 +102,7 @@ class Message
         std::vector<Field> fields;
         std::string name;
         std::vector<std::string> package;
+        OptionMap options;
 
         operator std::string() const;
 };
@@ -89,6 +112,7 @@ class Proto3
 {
     public:
         std::vector<Message> messages;
+        OptionMap options;
         std::string fileName;
 
         Proto3();
