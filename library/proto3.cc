@@ -212,7 +212,6 @@ template <typename I> class InputStream
             last_ = *cur_ & 0xFF;
             ++cur_;
             ++column_;
-            //std::cerr << "Found '" << (char) last_ << "' at " << line_ << ':' << column_ << std::endl;
             return last_;
         }
 
@@ -282,7 +281,7 @@ template <typename I> class Tokenizer
         Token current;
         bool ungot;
 
-        Tokenizer( InputStream<I> &is ) : is(is), ungot(false)
+        Tokenizer( InputStream<I> &is ) : ungot(false), is(is)
         {
         }
 
@@ -536,7 +535,6 @@ static OptionEntry parseOption( ProtoContext &ctx )
             throw exception("Invalid option value", TOKEN_POSITION(ctx.tokens.current));
     }
     temp.value = ctx.tokens.current.value;
-    std::cerr << "Found option '" << temp.name << "' = " << temp.value << std::endl;
     return temp;
 }
 
@@ -720,9 +718,6 @@ static void parseProto( ProtoContext &ctx )
     do
     {
         ctx.tokens.next();
-        #if 0
-        std::cerr << ctx.tokens.current << std::endl;
-        #else
         if (ctx.tokens.current.code == TOKEN_MESSAGE)
             parseMessage(ctx);
         else
@@ -742,10 +737,8 @@ static void parseProto( ProtoContext &ctx )
             break;
         else
         {
-            //std::cerr << ctx.tokens.current << std::endl;
             throw exception("Unexpected token", TOKEN_POSITION(ctx.tokens.current));
         }
-        #endif
     } while (ctx.tokens.current.code != 0);
 }
 
