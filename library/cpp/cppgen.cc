@@ -28,6 +28,20 @@ namespace protogen {
 #define IS_NUMERIC_TYPE(x)    ( (x) >= protogen::TYPE_DOUBLE && (x) <= protogen::TYPE_SFIXED64 )
 
 
+struct GeneratorContext
+{
+    Printer &printer;
+    Proto3 &root;
+    bool number_names;
+    bool obfuscate_strings;
+
+    GeneratorContext( Printer &printer, Proto3 &root ) : printer(printer), root(root),
+        number_names(false), obfuscate_strings(false)
+    {
+    }
+};
+
+
 static struct {
     bool needTemplate;
     protogen::FieldType type;
@@ -163,7 +177,7 @@ static std::string fieldNativeType( const Field &field )
 }
 
 
-static void generateVariable( Printer &printer, const Field &field )
+static void generateVariable( GeneratorContext &ctx, const Field &field )
 {
     std::string storage = fieldStorage(field);
 
@@ -171,56 +185,56 @@ static void generateVariable( Printer &printer, const Field &field )
     snprintf(number, sizeof(number), "%d", field.index);
     number[9] = 0;
 
-    printer(
+    ctx.printer(
         "static const int $3$_NO = $4$;\n"
         "$1$ $2$;\n", fieldNativeType(field), storage, toUpper(storage), number);
 }
 
 
-static void generateCopyCtor( Printer &printer, const Message &message )
+static void generateCopyCtor( GeneratorContext &ctx, const Message &message )
 {
-    printer("$1$(const $1$ &that) { *this = that; }\n", message.name);
+    ctx.printer("$1$(const $1$ &that) { *this = that; }\n", message.name);
 }
 
 
-static void generateMoveCtor( Printer &printer, const Message &message )
+static void generateMoveCtor( GeneratorContext &ctx, const Message &message )
 {
-    printer(
+    ctx.printer(
         "#if __cplusplus >= 201103L\n"
         "$1$($1$ &&that) { this->swap(that); }\n"
         "#endif\n", message.name);
 }
 
 
-static void generateAssignOperator( Printer &printer, const Message &message )
+static void generateAssignOperator( GeneratorContext &ctx, const Message &message )
 {
-    printer("$1$ &operator=(const $1$ &that) {\n\t", message.name);
+    ctx.printer("$1$ &operator=(const $1$ &that) {\n\t", message.name);
     for (auto fi = message.fields.begin(); fi != message.fields.end(); ++fi)
-        printer("this->$1$ = that.$1$;\n", fieldStorage(*fi));
-    printer("return *this;\n\b}\n");
+        ctx.printer("this->$1$ = that.$1$;\n", fieldStorage(*fi));
+    ctx.printer("return *this;\n\b}\n");
 }
 
 
-static void generateEqualityOperator( Printer &printer, const Message &message )
+static void generateEqualityOperator( GeneratorContext &ctx, const Message &message )
 {
-    printer(
+    ctx.printer(
         "bool operator==(const $1$&that) const {\n"
         "\treturn\n\t", message.name);
     for (auto fi = message.fields.begin(); fi != message.fields.end(); ++fi)
     {
-        printer("this->$1$ == that.$1$", fieldStorage(*fi));
+        ctx.printer("this->$1$ == that.$1$", fieldStorage(*fi));
         if (fi + 1 != message.fields.end())
-            printer(" &&\n");
+            ctx.printer(" &&\n");
         else
-            printer(";\n");
+            ctx.printer(";\n");
     }
-    printer("\b\b}\n");
+    ctx.printer("\b\b}\n");
 }
 
 
-static void generateDeserializer( Printer &printer, const Message &message )
+static void generateDeserializer( GeneratorContext &ctx, const Message &message )
 {
-    printer(
+    ctx.printer(
         // deserializer receiving a 'istream'
         "bool deserialize( std::istream &in, bool required = false ) {\n"
         "\tbool skip = in.flags() & std::ios_base::skipws;\n"
@@ -258,7 +272,7 @@ static void generateDeserializer( Printer &printer, const Message &message )
         "if (in.get() != '{') return false;\n"
         "std::string name;\n");
 
-    printer(
+    ctx.printer(
         "bool hasField[$1$] = {false};\n"
         "while (true) {\n\t"
         "name.clear();\n"
@@ -274,49 +288,49 @@ static void generateDeserializer( Printer &printer, const Message &message )
         std::string storage = fieldStorage(*fi);
         std::string type = nativeType(*fi);
 
-        if (!first) printer("else\n");
-        printer("// $1$\n", fi->name);
-        printer("if (name == PROTOGEN_FN_$1$) {\n\t", storage); // open the main 'if'
+        if (!first) ctx.printer("else\n");
+        ctx.printer("// $1$\n", fi->name);
+        ctx.printer("if (name == PROTOGEN_FN_$1$) {\n\t", storage); // open the main 'if'
 
         if (fi->repeated || fi->type.id == protogen::TYPE_BYTES)
         {
-            printer("if (!protogen::traits< std::vector<$1$> >::read(in, this->$2$())) return false;\n", type, storage);
+            ctx.printer("if (!protogen::traits< std::vector<$1$> >::read(in, this->$2$())) return false;\n", type, storage);
         }
         else
         {
             if (fi->type.id >= protogen::TYPE_DOUBLE && fi->type.id <= protogen::TYPE_STRING)
             {
-                printer(
+                ctx.printer(
                     "$1$ value;\n"
                     "if (!protogen::traits<$1$>::read(in, value)) return false;\n"
                     "this->$2$(value);\n", nativeType(*fi), storage);
             }
             else
             if (fi->type.id == protogen::TYPE_MESSAGE)
-                printer("if (!this->$1$().deserialize(in, required)) return false;\n", storage);
+                ctx.printer("if (!this->$1$().deserialize(in, required)) return false;\n", storage);
         }
-        printer(
+        ctx.printer(
             "if (!protogen::json::next(in)) return false;\n"
             "hasField[$1$] = true;\n"
             "\b}\n", // closes the main 'if'
             count);
         first = false;
     }
-    printer(
+    ctx.printer(
         "else\n"
         "// ignore the current field\n"
         "\tif (!protogen::json::ignore(in)) return false;\n\b\b}\n");
 
-    printer(
+    ctx.printer(
         "if (required) {\n"
         "\tfor (size_t i = 0; i < $1$; ++i) if (!hasField[i]) return false;\n\b}\n"
         "return true;\n\b}\n", message.fields.size());
 }
 
 
-static void generateSerializer( Printer &printer, const Message &message )
+static void generateSerializer( GeneratorContext &ctx, const Message &message )
 {
-    printer(
+    ctx.printer(
         // serializer writing to 'string'
         "void serialize( std::string &out ) const {\n"
         "\tstd::stringstream ss;\n"
@@ -339,18 +353,18 @@ static void generateSerializer( Printer &printer, const Message &message )
     {
         std::string storage = fieldStorage(*fi);
 
-        printer(
+        ctx.printer(
             "// $1$\n"
             "if (!this->$1$.undefined()) "
             "protogen::json::write(out, first, PROTOGEN_FN_$1$, this->$1$());\n", storage);
     }
-    printer("out << '}';\n\b}\n");
+    ctx.printer("out << '}';\n\b}\n");
 }
 
 
-static void generateTraitMacro( Printer &printer )
+static void generateTraitMacro( GeneratorContext &ctx )
 {
-    printer(
+    ctx.printer(
         "\n#define PROTOGEN_TRAIT_MACRO(MSGTYPE) \\\n"
         "\tnamespace protogen { \\\n"
         "\ttemplate<> struct traits<MSGTYPE> { \\\n"
@@ -363,59 +377,59 @@ static void generateTraitMacro( Printer &printer )
 }
 
 
-static void generateTrait( Printer &printer, const Message &message )
+static void generateTrait( GeneratorContext &ctx, const Message &message )
 {
-    printer(
+    ctx.printer(
         "PROTOGEN_TRAIT_MACRO($1$::$2$)\n", nativePackage(message.package), message.name);
 }
 
 
-static void generateClear( Printer &printer, const Message &message )
+static void generateClear( GeneratorContext &ctx, const Message &message )
 {
-    printer("void clear() {\n\t");
+    ctx.printer("void clear() {\n\t");
     for (auto fi = message.fields.begin(); fi != message.fields.end(); ++fi)
     {
-        printer("this->$1$.clear();\n", fieldStorage(*fi));
+        ctx.printer("this->$1$.clear();\n", fieldStorage(*fi));
     }
-    printer("\b}\n");
+    ctx.printer("\b}\n");
 }
 
 
-static void generateSwap( Printer &printer, const Message &message )
+static void generateSwap( GeneratorContext &ctx, const Message &message )
 {
-    printer("void swap($1$ &that) {\n\t", message.name);
+    ctx.printer("void swap($1$ &that) {\n\t", message.name);
     for (auto fi = message.fields.begin(); fi != message.fields.end(); ++fi)
     {
-        printer("this->$1$.swap(that.$1$);\n", fieldStorage(*fi));
+        ctx.printer("this->$1$.swap(that.$1$);\n", fieldStorage(*fi));
     }
-    printer("\b}\n");
+    ctx.printer("\b}\n");
 }
 
 
-static void generateNamespace( Printer &printer, const Message &message, bool start )
+static void generateNamespace( GeneratorContext &ctx, const Message &message, bool start )
 {
     if (message.package.empty() || message.package[0].empty()) return;
 
     for (auto it = message.package.begin(); it != message.package.end(); ++it)
     {
         if (start)
-            printer("namespace $1$ {\n", *it);
+            ctx.printer("namespace $1$ {\n", *it);
         else
-            printer("} // namespace $1$\n", *it);
+            ctx.printer("} // namespace $1$\n", *it);
     }
 }
 
 
-static void generateFieldTemplateMacro( Printer &printer )
+static void generateFieldTemplateMacro( GeneratorContext &ctx )
 {
-    printer(
+    ctx.printer(
         "\n#if __cplusplus >= 201103L\n"
         "#define PROTOGEN_FIELD_MOVECTOR_TEMPLATE(MSGTYPE) Field( Field<MSGTYPE> &&that ) { this->value_.swap(that.value_); }\n"
         "#else\n"
         "#define PROTOGEN_FIELD_MOVECTOR_TEMPLATE(MSGTYPE) \n"
         "#endif\n");
 
-    printer(
+    ctx.printer(
         "\n#define PROTOGEN_FIELD_TEMPLATE(MSGTYPE) \\\n"
         "\tnamespace protogen {"
         "template<> class Field<MSGTYPE> { \\\n"
@@ -437,100 +451,109 @@ static void generateFieldTemplateMacro( Printer &printer )
 }
 
 
-static void generateFieldTemplate( Printer &printer, const Message &message )
+static void generateFieldTemplate( GeneratorContext &ctx, const Message &message )
 {
-    printer(
+    ctx.printer(
         "PROTOGEN_FIELD_TEMPLATE($1$::$2$)\n", nativePackage(message.package), message.name);
 }
 
 
-static void generateUndefined( Printer &printer, const Message &message )
+static void generateUndefined( GeneratorContext &ctx, const Message &message )
 {
-    printer(
+    ctx.printer(
         "bool undefined() const {\n"
         "\treturn\n\t", message.name);
     for (auto fi = message.fields.begin(); fi != message.fields.end(); ++fi)
     {
-        printer("this->$1$.undefined()", fieldStorage(*fi));
+        ctx.printer("this->$1$.undefined()", fieldStorage(*fi));
         if (fi + 1 != message.fields.end())
-            printer(" &&\n");
+            ctx.printer(" &&\n");
         else
-            printer(";\n");
+            ctx.printer(";\n");
     }
-    printer("\b\b}\n");
+    ctx.printer("\b\b}\n");
 }
 
 
-static void generateMessage( Printer &printer, const Proto3 &root, const Message &message, bool obfuscate_strings = false )
+static void generateMessage( GeneratorContext &ctx, const Message &message, bool obfuscate_strings = false )
 {
-    printer("\n//\n// $1$\n//\n", message.name);
+    ctx.printer("\n//\n// $1$\n//\n", message.name);
 
     // begin namespace
-    generateNamespace(printer, message, true);
+    generateNamespace(ctx, message, true);
 
-    printer(
+    ctx.printer(
         "\nclass $1$ : public protogen::Message {\npublic:\n\t", message.name);
 
     // create the macro containing the field name
     for (auto fi = message.fields.begin(); fi != message.fields.end(); ++fi)
     {
         std::string storage = fieldStorage(*fi);
+        std::string name;
+        if (ctx.number_names)
+        {
+            char temp[12] = {0};
+            snprintf(temp, sizeof(temp) - 1, "%d", fi->index);
+            name = temp;
+        }
+        else
+            name = fieldStorage(*fi);
 
         if (obfuscate_strings)
         {
-            printer(
+            ctx.printer(
                 "#undef PROTOGEN_FN_$1$\n"
                 "#define PROTOGEN_FN_$1$ protogen::json::reveal(\"$2$\", $3$)\n",
-                storage, obfuscate(storage), storage.length());
+                storage, obfuscate(name), name.length());
         }
         else
         {
-            printer(
+            ctx.printer(
                 "#undef PROTOGEN_FN_$1$\n"
-                "#define PROTOGEN_FN_$1$ \"$1$\"\n", storage);
+                "#define PROTOGEN_FN_$1$ \"$2$\"\n", storage, name);
         }
     }
 
     for (auto fi = message.fields.begin(); fi != message.fields.end(); ++fi)
     {
         // storage variable
-        generateVariable(printer, *fi);
+        generateVariable(ctx, *fi);
     }
 
     // default constructor and destructor
-    printer("$1$() {}\nvirtual ~$1$() {}\n", message.name);
+    ctx.printer("$1$() {}\nvirtual ~$1$() {}\n", message.name);
     // copy constructor
-    generateCopyCtor(printer, message);
+    generateCopyCtor(ctx, message);
     // move constructor
-    generateMoveCtor(printer, message);
+    generateMoveCtor(ctx, message);
     // assign operator
-    generateAssignOperator(printer, message);
+    generateAssignOperator(ctx, message);
     // swap function
-    generateSwap(printer, message);
+    generateSwap(ctx, message);
     // equality operator
-    generateEqualityOperator(printer, message);
+    generateEqualityOperator(ctx, message);
     // undefined function
-    generateUndefined(printer, message);
+    generateUndefined(ctx, message);
     // message serializer
-    generateSerializer(printer, message);
+    generateSerializer(ctx, message);
     // message deserializer
-    generateDeserializer(printer, message);
+    generateDeserializer(ctx, message);
     // clear function
-    generateClear(printer, message);
+    generateClear(ctx, message);
     // close class declaration
-    printer("\b};\n");
+    ctx.printer("\b};\n");
     // end namespace
-    generateNamespace(printer, message, false);
+    generateNamespace(ctx, message, false);
 
     // message trait
-    generateTrait(printer, message);
+    generateTrait(ctx, message);
     // 'Field' template specializarion
-    generateFieldTemplate(printer, message);
+    generateFieldTemplate(ctx, message);
 
     for (auto fi = message.fields.begin(); fi != message.fields.end(); ++fi)
     {
         std::string storage = fieldStorage(*fi);
-        printer("#undef PROTOGEN_FN_$1$\n", storage);
+        ctx.printer("#undef PROTOGEN_FN_$1$\n", storage);
     }
 }
 
@@ -552,9 +575,9 @@ static std::string makeGuard( const std::string &fileName )
 }
 
 
-static void generateLicense( Printer &printer )
+static void generateLicense( GeneratorContext &ctx )
 {
-    printer(
+    ctx.printer(
         "/*\n"
         " * This is free and unencumbered software released into the public domain.\n"
         " * \n"
@@ -583,19 +606,16 @@ static void generateLicense( Printer &printer )
 }
 
 
-static void generateModel( Printer &printer, const Proto3 &root )
+static void generateModel( GeneratorContext &ctx )
 {
-    bool obfuscate_strings = root.options.count(PROTOGEN_O_OBFUSCATE_STRINGS) > 0;
-    if (obfuscate_strings) obfuscate_strings = root.options.at(PROTOGEN_O_OBFUSCATE_STRINGS).value == "true";
-
     char version[8] = { 0 };
     snprintf(version, sizeof(version) - 1, "%02X%02X%02X",
         (int) PROTOGEN_MAJOR, (int) PROTOGEN_MINOR, (int) PROTOGEN_PATCH);
 
-    generateLicense(printer);
+    generateLicense(ctx);
 
-    std::string guard = makeGuard(root.fileName);
-    printer(
+    std::string guard = makeGuard(ctx.root.fileName);
+    ctx.printer(
         "// Generated by the protogen $1$ compiler.  DO NOT EDIT!\n"
         "// Source: $2$\n"
         "\n#ifndef $3$\n"
@@ -611,39 +631,49 @@ static void generateModel( Printer &printer, const Proto3 &root )
         "#endif\n"
         "#if (PROTOGEN_VERSION != 0x$4$) // $1$\n"
         "    #error Mixed versions of protogen!\n"
-        "#endif\n\n", PROTOGEN_VERSION, root.fileName, guard, version);
+        "#endif\n\n", PROTOGEN_VERSION, ctx.root.fileName, guard, version);
 
-    if (obfuscate_strings)
-        printer("#define PROTOGEN_OBFUSCATE_STRINGS\n\n");
+    if (ctx.obfuscate_strings)
+        ctx.printer("#define PROTOGEN_OBFUSCATE_STRINGS\n\n");
 
     // base template
-    printer.output() << BASE_TEMPLATE;
+    ctx.printer.output() << BASE_TEMPLATE;
 
     // macros for custom templates
-    generateTraitMacro(printer);
-    generateFieldTemplateMacro(printer);
+    generateTraitMacro(ctx);
+    generateFieldTemplateMacro(ctx);
 
     // forward declarations
-    printer("\n// forward declarations\n");
-    for (auto mi = root.messages.begin(); mi != root.messages.end(); ++mi)
+    ctx.printer("\n// forward declarations\n");
+    for (auto mi = ctx.root.messages.begin(); mi != ctx.root.messages.end(); ++mi)
     {
-        generateNamespace(printer, *mi, true);
-        printer("\tclass $1$;\n\b", mi->name);
-        generateNamespace(printer, *mi, false);
+        generateNamespace(ctx, *mi, true);
+        ctx.printer("\tclass $1$;\n\b", mi->name);
+        generateNamespace(ctx, *mi, false);
     }
     // message declarations
-    for (auto mi = root.messages.begin(); mi != root.messages.end(); ++mi)
-        generateMessage(printer, root, *mi, obfuscate_strings);
+    for (auto mi = ctx.root.messages.begin(); mi != ctx.root.messages.end(); ++mi)
+        generateMessage(ctx, *mi, ctx.obfuscate_strings);
 
-    printer("#undef PROTOGEN_OBFUSCATE_STRINGS\n");
-    printer("#endif // $1$\n", guard);
+    ctx.printer("#undef PROTOGEN_OBFUSCATE_STRINGS\n");
+    ctx.printer("#endif // $1$\n", guard);
 }
 
 
 void CppGenerator::generate( Proto3 &root, std::ostream &out )
 {
     Printer printer(out);
-    generateModel(printer, root);
+    GeneratorContext ctx(printer, root);
+
+    ctx.obfuscate_strings = ctx.root.options.count(PROTOGEN_O_OBFUSCATE_STRINGS) > 0;
+    if (ctx.obfuscate_strings)
+        ctx.obfuscate_strings = ctx.root.options.at(PROTOGEN_O_OBFUSCATE_STRINGS).value == "true";
+
+    ctx.number_names = ctx.root.options.count(PROTOGEN_O_NUMBER_NAMES) > 0;
+    if (ctx.number_names)
+        ctx.number_names = ctx.root.options.at(PROTOGEN_O_NUMBER_NAMES).value == "true";
+
+    generateModel(ctx);
 }
 
 

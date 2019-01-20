@@ -1,6 +1,6 @@
 # protogen
 
-Tool to compile ``proto3`` schemas and generate C++ classes which serialize and deserialize JSON messages. The compiler generates a C++ header file to be included in your program. This file is all you need: no external libraries.
+Tool to compile ``proto3`` schemas and generate C++ classes which serialize and deserialize JSON messages. The compiler generates a C++ header file to be included in your program. This file is all you need: no external dependencies.
 
 There is also the ``libprotogen_static`` library you can use to create your own compiler or enable your application to compile ``proto3``.
 
@@ -53,6 +53,7 @@ Compile your program as usual (no additional library is required). In the exampl
 ## Supported options
 
 * **obfuscate_strings** (top-level) &ndash; Enable string obfuscation. If enabled, all strings in the C++ generated file will be obfuscated with a very simple (and insecure) algorithm. The default value is `false`. This option can be used to make a little difficult for curious people to find out your JSON field names by inspecting binary files.
+* **number_names** (top-level) &ndash; Use field numbers as JSON field names. If enabled, every JSON field name will be the number of the corresponding field in the `.proto` file. This can reduce significantly the size of the JSON output.
 
 ## Features
 
@@ -102,7 +103,6 @@ JSON parser:
 
 - Add support for maps
 - Add support for imports
-- Enable to use field numbers as JSON field names;
 
 ## License
 

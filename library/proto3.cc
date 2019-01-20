@@ -495,15 +495,6 @@ Field::Field() : index(0), repeated(false)
 }
 
 
-Proto3::Proto3()
-{
-}
-
-Proto3::~Proto3()
-{
-}
-
-
 static OptionEntry parseOption( ProtoContext &ctx )
 {
     // the token 'option' is already consumed at this point

@@ -25,8 +25,13 @@ namespace protogen {
 
 
 // Obfuscate generated strings (true) or keep them in plain text (false).
-// The default is to keep strings in plain text.
+// The default value is false.
 #define PROTOGEN_O_OBFUSCATE_STRINGS  "obfuscate_strings"
+
+// Use field numbers as JSON field names (true) or use the actual names (false).
+// The default value value is false.
+#define PROTOGEN_O_NUMBER_NAMES       "number_names"
+
 
 class Generator
 {

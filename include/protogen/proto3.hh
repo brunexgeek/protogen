@@ -92,7 +92,6 @@ class Field
         OptionMap options;
 
         Field();
-        operator std::string() const;
 };
 
 
@@ -103,8 +102,6 @@ class Message
         std::string name;
         std::vector<std::string> package;
         OptionMap options;
-
-        operator std::string() const;
 };
 
 
@@ -115,20 +112,11 @@ class Proto3
         OptionMap options;
         std::string fileName;
 
-        Proto3();
-
-        ~Proto3();
-
         static void parse( Proto3 &tree, std::istream &input, std::string fileName = "");
-
-        operator std::string() const;
 
     private:
 
 };
-
-
-
 
 
 } // protogen
