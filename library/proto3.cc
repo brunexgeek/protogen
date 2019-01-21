@@ -313,7 +313,10 @@ template <typename I> class Tokenizer
                 if (cur < 0) break;
 
                 if (IS_LETTER(cur))
-                    current = identifier(cur, line, column);
+                {
+                    is.unget();
+                    current = qname(line, column);
+                }
                 else
                 if (IS_DIGIT(cur))
                     current = integer(cur, line, column);
@@ -393,34 +396,50 @@ template <typename I> class Tokenizer
             return Token();
         }
 
-        Token identifier( int first = 0, int line = 1, int column = 1 )
+        Token qname( int line = 1, int column = 1 )
         {
-            Token temp(TOKEN_NAME, "", line, column);
-            if (first != 0) temp.value += (char) first;
-            int cur = -1;
-            while ((cur = is.get()) >= 0)
+            // capture the identifier
+            int type = TOKEN_NAME;
+            std::string name = this->name();
+            while (is.get() == '.')
             {
-                if (!IS_LETTER_OR_DIGIT(cur) && cur != '.')
-                {
-                    is.unget();
-                    break;
-                }
-                if (cur == '.') temp.code = TOKEN_QNAME;
-                temp.value += (char)cur;
+                type = TOKEN_QNAME;
+                std::string cur = this->name();
+                if (cur.length() == 0)
+                    throw exception("Invalid identifier", line, column);
+                name += '.';
+                name += cur;
             }
+            is.unget();
 
-            if (temp.code == TOKEN_NAME)
+            // we found a keyword?
+            if (type == TOKEN_NAME)
             {
                 for (int i = 0; KEYWORDS[i].keyword != nullptr; ++i)
                 {
-                    if (temp.value == KEYWORDS[i].keyword)
+                    if (name == KEYWORDS[i].keyword)
                     {
-                        temp.code = KEYWORDS[i].code;
+                        type = KEYWORDS[i].code;
                         break;
                     }
                 }
             }
 
+            return Token(type, name, line, column);
+        }
+
+        std::string name()
+        {
+            std::string temp;
+            bool first = true;
+            int cur;
+            while ((cur = is.get()) >= 0)
+            {
+                if ((first && !IS_LETTER(cur)) || !IS_LETTER_OR_DIGIT(cur)) break;
+                first = false;
+                temp += (char)cur;
+            }
+            is.unget();
             return temp;
         }
 
