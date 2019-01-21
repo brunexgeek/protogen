@@ -490,8 +490,15 @@ std::ostream &operator<<( std::ostream &out, protogen::Proto3 &proto );
 namespace protogen {
 
 
-Field::Field() : index(0), repeated(false)
+Field::Field() : index(0)
 {
+}
+
+
+std::string Message::qualifiedName() const
+{
+    if (package.empty()) return name;
+    return package + '.' + name;
 }
 
 
@@ -559,15 +566,25 @@ static void parseStandardOption( ProtoContext &ctx, OptionMap &entries )
 }
 
 
+static Message *findMessage( ProtoContext &ctx, const std::string &name )
+{
+    for (auto it = ctx.tree.messages.begin(); it != ctx.tree.messages.end(); ++it)
+        if ((*it)->qualifiedName() == name) return *it;
+    return nullptr;
+}
+
+
 static void parseField( ProtoContext &ctx, Message &message )
 {
     Field field;
 
     if (ctx.tokens.current.code == TOKEN_REPEATED)
     {
-        field.repeated = true;
+        field.type.repeated = true;
         ctx.tokens.next();
     }
+    else
+        field.type.repeated = false;
 
     // type
     if (ctx.tokens.current.code >= TOKEN_T_DOUBLE && ctx.tokens.current.code <= TOKEN_T_BYTES)
@@ -576,7 +593,13 @@ static void parseField( ProtoContext &ctx, Message &message )
     if (ctx.tokens.current.code == TOKEN_NAME)
     {
         field.type.id = (FieldType) TOKEN_T_MESSAGE;
-        field.type.name = ctx.tokens.current.value;
+        if (!message.package.empty())
+        {
+            field.type.qname += message.package;
+            field.type.qname += '.';
+        }
+        field.type.qname += ctx.tokens.current.value;
+        field.type.ref = findMessage(ctx, field.type.qname);
     }
 # if 0
     else
@@ -627,9 +650,8 @@ static void parseField( ProtoContext &ctx, Message &message )
 }
 
 
-static void splitPackage(
-    std::vector<std::string> &out,
-    const std::string &package )
+void Message::splitPackage(
+    std::vector<std::string> &out )
 {
     std::string current;
 
@@ -656,19 +678,22 @@ static void parseMessage( ProtoContext &ctx )
 {
     if (ctx.tokens.current.code == TOKEN_MESSAGE && ctx.tokens.next().code == TOKEN_NAME)
     {
-        Message message;
-        message.name = ctx.tokens.current.value;
+        Message *message = new(std::nothrow) Message();
+        if (message == nullptr)
+            throw exception("Out of memory");
+        //splitPackage(message.package, ctx.package);
+        message->package = ctx.package;
+        message->name = ctx.tokens.current.value;
         if (ctx.tokens.next().code == TOKEN_BEGIN)
         {
             while (ctx.tokens.next().code != TOKEN_END)
             {
                 if (ctx.tokens.current.code == TOKEN_OPTION)
-                    parseStandardOption(ctx, message.options);
+                    parseStandardOption(ctx, message->options);
                 else
-                    parseField(ctx, message);
+                    parseField(ctx, *message);
             }
         }
-        splitPackage(message.package, ctx.package);
         ctx.tree.messages.push_back(message);
     }
     else
@@ -734,7 +759,13 @@ static void parseProto( ProtoContext &ctx )
 }
 
 
-void Proto3::parse( Proto3 &tree, std::istream &input, std::string fileName )
+Proto3::~Proto3()
+{
+    for (auto it = messages.begin(); it != messages.end(); ++it) delete *it;
+}
+
+
+void Proto3::parse( Proto3 &tree, std::istream &input, const std::string &fileName )
 {
     std::ios_base::fmtflags flags = input.flags();
     std::noskipws(input);
@@ -755,6 +786,19 @@ void Proto3::parse( Proto3 &tree, std::istream &input, std::string fileName )
     {
         if (flags & std::ios::skipws) std::skipws(input);
         throw ex;
+    }
+
+    // check if we have unresolved types
+    for (auto mit = tree.messages.begin(); mit != tree.messages.end(); ++mit)
+    {
+        for (auto fit = (*mit)->fields.begin(); fit != (*mit)->fields.end(); ++fit)
+        {
+            if (fit->type.ref != nullptr) continue;
+
+            fit->type.ref = findMessage(ctx, fit->type.qname);
+            if (fit->type.ref == nullptr)
+                throw exception("Unable to find message '" + fit->type.qname + "'");
+        }
     }
 }
 
@@ -777,12 +821,12 @@ std::ostream &operator<<( std::ostream &out, const protogen::Token &tt )
 
 std::ostream &operator<<( std::ostream &out, protogen::Field &field )
 {
-    if (field.repeated)
+    if (field.type.repeated)
         out << "repeated ";
     if (field.type.id >= TOKEN_T_DOUBLE && field.type.id <= TOKEN_T_BYTES)
         out << TYPES[field.type.id - TOKEN_T_DOUBLE];
     else
-        out << field.type.name;
+        out << field.type.qname;
     out << ' ' << field.name << " = " << field.index << ";";
     return out;
 }

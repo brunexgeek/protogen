@@ -107,16 +107,19 @@ static std::string obfuscate( const std::string &value )
 }
 
 
-static std::string nativePackage( const std::vector<std::string> &package )
+//static std::string nativePackage( const std::vector<std::string> &package )
+static std::string nativePackage( const std::string &package )
 {
-    // extra space because the compiler may complain about '<::' (i.e. using in templates)
-    if (package.empty() || package[0].empty()) return "";
+    if (package.empty()) return "";
 
+    // extra space because the compiler may complain about '<::' (i.e. using in templates)
     std::string name = " ::";
     for (auto it = package.begin(); it != package.end(); ++it)
     {
-        name += *it;
-        if (it + 1 != package.end()) name += "::";
+        if (*it == '.')
+            name += "::";
+        else
+            name += *it;
     }
     return name;
 }
@@ -133,7 +136,6 @@ static std::string fieldStorage( const Field &field )
  */
 static std::string nativeType( const Field &field )
 {
-
     if (field.type.id >= protogen::TYPE_DOUBLE && field.type.id <= protogen::TYPE_STRING)
     {
         int index = (int)field.type.id - (int)protogen::TYPE_DOUBLE;
@@ -144,7 +146,7 @@ static std::string nativeType( const Field &field )
         return "uint8_t";
     else
     if (field.type.id == protogen::TYPE_MESSAGE)
-        return field.type.name;
+        return nativePackage(field.type.ref->package) + "::" + field.type.ref->name;
     else
         throw protogen::exception("Invalid field type");
 }
@@ -156,7 +158,7 @@ static std::string fieldNativeType( const Field &field )
 {
     std::string output = "protogen::";
 
-    if (field.repeated || field.type.id == protogen::TYPE_BYTES)
+    if (field.type.repeated || field.type.id == protogen::TYPE_BYTES)
         output += "RepeatedField<";
     else
         output += "Field<";
@@ -168,7 +170,9 @@ static std::string fieldNativeType( const Field &field )
     }
     else
     if (field.type.id == protogen::TYPE_MESSAGE)
-        output += field.type.name;
+    {
+        output += nativeType(field);
+    }
     else
         throw protogen::exception("Invalid field type");
 
@@ -273,7 +277,7 @@ static void generateDeserializer( GeneratorContext &ctx, const Message &message 
         "std::string name;\n");
 
     ctx.printer(
-        "bool hasField[$1$] = {false};\n"
+        "bool hfld[$1$] = {false};\n"
         "while (true) {\n\t"
         "name.clear();\n"
         "if (!protogen::json::readName(in, name)) break;\n", message.fields.size());
@@ -292,7 +296,7 @@ static void generateDeserializer( GeneratorContext &ctx, const Message &message 
         ctx.printer("// $1$\n", fi->name);
         ctx.printer("if (name == PROTOGEN_FN_$1$) {\n\t", storage); // open the main 'if'
 
-        if (fi->repeated || fi->type.id == protogen::TYPE_BYTES)
+        if (fi->type.repeated || fi->type.id == protogen::TYPE_BYTES)
         {
             ctx.printer("if (!protogen::traits< std::vector<$1$> >::read(in, this->$2$())) return false;\n", type, storage);
         }
@@ -311,7 +315,7 @@ static void generateDeserializer( GeneratorContext &ctx, const Message &message 
         }
         ctx.printer(
             "if (!protogen::json::next(in)) return false;\n"
-            "hasField[$1$] = true;\n"
+            "hfld[$1$] = true;\n"
             "\b}\n", // closes the main 'if'
             count);
         first = false;
@@ -321,10 +325,16 @@ static void generateDeserializer( GeneratorContext &ctx, const Message &message 
         "// ignore the current field\n"
         "\tif (!protogen::json::ignore(in)) return false;\n\b\b}\n");
 
+    ctx.printer("if (required && (");
+    for (size_t i = 0, t = message.fields.size(); i < t; ++i)
+    {
+        if (i != 0) ctx.printer(" || ");
+        ctx.printer("!hfld[$1$]", i);
+    }
     ctx.printer(
-        "if (required) {\n"
-        "\tfor (size_t i = 0; i < $1$; ++i) if (!hasField[i]) return false;\n\b}\n"
-        "return true;\n\b}\n", message.fields.size());
+        ")) return false;\n"
+        "return true;\n\b}\n");
+    //    "\tfor (size_t i = 0; i < $1$; ++i) if (!hasField[i]) return false;\n\b}\n"
 }
 
 
@@ -408,14 +418,22 @@ static void generateSwap( GeneratorContext &ctx, const Message &message )
 
 static void generateNamespace( GeneratorContext &ctx, const Message &message, bool start )
 {
-    if (message.package.empty() || message.package[0].empty()) return;
+    if (message.package.empty()) return;
 
-    for (auto it = message.package.begin(); it != message.package.end(); ++it)
+    std::string name;
+    std::string package = message.package + '.';
+    for (auto it = package.begin(); it != package.end(); ++it)
     {
-        if (start)
-            ctx.printer("namespace $1$ {\n", *it);
+        if (*it == '.')
+        {
+            if (start)
+                ctx.printer("namespace $1$ {\n", name);
+            else
+                ctx.printer("} // namespace $1$\n", name);
+            name.clear();
+        }
         else
-            ctx.printer("} // namespace $1$\n", *it);
+            name += *it;
     }
 }
 
@@ -647,13 +665,13 @@ static void generateModel( GeneratorContext &ctx )
     ctx.printer("\n// forward declarations\n");
     for (auto mi = ctx.root.messages.begin(); mi != ctx.root.messages.end(); ++mi)
     {
-        generateNamespace(ctx, *mi, true);
-        ctx.printer("\tclass $1$;\n\b", mi->name);
-        generateNamespace(ctx, *mi, false);
+        generateNamespace(ctx, **mi, true);
+        ctx.printer("\tclass $1$;\n\b", (*mi)->name);
+        generateNamespace(ctx, **mi, false);
     }
     // message declarations
     for (auto mi = ctx.root.messages.begin(); mi != ctx.root.messages.end(); ++mi)
-        generateMessage(ctx, *mi, ctx.obfuscate_strings);
+        generateMessage(ctx, **mi, ctx.obfuscate_strings);
 
     ctx.printer("#undef PROTOGEN_OBFUSCATE_STRINGS\n");
     ctx.printer("#endif // $1$\n", guard);

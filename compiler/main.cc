@@ -21,36 +21,48 @@
 #include <stdlib.h>
 
 
+void main_usage()
+{
+    std::cerr << "protogen " << PROTOGEN_VERSION << std::endl;
+    std::cerr << "Usage: protogen <proto3 file> <output file>\n";
+    exit(EXIT_FAILURE);
+}
+
+
+void main_error( const std::string &message )
+{
+    std::cerr << "ERROR: " << message << std::endl;
+    exit(EXIT_FAILURE);
+}
+
+
 int main( int argc, char **argv )
 {
-    if (argc != 3)
-    {
-        std::cerr << "protogen " << PROTOGEN_VERSION << std::endl;
-        std::cerr << "Usage: protogen <proto3 file> <output file>\n";
-        exit(EXIT_FAILURE);
-    }
+    if (argc != 3) main_usage();
 
     std::ifstream input(argv[1]);
+    if (!input.good()) main_error(std::string("Unable to open '") + argv[1] + "'");
+
     std::ofstream output(argv[2], std::ios_base::ate);
+    if (!output.good()) main_error(std::string("Unable to open '") + argv[2] + "'");
+
     int result = 0;
     char fullPath[PATH_MAX] = { 0 };
     if (realpath(argv[1], fullPath) == nullptr) return 1;
 
-    if (input.good() && output.good())
+    protogen::Proto3 proto;
+    try
     {
-        protogen::Proto3 proto;
-        try
-        {
-            protogen::Proto3::parse(proto, input, fullPath);
-            protogen::CppGenerator gen;
-            gen.generate(proto, output);
-        } catch (protogen::exception &ex)
-        {
-            std::cerr << fullPath << ':' << ex.line << ':' << ex.column << ": error: " << ex.cause() << std::endl;
-            result = 1;
-        }
-        input.close();
-        output.close();
+        protogen::Proto3::parse(proto, input, fullPath);
+        protogen::CppGenerator gen;
+        gen.generate(proto, output);
+    } catch (protogen::exception &ex)
+    {
+        std::cerr << fullPath << ':' << ex.line << ':' << ex.column << ": error: " << ex.cause() << std::endl;
+        result = 1;
     }
+    input.close();
+    output.close();
+
     return result;
 }

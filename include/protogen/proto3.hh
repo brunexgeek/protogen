@@ -54,10 +54,14 @@ enum FieldType
 #endif // PROTOGEN_FIELD_TYPES
 
 
+class Message;
+
 struct TypeInfo
 {
     FieldType id;
-    std::string name;
+    std::string qname;
+    Message *ref;
+    bool repeated;
 };
 
 
@@ -88,7 +92,6 @@ class Field
         TypeInfo valueType;
         std::string name;
         int index;
-        bool repeated;
         OptionMap options;
 
         Field();
@@ -100,22 +103,23 @@ class Message
     public:
         std::vector<Field> fields;
         std::string name;
-        std::vector<std::string> package;
+        std::string package;
         OptionMap options;
+
+        std::string qualifiedName() const;
+        void splitPackage( std::vector<std::string> &out );
 };
 
 
 class Proto3
 {
     public:
-        std::vector<Message> messages;
+        std::vector<Message*> messages;
         OptionMap options;
         std::string fileName;
 
-        static void parse( Proto3 &tree, std::istream &input, std::string fileName = "");
-
-    private:
-
+        ~Proto3();
+        static void parse( Proto3 &tree, std::istream &input, const std::string &fileName = "");
 };
 
 
