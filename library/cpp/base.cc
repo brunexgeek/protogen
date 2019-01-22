@@ -127,7 +127,7 @@ template<typename T> struct traits
         while (true)
         {
             int ch = in.get();
-            if (ch != '.' && (ch < '0' || ch > '9'))
+            if (ch != '.' && ch != '-' && (ch < '0' || ch > '9'))
             {
                 in.unget();
                 break;
@@ -539,9 +539,6 @@ static bool ignoreEnclosing( InputStream<I> &in, int begin, int end )
         if (ch == begin)
             ++count;
     }
-
-    in.skipws();
-    if (in.get() != ',') in.unget();
 
     return count == 0;
 }

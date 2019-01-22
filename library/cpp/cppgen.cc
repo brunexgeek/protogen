@@ -279,8 +279,10 @@ static void generateDeserializer( GeneratorContext &ctx, const Message &message 
     ctx.printer(
         "bool hfld[$1$] = {false};\n"
         "while (true) {\n\t"
+        "if (in.get() == '}') break;\n"
+        "in.unget();\n"
         "name.clear();\n"
-        "if (!protogen::json::readName(in, name)) break;\n", message.fields.size());
+        "if (!protogen::json::readName(in, name)) return false;\n", message.fields.size());
 
     bool first = true;
     size_t count = 0;
@@ -323,7 +325,8 @@ static void generateDeserializer( GeneratorContext &ctx, const Message &message 
     ctx.printer(
         "else\n"
         "// ignore the current field\n"
-        "\tif (!protogen::json::ignore(in)) return false;\n\b\b}\n");
+        "{\n\tif (!protogen::json::ignore(in)) return false;\n"
+        "if (!protogen::json::next(in)) return false;\n\b}\n\b\b}\n");
 
     ctx.printer("if (required && (");
     for (size_t i = 0, t = message.fields.size(); i < t; ++i)
