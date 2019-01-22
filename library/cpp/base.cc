@@ -218,29 +218,30 @@ template<> struct traits<std::string>
     {
         in.skipws();
         if (in.get() != '"') return false;
-        while (1)
+        while (true)
         {
-            int c = in.get();
-            if (c == '"') return true;
+            int ch = in.get();
+            if (ch == '"') return true;
 
-            if (c == '\\')
+            if (ch == '\\')
             {
-                c = in.get();
-                switch (c)
+                ch = in.get();
+                switch (ch)
                 {
-                    case '"':  c = '"'; break;
-                    case '\\': c = '\\'; break;
-                    case '/':  c = '/'; break;
-                    case 'b':  c = '\b'; break;
-                    case 'f':  c = '\f'; break;
-                    case 'r':  c = '\r'; break;
-                    case 'n':  c = '\n'; break;
-                    case 't':  c = '\t'; break;
+                    case '"':  ch = '"'; break;
+                    case '\\': ch = '\\'; break;
+                    case '/':  ch = '/'; break;
+                    case 'b':  ch = '\b'; break;
+                    case 'f':  ch = '\f'; break;
+                    case 'r':  ch = '\r'; break;
+                    case 'n':  ch = '\n'; break;
+                    case 't':  ch = '\t'; break;
+                    default: return false;
                 }
             }
 
-            if (c <= 0) return false;
-            value += (char) c;
+            if (ch <= 0) return false;
+            value += (char) ch;
         }
 
         return false;
@@ -486,12 +487,12 @@ static bool ignoreString( InputStream<I> &in )
 {
     if (in.get() != '"') return false;
 
-    bool escape = false;
     while (!in.eof())
     {
         int ch = in.get();
-        if (escape)
+        if (ch == '\\')
         {
+            int ch = in.get();
             switch (ch)
             {
                 case '"':
@@ -502,7 +503,6 @@ static bool ignoreString( InputStream<I> &in )
                 case 'r':
                 case 'n':
                 case 't':
-                    escape = false;
                     break;
                 default: // invalid escape sequence
                     return false;
