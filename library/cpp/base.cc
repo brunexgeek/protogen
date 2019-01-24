@@ -467,6 +467,8 @@ template<typename T> class RepeatedField
         bool operator==( const RepeatedField<T> &that ) const { return this->value_ == that.value_; }
 };
 
+#ifdef PROTOGEN_CPP_ENABLE_PARENT
+
 class Message
 {
     public:
@@ -478,6 +480,8 @@ class Message
         virtual void clear() = 0;
         virtual bool undefined() const = 0;
 };
+
+#endif // PROTOGEN_CPP_ENABLE_PARENT
 
 namespace json {
 

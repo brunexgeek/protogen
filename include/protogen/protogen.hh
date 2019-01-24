@@ -26,12 +26,17 @@ namespace protogen {
 
 // Obfuscate generated strings (true) or keep them in plain text (false).
 // The default value is false.
-#define PROTOGEN_O_OBFUSCATE_STRINGS  "obfuscate_strings"
+#define PROTOGEN_O_OBFUSCATE_STRINGS    "obfuscate_strings"
 
 // Use field numbers as JSON field names (true) or use the actual names (false).
 // The default value value is false.
-#define PROTOGEN_O_NUMBER_NAMES       "number_names"
+#define PROTOGEN_O_NUMBER_NAMES         "number_names"
 
+// Enable (true) or disable (false) the use of a parent class. Whan enabled, every
+// message will specialize the 'Message' class which contains a virtual destructor and
+// a couple of pure virtual functions. If you do not need a common ancestor for your
+// message classes, you can disable this option.
+#define PROTOGEN_O_CPP_ENABLE_PARENT   "cpp_enable_parent"
 
 class Generator
 {

@@ -34,9 +34,10 @@ struct GeneratorContext
     Proto3 &root;
     bool number_names;
     bool obfuscate_strings;
+    bool cpp_enable_parent;
 
     GeneratorContext( Printer &printer, Proto3 &root ) : printer(printer), root(root),
-        number_names(false), obfuscate_strings(false)
+        number_names(false), obfuscate_strings(false), cpp_enable_parent(true)
     {
     }
 };
@@ -229,7 +230,7 @@ static void generateAssignOperator( GeneratorContext &ctx, const Message &messag
 static void generateEqualityOperator( GeneratorContext &ctx, const Message &message )
 {
     ctx.printer(
-        "bool operator==(const $1$&that) const {\n"
+        "bool operator==(const $1$ &that) const {\n"
         "\treturn\n\t", message.name);
     for (auto fi = message.fields.begin(); fi != message.fields.end(); ++fi)
     {
@@ -255,8 +256,8 @@ static void generateDeserializer( GeneratorContext &ctx, const Message &message 
         "protogen::InputStream< std::istream_iterator<char> > is(itb, ite);\n"
         "bool result = this->deserialize(is, required);\n"
         "if (skip) std::skipws(in);\n"
-        "\treturn result;\n"
-        "\b\b}\n"
+        "return result;\n"
+        "\b}\n"
 
         // deserializer receiving a 'string'
         "bool deserialize( const std::string &in, bool required = false ) {\n"
@@ -464,8 +465,9 @@ static void generateMessage( GeneratorContext &ctx, const Message &message, bool
     // begin namespace
     generateNamespace(ctx, message, true);
 
-    ctx.printer(
-        "\nclass $1$ : public protogen::Message {\npublic:\n\t", message.name);
+    ctx.printer("\nclass $1$", message.name);
+    if (ctx.cpp_enable_parent) ctx.printer(": public protogen::Message");
+    ctx.printer(" {\npublic:\n\t", message.name);
 
     // create the macro containing the field name
     for (auto fi = message.fields.begin(); fi != message.fields.end(); ++fi)
@@ -503,7 +505,7 @@ static void generateMessage( GeneratorContext &ctx, const Message &message, bool
     }
 
     // default constructor and destructor
-    ctx.printer("$1$() {}\nvirtual ~$1$() {}\n", message.name);
+    ctx.printer("$2$() {}\n$1$~$2$() {}\n", ((ctx.cpp_enable_parent) ? "virtual " : ""), message.name);
     // copy constructor
     generateCopyCtor(ctx, message);
     // move constructor
@@ -617,6 +619,8 @@ static void generateModel( GeneratorContext &ctx )
 
     if (ctx.obfuscate_strings)
         ctx.printer("#define PROTOGEN_OBFUSCATE_STRINGS\n\n");
+    if (ctx.cpp_enable_parent)
+        ctx.printer("#define PROTOGEN_CPP_ENABLE_PARENT\n");
 
     // base template
     ctx.printer.output() << BASE_TEMPLATE;
@@ -633,7 +637,6 @@ static void generateModel( GeneratorContext &ctx )
     for (auto mi = ctx.root.messages.begin(); mi != ctx.root.messages.end(); ++mi)
         generateMessage(ctx, **mi, ctx.obfuscate_strings);
 
-    ctx.printer("#undef PROTOGEN_OBFUSCATE_STRINGS\n");
     ctx.printer("#endif // $1$\n", guard);
 }
 
@@ -643,13 +646,23 @@ void CppGenerator::generate( Proto3 &root, std::ostream &out )
     Printer printer(out);
     GeneratorContext ctx(printer, root);
 
-    ctx.obfuscate_strings = ctx.root.options.count(PROTOGEN_O_OBFUSCATE_STRINGS) > 0;
-    if (ctx.obfuscate_strings)
-        ctx.obfuscate_strings = ctx.root.options.at(PROTOGEN_O_OBFUSCATE_STRINGS).value == "true";
+    if (ctx.root.options.count(PROTOGEN_O_OBFUSCATE_STRINGS))
+    {
+        OptionEntry opt = ctx.root.options.at(PROTOGEN_O_OBFUSCATE_STRINGS);
+        ctx.obfuscate_strings = (opt.type == OptionType::BOOLEAN && opt.value == "true");
+    }
 
-    ctx.number_names = ctx.root.options.count(PROTOGEN_O_NUMBER_NAMES) > 0;
-    if (ctx.number_names)
-        ctx.number_names = ctx.root.options.at(PROTOGEN_O_NUMBER_NAMES).value == "true";
+    if (ctx.root.options.count(PROTOGEN_O_NUMBER_NAMES))
+    {
+        OptionEntry opt = ctx.root.options.at(PROTOGEN_O_NUMBER_NAMES);
+        ctx.number_names = (opt.type == OptionType::BOOLEAN && opt.value == "true");
+    }
+
+    if (ctx.root.options.count(PROTOGEN_O_CPP_ENABLE_PARENT))
+    {
+        OptionEntry opt = ctx.root.options.at(PROTOGEN_O_CPP_ENABLE_PARENT);
+        ctx.cpp_enable_parent = (opt.type == OptionType::BOOLEAN && opt.value == "true");
+    }
 
     generateModel(ctx);
 }
