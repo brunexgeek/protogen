@@ -62,6 +62,8 @@ struct TypeInfo
     std::string qname;
     Message *ref;
     bool repeated;
+
+    TypeInfo();
 };
 
 

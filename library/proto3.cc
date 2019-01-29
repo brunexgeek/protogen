@@ -509,6 +509,11 @@ std::ostream &operator<<( std::ostream &out, protogen::Proto3 &proto );
 namespace protogen {
 
 
+TypeInfo::TypeInfo() : id(TYPE_DOUBLE), ref(nullptr), repeated(false)
+{
+}
+
+
 Field::Field() : index(0)
 {
 }
@@ -812,7 +817,7 @@ void Proto3::parse( Proto3 &tree, std::istream &input, const std::string &fileNa
     {
         for (auto fit = (*mit)->fields.begin(); fit != (*mit)->fields.end(); ++fit)
         {
-            if (fit->type.ref != nullptr) continue;
+            if (fit->type.ref != nullptr || fit->type.id != TYPE_MESSAGE) continue;
 
             fit->type.ref = findMessage(ctx, fit->type.qname);
             if (fit->type.ref == nullptr)
