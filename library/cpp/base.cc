@@ -136,11 +136,17 @@ template<typename T> struct traits
         }
         if (temp.empty()) return false;
 
+#if defined(_WIN32) || defined(_WIN64)
+        static _locale_t loc = _create_locale(LC_NUMERIC_MASK | LC_MONETARY_MASK, "C");
+        if (loc == 0) return false;
+        value = (T) _strtod_l(temp.c_str(), NULL, loc);
+#else
         static locale_t loc = newlocale(LC_NUMERIC_MASK | LC_MONETARY_MASK, "C", 0);
         if (loc == 0) return false;
         uselocale(loc);
         value = (T) strtod(temp.c_str(), NULL);
         uselocale(LC_GLOBAL_LOCALE);
+#endif
         return true;
     }
     static void swap( T &a, T &b ) { T temp = a; a = b; b = temp; }
