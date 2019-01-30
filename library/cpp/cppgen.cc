@@ -205,8 +205,15 @@ static void generateMoveCtor( GeneratorContext &ctx, const Message &message )
 {
     ctx.printer(
         "#if __cplusplus >= 201103L\n"
-        "$1$($1$ &&that) { this->swap(that); }\n"
-        "#endif\n", message.name);
+        "$1$($1$ &&that) {\n\t", message.name);
+    for (auto fi = message.fields.begin(); fi != message.fields.end(); ++fi)
+    {
+        if (fi->type.id == TYPE_MESSAGE || fi->type.repeated)
+            ctx.printer("this->$1$.swap(that.$1$);\n", fieldStorage(*fi));
+        else
+            ctx.printer("this->$1$ = that.$1$;\n", fieldStorage(*fi));
+    }
+    ctx.printer("\b}\n#endif\n");
 }
 
 
