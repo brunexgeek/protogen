@@ -7,6 +7,44 @@
 #include <cstdlib>
 #include <locale.h>
 
+
+#define PROTOGEN_TRAIT_MACRO(MSGTYPE) \
+	namespace protogen { \
+		template<> struct traits<MSGTYPE> { \
+			static void clear( MSGTYPE &value ) { value.clear(); } \
+			static void write( std::ostream &out, const MSGTYPE &value ) { value.serialize(out); } \
+			template<typename I> static bool read( protogen::InputStream<I> &in, MSGTYPE &value ) { return value.deserialize(in); } \
+			static void swap( MSGTYPE &a, MSGTYPE &b ) { a.swap(b); } \
+		}; \
+	}
+
+#if __cplusplus >= 201103L
+#define PROTOGEN_FIELD_MOVECTOR_TEMPLATE(MSGTYPE) Field( Field<MSGTYPE> &&that ) { this->value_.swap(that.value_); }
+#else
+#define PROTOGEN_FIELD_MOVECTOR_TEMPLATE(MSGTYPE)
+#endif
+
+#define PROTOGEN_FIELD_TEMPLATE(MSGTYPE) \
+	namespace protogen { \
+        template<> class Field<MSGTYPE> { \
+		protected: \
+			MSGTYPE value_; \
+		public: \
+			Field() { clear(); } \
+			PROTOGEN_FIELD_MOVECTOR_TEMPLATE(MSGTYPE); \
+			void swap( Field<MSGTYPE> &that ) { traits<MSGTYPE>::swap(this->value_, that.value_); } \
+			const MSGTYPE &operator()() const { return value_; } \
+			MSGTYPE &operator()() { return value_; } \
+			void operator ()(const MSGTYPE &value ) { this->value_ = value; } \
+			bool undefined() const { return value_.undefined(); } \
+			void clear() { traits<MSGTYPE>::clear(value_); } \
+			Field<MSGTYPE> &operator=( const Field<MSGTYPE> &that ) { this->value_ = that.value_; return *this; } \
+			bool operator==( const MSGTYPE &that ) const { return this->value_ == that; } \
+			bool operator==( const Field<MSGTYPE> &that ) const { return this->value_ == that.value_; } \
+	    }; \
+    }
+
+
 namespace protogen {
 
 #ifndef PROTOGEN_FIELD_TYPES
@@ -400,7 +438,7 @@ template<typename T> class Field
         #if __cplusplus >= 201103L
         Field( Field<T> &&that ) { this->undefined_ = that.undefined_; if (!undefined_) this->value_.swap(that.value_); }
         #endif
-        void swap( Field<T> &that ) { traits<T>::swap(this->value_, that.value_); }
+        void swap( Field<T> &that ) { traits<T>::swap(this->value_, that.value_); traits<bool>::swap(this->undefined_, that.undefined_); }
         const T &operator()() const { return value_; }
         void operator ()(const T &value ) { this->value_ = value; this->undefined_ = false; }
         bool undefined() const { return undefined_; }

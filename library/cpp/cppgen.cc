@@ -333,7 +333,7 @@ static void generateDeserializer( GeneratorContext &ctx, const Message &message 
         "else\n"
         "// ignore the current field\n"
         "{\n\tif (!protogen::json::ignore(in)) return false;\n"
-        "if (!protogen::json::next(in)) return false;\n\b}\n\b\b}\n");
+        "if (!protogen::json::next(in)) return false;\n\b}\n\b}\n");
 
     ctx.printer("if (required && (");
     for (size_t i = 0, t = message.fields.size(); i < t; ++i)
@@ -379,21 +379,6 @@ static void generateSerializer( GeneratorContext &ctx, const Message &message )
             "protogen::json::write(out, first, PROTOGEN_FN_$1$, this->$1$());\n", storage);
     }
     ctx.printer("out << '}';\n\b}\n");
-}
-
-
-static void generateTraitMacro( GeneratorContext &ctx )
-{
-    ctx.printer(
-        "\n#define PROTOGEN_TRAIT_MACRO(MSGTYPE) \\\n"
-        "\tnamespace protogen { \\\n"
-        "\ttemplate<> struct traits<MSGTYPE> { \\\n"
-        "\tstatic void clear( MSGTYPE &value ) { value.clear(); } \\\n"
-        "static void write( std::ostream &out, const MSGTYPE &value ) { value.serialize(out); } \\\n"
-        "template<typename I> \\\n"
-        "static bool read( protogen::InputStream<I> &in, MSGTYPE &value ) { return value.deserialize(in); } \\\n"
-        "static void swap( MSGTYPE &a, MSGTYPE &b ) { a.swap(b); } \\\n"
-        "\b}; \\\n\b} \n\b\b");
 }
 
 
@@ -445,37 +430,6 @@ static void generateNamespace( GeneratorContext &ctx, const Message &message, bo
         else
             name += *it;
     }
-}
-
-
-static void generateFieldTemplateMacro( GeneratorContext &ctx )
-{
-    ctx.printer(
-        "\n#if __cplusplus >= 201103L\n"
-        "#define PROTOGEN_FIELD_MOVECTOR_TEMPLATE(MSGTYPE) Field( Field<MSGTYPE> &&that ) { this->value_.swap(that.value_); }\n"
-        "#else\n"
-        "#define PROTOGEN_FIELD_MOVECTOR_TEMPLATE(MSGTYPE) \n"
-        "#endif\n");
-
-    ctx.printer(
-        "\n#define PROTOGEN_FIELD_TEMPLATE(MSGTYPE) \\\n"
-        "\tnamespace protogen {"
-        "template<> class Field<MSGTYPE> { \\\n"
-        "\tprotected: \\\n"
-        "\tMSGTYPE value_; \\\n"
-        "\bpublic: \\\n"
-        "\tField() { clear(); } \\\n"
-        "PROTOGEN_FIELD_MOVECTOR_TEMPLATE(MSGTYPE); \\\n"
-        "void swap( Field<MSGTYPE> &that ) { traits<MSGTYPE>::swap(this->value_, that.value_); } \\\n"
-        "const MSGTYPE &operator()() const { return value_; } \\\n"
-        "MSGTYPE &operator()() { return value_; } \\\n"
-        "void operator ()(const MSGTYPE &value ) { this->value_ = value; } \\\n"
-        "bool undefined() const { return value_.undefined(); } \\\n"
-        "void clear() { traits<MSGTYPE>::clear(value_); } \\\n"
-        "Field<MSGTYPE> &operator=( const Field<MSGTYPE> &that ) { this->value_ = that.value_; return *this; } \\\n"
-        "bool operator==( const MSGTYPE &that ) const { return this->value_ == that; } \\\n"
-        "bool operator==( const Field<MSGTYPE> &that ) const { return this->value_ == that.value_; } \\\n"
-        "\b\b}; }\n\b");
 }
 
 
@@ -666,10 +620,6 @@ static void generateModel( GeneratorContext &ctx )
 
     // base template
     ctx.printer.output() << BASE_TEMPLATE;
-
-    // macros for custom templates
-    generateTraitMacro(ctx);
-    generateFieldTemplateMacro(ctx);
 
     // forward declarations
     ctx.printer("\n// forward declarations\n");
