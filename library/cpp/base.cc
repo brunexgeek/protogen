@@ -6,7 +6,7 @@
 #include <vector>
 #include <cstdlib>
 #include <locale.h>
-
+#include <stdexcept>
 
 #define PROTOGEN_TRAIT_MACRO(MSGTYPE) \
 	namespace protogen { \

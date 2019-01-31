@@ -111,9 +111,8 @@ static std::string obfuscate( const std::string &value )
 //static std::string nativePackage( const std::vector<std::string> &package )
 static std::string nativePackage( const std::string &package )
 {
-    if (package.empty()) return "";
-
     // extra space because the compiler may complain about '<::' (i.e. using in templates)
+    if (package.empty()) return " ";
     std::string name = " ::";
     for (auto it = package.begin(); it != package.end(); ++it)
     {
