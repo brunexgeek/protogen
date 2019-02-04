@@ -1,8 +1,12 @@
 #ifndef PROTOGEN_BASE
 #define PROTOGEN_BASE
 
-#include <iostream>
 #include <string>
+#include <cstring>
+#include <stdint.h>
+#include <iterator>
+#include <sstream>
+#include <iostream>
 #include <vector>
 #include <cstdlib>
 #include <locale.h>
@@ -213,7 +217,7 @@ template<> struct traits<bool>
                 case 'a':
                 case 'l':
                 case 's':
-                    temp += (int) ch;
+                    temp += (char) ch;
                     break;
                 default:
                     in.unget();
