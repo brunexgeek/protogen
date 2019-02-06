@@ -1,5 +1,3 @@
-#ifndef PROTOGEN_BASE
-#define PROTOGEN_BASE
 
 #include <string>
 #include <cstring>
@@ -11,6 +9,9 @@
 #include <cstdlib>
 #include <locale.h>
 #include <stdexcept>
+
+#ifndef PROTOGEN_BASE
+#define PROTOGEN_BASE
 
 #define PROTOGEN_TRAIT_MACRO(MSGTYPE) \
 	namespace protogen { \
