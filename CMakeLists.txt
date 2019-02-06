@@ -3,8 +3,8 @@ project(webster)
 cmake_minimum_required(VERSION 2.8)
 
 set(PROTOGEN_MAJOR 0)
-set(PROTOGEN_MINOR 5)
-set(PROTOGEN_PATCH 3)
+set(PROTOGEN_MINOR 6)
+set(PROTOGEN_PATCH 0)
 
 add_definitions(-DPROTOGEN_MAJOR=${PROTOGEN_MAJOR})
 add_definitions(-DPROTOGEN_MINOR=${PROTOGEN_MINOR})

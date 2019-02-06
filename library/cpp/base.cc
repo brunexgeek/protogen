@@ -1,24 +1,10 @@
 
-#include <string>
-#include <cstring>
-#include <stdint.h>
-#include <iterator>
-#include <sstream>
-#include <iostream>
-#include <vector>
-#include <cstdlib>
-#include <locale.h>
-#include <stdexcept>
-
-#ifndef PROTOGEN_BASE
-#define PROTOGEN_BASE
-
 #define PROTOGEN_TRAIT_MACRO(MSGTYPE) \
-	namespace protogen { \
+	namespace PROTOGEN_NS { \
 		template<> struct traits<MSGTYPE> { \
 			static void clear( MSGTYPE &value ) { value.clear(); } \
 			static void write( std::ostream &out, const MSGTYPE &value ) { value.serialize(out); } \
-			template<typename I> static bool read( protogen::InputStream<I> &in, MSGTYPE &value ) { return value.deserialize(in); } \
+			template<typename I> static bool read( PROTOGEN_NS::InputStream<I> &in, MSGTYPE &value ) { return value.deserialize(in); } \
 			static void swap( MSGTYPE &a, MSGTYPE &b ) { a.swap(b); } \
 		}; \
 	}
@@ -30,7 +16,7 @@
 #endif
 
 #define PROTOGEN_FIELD_TEMPLATE(MSGTYPE) \
-	namespace protogen { \
+	namespace PROTOGEN_NS { \
         template<> class Field<MSGTYPE> { \
 		protected: \
 			MSGTYPE value_; \
@@ -50,10 +36,7 @@
     }
 
 
-namespace protogen {
-
-#ifndef PROTOGEN_FIELD_TYPES
-#define PROTOGEN_FIELD_TYPES
+namespace PROTOGEN_NS {
 
 enum FieldType
 {
@@ -74,8 +57,6 @@ enum FieldType
     TYPE_BYTES        =  20,
     TYPE_MESSAGE      =  21,
 };
-
-#endif // PROTOGEN_FIELD_TYPES
 
 template <typename I> class InputStream
 {
@@ -298,6 +279,7 @@ template<> struct traits<std::string>
     static void swap( std::string &a, std::string &b ) { a.swap(b); }
 };
 
+// proto3 'repeated'
 template <typename T> struct traits< std::vector<T> >
 {
     static void clear( std::vector<T> &value ) { value.clear(); }
@@ -408,7 +390,7 @@ template <> struct traits< std::vector<uint8_t> >
             {
                 int ch = in.get();
                 if (ch == '"') return j == 0;
-                s[j] = protogen::traits< std::vector<uint8_t> >::b64_int(ch);
+                s[j] = PROTOGEN_NS::traits< std::vector<uint8_t> >::b64_int(ch);
             }
             // decode base64 tuple
             array.push_back( ((s[0] & 0xFF) << 2 ) | ((s[1] & 0x30) >> 4) );
@@ -627,6 +609,5 @@ static bool ignore( InputStream<I> &in )
 }
 
 } // namespace json
-} // namespace protogen
+} // namespace PROTOGEN_NS
 
-#endif // PROTOGEN_BASE
