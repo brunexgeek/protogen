@@ -35,13 +35,19 @@ Include the generated header file in your source code to use the classe:
 #include "model.pg.hh"
 
 ...
-
+// create and populate an object
 Person girl;
 girl.name("Michelle");
 girl.age(24);
 girl.colors().push_back("yellow");
-girl.serialize(std::cout);
-
+// JSON serialization
+std::string json;
+girl.serialize(json);
+// JSON deserialization with error information (requires 'cpp_enable_errors' option)
+Person friend;
+Person::ErrorInfo err;
+if (!friend.deserialize(json, false, &err))
+    std::cerr << "Error: " << info.message << " at " << info.line << ':' << info.column << std::endl;
 ```
 
 Compile your program as usual (no additional library is required). In the example above, the output would be:
@@ -53,7 +59,9 @@ Compile your program as usual (no additional library is required). In the exampl
 ## Supported options
 
 * **obfuscate_strings** (top-level) &ndash; Enable string obfuscation. If enabled, all strings in the C++ generated file will be obfuscated with a very simple (and insecure) algorithm. The default value is `false`. This option can be used to make a little difficult for curious people to find out your JSON field names by inspecting binary files.
-* **number_names** (top-level) &ndash; Use field numbers as JSON field names. If enabled, every JSON field name will be the number of the corresponding field in the `.proto` file. This can reduce significantly the size of the JSON output.
+* **number_names** (top-level) &ndash; Use field numbers as JSON field names. The default value is `false`. If enabled, every JSON field name will be the number of the corresponding field in the `.proto` file. This can reduce significantly the size of the JSON output.
+* **cpp_enable_parent** (top-level) &ndash; Enable (`true`) or disable (`false`) the use of a parent class. The default value is `false`. When enabled, every message will specialize the `Message` class which contains a virtual destructor and a couple of pure virtual functions. If you do not need a common ancestor for your message classes, you can keep this option disabled.
+* **cpp_enable_errors** (top-level) &ndash; Enable (`true`) or disable (`false`) information about parsing errors. The default value is `false`. If enabled, `deserializer` functions will populate the `ErrorInfo` object given as argument. This option can also be enabled by defining the `PROTOGEN_CPP_ENABLE_ERRORS` macro before including the generated C++ header.
 
 ## Features
 

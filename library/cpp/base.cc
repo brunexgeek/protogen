@@ -1,4 +1,39 @@
 
+#ifndef PROTOGEN_CPP_ENABLE_ERRORS
+    #define PROTOGEN_REV(err,input,name,type) return false
+    #define PROTOGEN_REI(err,input,name) return false
+    #define PROTOGEN_REF(err,input,name) return false
+    #define PROTOGEN_REM(err,input,name) return false
+    #define PROTOGEN_REG(err,input,name) return false
+#else
+    #define PROTOGEN_REV(err,input,name,type) \
+        do { if (err == NULL) return false; \
+             err->line = input.line(); err->column = input.column(); \
+             err->message = std::string("Invalid '") + type + "' value in field '" + name + "'"; \
+             return false; } while(false)
+    #define PROTOGEN_REI(err,input,name) \
+        do { if (err == NULL) return false; \
+            err->line = input.line(); err->column = input.column(); \
+            err->message = std::string("Unable to skip field '") + name + "'"; \
+            return false; } while(false)
+    #define PROTOGEN_RETERR_FORMAT(err,input,name) \
+        do { if (err == NULL) return false; \
+            err->line = input.line(); err->column = input.column(); \
+            err->message = std::string("Invalid JSON after field '") + name + "'"; \
+            return false; } while(false)
+    #define PROTOGEN_REM(err,input,name) \
+        do { if (err == NULL) return false; \
+            err->line = input.line(); err->column = input.column(); \
+            err->message = std::string("Missing required field '") + name + "'"; \
+            return false; } while(false)
+    #define PROTOGEN_REG(err,input,msg) \
+        do { if (err == NULL) return false; \
+            err->line = input.line(); err->column = input.column(); \
+            err->message = msg; \
+            return false; } while(false)
+#endif
+
+
 #define PROTOGEN_TRAIT_MACRO(MSGTYPE) \
 	namespace PROTOGEN_NS { \
 		template<> struct traits<MSGTYPE> { \
@@ -55,8 +90,19 @@ enum FieldType
     TYPE_BOOL         =  18,
     TYPE_STRING       =  19,
     TYPE_BYTES        =  20,
-    TYPE_MESSAGE      =  21,
+    TYPE_MESSAGE      =  21
 };
+
+
+struct ErrorInfo
+{
+    int line;
+    int column;
+    std::string message;
+
+    ErrorInfo() : line(0), column(0) {}
+};
+
 
 template <typename I> class InputStream
 {
@@ -67,7 +113,7 @@ template <typename I> class InputStream
 
     public:
         InputStream( const I& first, const I& last ) : cur_(first), end_(last),
-            last_(-1), line_(1), column_(1), ungot_(false)
+            last_(-1), line_(1), column_(0), ungot_(false)
         {
         }
 
@@ -104,7 +150,7 @@ template <typename I> class InputStream
         {
             if (last_ >= 0)
             {
-                if (ungot_) throw std::runtime_error("unable to unget");
+                if (ungot_) throw std::logic_error("unable to unget");
                 ungot_ = true;
             }
         }
@@ -158,7 +204,8 @@ template<typename T> struct traits
             }
             temp += (char) ch;
         }
-        if (temp.empty()) return false;
+        if (temp.empty())
+            return false;
 
 #if defined(_WIN32) || defined(_WIN64)
         static _locale_t loc = _create_locale(LC_NUMERIC, "C");
@@ -460,10 +507,11 @@ class Message
 {
     public:
         virtual void serialize( std::string &out ) const = 0;
+        virtual void serialize( std::vector<char> &out ) const = 0;
         virtual void serialize( std::ostream &out ) const = 0;
-        virtual bool deserialize( std::istream &in, bool required = false ) = 0;
-        virtual bool deserialize( const std::string &in, bool required = false ) = 0;
-        virtual bool deserialize( const std::vector<char> &in, bool required = false ) = 0;
+        virtual bool deserialize( std::istream &in, bool required = false, PROTOGEN_NS::ErrorInfo *err = NULL  ) = 0;
+        virtual bool deserialize( const std::string &in, bool required = false, PROTOGEN_NS::ErrorInfo *err = NULL  ) = 0;
+        virtual bool deserialize( const std::vector<char> &in, bool required = false, PROTOGEN_NS::ErrorInfo *err = NULL  ) = 0;
         virtual void clear() = 0;
         virtual bool undefined() const = 0;
 };

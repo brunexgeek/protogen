@@ -35,11 +35,13 @@ struct GeneratorContext
     bool number_names;
     bool obfuscate_strings;
     bool cpp_enable_parent;
+    bool cpp_enable_errors;
     std::string version;
     std::string versionNo;
 
     GeneratorContext( Printer &printer, Proto3 &root ) : printer(printer), root(root),
-        number_names(false), obfuscate_strings(false), cpp_enable_parent(true)
+        number_names(false), obfuscate_strings(false), cpp_enable_parent(false),
+        cpp_enable_errors(false)
     {
     }
 };
@@ -130,6 +132,32 @@ static std::string nativePackage( const std::string &package )
 static std::string fieldStorage( const Field &field )
 {
     return field.name;
+}
+
+/**
+ * Translates protobuf3 types to C++ types.
+ */
+static std::string proto3Type( const Field &field )
+{
+    std::string name;
+
+    if (field.type.repeated) name += "repeated ";
+
+    if (field.type.id >= protogen::TYPE_DOUBLE && field.type.id <= protogen::TYPE_STRING)
+    {
+        int index = (int)field.type.id - (int)protogen::TYPE_DOUBLE;
+        name += TYPE_MAPPING[index].typeName;
+    }
+    else
+    if (field.type.id == protogen::TYPE_BYTES)
+        name += "bytes";
+    else
+    if (field.type.id == protogen::TYPE_MESSAGE)
+        name += field.type.ref->name;
+    else
+        throw protogen::exception("Invalid field type");
+
+    return name;
 }
 
 
@@ -249,40 +277,40 @@ static void generateDeserializer( GeneratorContext &ctx, const Message &message 
 {
     ctx.printer(
         // deserializer receiving a 'istream'
-        "bool deserialize( std::istream &in, bool required = false ) {\n"
+        "bool deserialize( std::istream &in, bool required = false, PROTOGEN_NS::ErrorInfo *err = NULL ) {\n"
         "\tbool skip = in.flags() & std::ios_base::skipws;\n"
         "std::noskipws(in);\n"
         "std::istream_iterator<char> itb(in);\n"
         "std::istream_iterator<char> ite;\n"
         "PROTOGEN_NS::InputStream< std::istream_iterator<char> > is(itb, ite);\n"
-        "bool result = this->deserialize(is, required);\n"
+        "bool result = this->deserialize(is, required, err);\n"
         "if (skip) std::skipws(in);\n"
         "return result;\n"
         "\b}\n"
 
         // deserializer receiving a 'string'
-        "bool deserialize( const std::string &in, bool required = false ) {\n"
+        "bool deserialize( const std::string &in, bool required = false, PROTOGEN_NS::ErrorInfo *err = NULL ) {\n"
         "\tPROTOGEN_NS::InputStream<std::string::const_iterator> is(in.begin(), in.end());\n"
-        "return this->deserialize(is, required);\n"
+        "return this->deserialize(is, required, err);\n"
         "\b}\n"
 
         // deserializer receiving a 'vector'
-        "bool deserialize( const std::vector<char> &in, bool required = false ) {\n"
+        "bool deserialize( const std::vector<char> &in, bool required = false, PROTOGEN_NS::ErrorInfo *err = NULL ) {\n"
         "\tPROTOGEN_NS::InputStream<std::vector<char>::const_iterator> is(in.begin(), in.end());\n"
-        "return this->deserialize(is, required);\n"
+        "return this->deserialize(is, required, err);\n"
         "\b}\n"
 
         // deserializer receiving iterators
        	"template <typename IT>\n"
-        "bool deserialize( IT begin, IT end, bool required = false ){\n"
+        "bool deserialize( IT begin, IT end, bool required = false, PROTOGEN_NS::ErrorInfo *err = NULL ){\n"
         "\tPROTOGEN_NS::InputStream<IT> is(begin, end);\n"
-        "return this->deserialize(is, required);\n\b}\n"
+        "return this->deserialize(is, required, err);\n\b}\n"
 
         // 'real' deserializer
         "template<typename T>\n"
-        "bool deserialize( PROTOGEN_NS::InputStream<T> &in, bool required = false ) {\n"
+        "bool deserialize( PROTOGEN_NS::InputStream<T> &in, bool required = false, PROTOGEN_NS::ErrorInfo *err = NULL ) {\n"
         "\tin.skipws();\n"
-        "if (in.get() != '{') return false;\n"
+        "if (in.get() != '{') PROTOGEN_REG(err, in, \"Invalid object\");\n"
         "std::string name;\n");
 
     ctx.printer(
@@ -291,7 +319,7 @@ static void generateDeserializer( GeneratorContext &ctx, const Message &message 
         "if (in.get() == '}') break;\n"
         "in.unget();\n"
         "name.clear();\n"
-        "if (!PROTOGEN_NS::json::readName(in, name)) return false;\n", message.fields.size());
+        "if (!PROTOGEN_NS::json::readName(in, name)) PROTOGEN_REG(err, in, \"Invalid field name\");\n", message.fields.size());
 
     bool first = true;
     size_t count = 0;
@@ -309,7 +337,10 @@ static void generateDeserializer( GeneratorContext &ctx, const Message &message 
 
         if (fi->type.repeated || fi->type.id == protogen::TYPE_BYTES)
         {
-            ctx.printer("if (!PROTOGEN_NS::traits< std::vector<$1$> >::read(in, this->$2$())) return false;\n", type, storage);
+            ctx.printer(
+                "if (!PROTOGEN_NS::traits< std::vector<$1$> >::read(in, this->$2$())) "
+                "PROTOGEN_REV(err, in, name, \"$3$\");\n",
+                type, storage, proto3Type(*fi));
         }
         else
         {
@@ -317,15 +348,19 @@ static void generateDeserializer( GeneratorContext &ctx, const Message &message 
             {
                 ctx.printer(
                     "$1$ value;\n"
-                    "if (!PROTOGEN_NS::traits<$1$>::read(in, value)) return false;\n"
-                    "this->$2$(value);\n", nativeType(*fi), storage);
+                    "if (!PROTOGEN_NS::traits<$1$>::read(in, value)) "
+                    "PROTOGEN_REV(err, in, name, \"$3$\");\n"
+                    "this->$2$(value);\n", type, storage, proto3Type(*fi));
             }
             else
             if (fi->type.id == protogen::TYPE_MESSAGE)
-                ctx.printer("if (!this->$1$().deserialize(in, required)) return false;\n", storage);
+                ctx.printer(
+                    "if (!this->$1$().deserialize(in, required)) "
+                    "PROTOGEN_REV(err, in, name, \"$2$\");\n",
+                    storage, proto3Type(*fi));
         }
         ctx.printer(
-            "if (!PROTOGEN_NS::json::next(in)) return false;\n"
+            "if (!PROTOGEN_NS::json::next(in)) PROTOGEN_REI(err, in, name);\n"
             "hfld[$1$] = true;\n"
             "\b}\n", // closes the main 'if'
             count);
@@ -334,19 +369,16 @@ static void generateDeserializer( GeneratorContext &ctx, const Message &message 
     ctx.printer(
         "else\n"
         "// ignore the current field\n"
-        "{\n\tif (!PROTOGEN_NS::json::ignore(in)) return false;\n"
-        "if (!PROTOGEN_NS::json::next(in)) return false;\n\b}\n\b}\n");
+        "{\n\tif (!PROTOGEN_NS::json::ignore(in)) PROTOGEN_REI(err, in, name);\n"
+        "if (!PROTOGEN_NS::json::next(in)) PROTOGEN_REI(err, in, name);\n\b}\n\b}\n");
 
-    ctx.printer("if (required && (");
+    // check whether we missed any required field
+    ctx.printer("if (required) {\n\t");
     for (size_t i = 0, t = message.fields.size(); i < t; ++i)
     {
-        if (i != 0) ctx.printer(" || ");
-        ctx.printer("!hfld[$1$]", i);
+        ctx.printer("if (!hfld[$1$]) PROTOGEN_REM(err, in, \"$2$\");\n", i, message.fields[i].name);
     }
-    ctx.printer(
-        ")) return false;\n"
-        "return true;\n\b}\n");
-    //    "\tfor (size_t i = 0; i < $1$; ++i) if (!hasField[i]) return false;\n\b}\n"
+    ctx.printer("\b}\nreturn true;\n\b}\n");
 }
 
 
@@ -470,7 +502,8 @@ static void generateMessage( GeneratorContext &ctx, const Message &message, bool
     if (ctx.cpp_enable_parent) ctx.printer(": public PROTOGEN_NS::Message");
     ctx.printer(
         " {\npublic:\n"
-        "\tstatic const uint32_t PROTOGEN_VERSION = 0x$1$;\n", ctx.versionNo);
+        "\ttypedef PROTOGEN_NS::ErrorInfo ErrorInfo;\n"
+        "static const uint32_t PROTOGEN_VERSION = 0x$1$;\n", ctx.versionNo);
 
     // create the macro containing the field name
     for (auto fi = message.fields.begin(); fi != message.fields.end(); ++fi)
@@ -623,6 +656,8 @@ static void generateModel( GeneratorContext &ctx )
         ctx.printer("#define PROTOGEN_OBFUSCATE_STRINGS // strings obfuscation\n");
     if (ctx.cpp_enable_parent)
         ctx.printer("#define PROTOGEN_CPP_ENABLE_PARENT // common parent class for messages\n");
+    if (ctx.cpp_enable_errors)
+        ctx.printer("#define PROTOGEN_CPP_ENABLE_ERRORS // enable parsing error information\n");
 
     ctx.printer(
         "\n#include <string>\n"
@@ -662,6 +697,11 @@ static void generateModel( GeneratorContext &ctx )
     ctx.printer(
         "#undef PROTOGEN_OBFUSCATE_STRINGS\n"
         "#undef PROTOGEN_CPP_ENABLE_PARENT\n"
+        "#undef PROTOGEN_CPP_ENABLE_ERRORS\n"
+        "#undef PROTOGEN_REV\n"
+        "#undef PROTOGEN_RTI\n"
+        "#undef PROTOGEN_RTI\n"
+        "#undef PROTOGEN_REM \n"
         "#undef PROTOGEN_NS\n"
         "#endif // $1$\n", guard);
 }
@@ -688,6 +728,12 @@ void CppGenerator::generate( Proto3 &root, std::ostream &out )
     {
         OptionEntry opt = ctx.root.options.at(PROTOGEN_O_CPP_ENABLE_PARENT);
         ctx.cpp_enable_parent = (opt.type == OptionType::BOOLEAN && opt.value == "true");
+    }
+
+    if (ctx.root.options.count(PROTOGEN_O_CPP_ENABLE_ERRORS))
+    {
+        OptionEntry opt = ctx.root.options.at(PROTOGEN_O_CPP_ENABLE_ERRORS);
+        ctx.cpp_enable_errors = (opt.type == OptionType::BOOLEAN && opt.value == "true");
     }
 
     generateModel(ctx);
