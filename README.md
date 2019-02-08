@@ -16,6 +16,9 @@ There is also the ``libprotogen_static`` library you can use to create your own 
 Create a ``.proto`` file:
 
 ```
+syntax = "proto3";
+option cpp_enable_errors = true;
+
 message Person {
     string name = 1;
     int32 age = 2;
@@ -35,19 +38,24 @@ Include the generated header file in your source code to use the classe:
 #include "model.pg.hh"
 
 ...
+
 // create and populate an object
 Person girl;
 girl.name("Michelle");
 girl.age(24);
 girl.colors().push_back("yellow");
+
 // JSON serialization
 std::string json;
 girl.serialize(json);
+
 // JSON deserialization with error information (requires 'cpp_enable_errors' option)
-Person friend;
+Person person;
 Person::ErrorInfo err;
-if (!friend.deserialize(json, false, &err))
-    std::cerr << "Error: " << info.message << " at " << info.line << ':' << info.column << std::endl;
+if (!person.deserialize(json, false, &err))
+    std::cerr << "Error: " << err.message << " at " << err.line << ':' << err.column << std::endl;
+
+...
 ```
 
 Compile your program as usual (no additional library is required). In the example above, the output would be:
