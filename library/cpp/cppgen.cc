@@ -18,7 +18,8 @@
 #include "../printer.hh"
 
 
-extern const char *BASE_TEMPLATE;
+extern const char *BASE_1_TEMPLATE;
+extern const char *BASE_2_TEMPLATE;
 
 
 namespace protogen {
@@ -309,7 +310,8 @@ static void generateDeserializer( GeneratorContext &ctx, const Message &message 
         // 'real' deserializer
         "template<typename T>\n"
         "bool deserialize( PROTOGEN_NS::InputStream<T> &in, bool required = false, PROTOGEN_NS::ErrorInfo *err = NULL ) {\n"
-        "\tin.skipws();\n"
+        "\t(void) err;\n"
+        "in.skipws();\n"
         "if (in.get() != '{') PROTOGEN_REG(err, in, \"Invalid object\");\n"
         "std::string name;\n");
 
@@ -671,15 +673,15 @@ static void generateModel( GeneratorContext &ctx )
         "#include <locale.h>\n"
         "#include <stdexcept>\n\n");
 
-
-
     // base template
     ctx.printer(
         "#undef PROTOGEN_NS\n"
-        "#define PROTOGEN_NS protogen_$1$\n"
-        "#ifndef PROTOGEN_BASE_$1$\n"
+        "#define PROTOGEN_NS protogen_$1$\n\n", ctx.version);
+    ctx.printer.output() << BASE_1_TEMPLATE;
+    ctx.printer(
+        "\n#ifndef PROTOGEN_BASE_$1$\n"
         "#define PROTOGEN_BASE_$1$\n", ctx.version);
-    ctx.printer.output() << BASE_TEMPLATE;
+    ctx.printer.output() << BASE_2_TEMPLATE;
     ctx.printer("#endif // PROTOGEN_BASE_$1$\n", version);
 
     // forward declarations

@@ -33,7 +33,8 @@ function(fileToSource inputFileName outputFileName variableName)
 endfunction(fileToSource)
 
 file(REMOVE "library/cpp/base-auto.cc")
-fileToSource("library/cpp/base.cc" "library/cpp/base-auto.cc" "BASE_TEMPLATE")
+fileToSource("library/cpp/base1.cc" "library/cpp/base-auto.cc" "BASE_1_TEMPLATE")
+fileToSource("library/cpp/base2.cc" "library/cpp/base-auto.cc" "BASE_2_TEMPLATE")
 
 add_library(libprotogen_static STATIC
     "library/proto3.cc"
