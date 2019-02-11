@@ -64,8 +64,9 @@ struct ErrorInfo
     int line;
     int column;
     std::string message;
+    bool set;
 
-    ErrorInfo() : line(0), column(0) {}
+    ErrorInfo() : line(0), column(0), set(false) {}
 };
 
 

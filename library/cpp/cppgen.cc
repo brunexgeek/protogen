@@ -357,7 +357,7 @@ static void generateDeserializer( GeneratorContext &ctx, const Message &message 
             else
             if (fi->type.id == protogen::TYPE_MESSAGE)
                 ctx.printer(
-                    "if (!this->$1$().deserialize(in, required)) "
+                    "if (!this->$1$().deserialize(in, required, err)) "
                     "PROTOGEN_REV(err, in, name, \"$2$\");\n",
                     storage, proto3Type(*fi));
         }
@@ -700,11 +700,12 @@ static void generateModel( GeneratorContext &ctx )
         "#undef PROTOGEN_OBFUSCATE_STRINGS\n"
         "#undef PROTOGEN_CPP_ENABLE_PARENT\n"
         "#undef PROTOGEN_CPP_ENABLE_ERRORS\n"
-        "#undef PROTOGEN_REV\n"
-        "#undef PROTOGEN_RTI\n"
-        "#undef PROTOGEN_RTI\n"
-        "#undef PROTOGEN_REM \n"
         "#undef PROTOGEN_NS\n"
+        "#undef PROTOGEN_REV\n"
+        "#undef PROTOGEN_REI\n"
+        "#undef PROTOGEN_REF\n"
+        "#undef PROTOGEN_REM\n"
+        "#undef PROTOGEN_REG\n"
         "#endif // $1$\n", guard);
 }
 
