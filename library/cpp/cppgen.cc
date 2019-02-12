@@ -313,6 +313,7 @@ static void generateDeserializer( GeneratorContext &ctx, const Message &message 
         "\t(void) err;\n"
         "in.skipws();\n"
         "if (in.get() != '{') PROTOGEN_REG(err, in, \"Invalid object\");\n"
+        "in.skipws();\n"
         "std::string name;\n");
 
     ctx.printer(
