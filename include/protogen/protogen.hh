@@ -42,6 +42,8 @@ namespace protogen {
 // If enabled, 'deserializer' functions will populate the 'ErrorInfo' object given as argument.
 #define PROTOGEN_O_CPP_ENABLE_ERRORS       "cpp_enable_errors"
 
+// Make a field transient (true) or not (false). The default value is false.
+#define PROTOGEN_O_TRANSIENT               "transient"
 
 class Generator
 {

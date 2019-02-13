@@ -70,6 +70,7 @@ Compile your program as usual (no additional library is required). In the exampl
 * **number_names** (top-level) &ndash; Use field numbers as JSON field names. The default value is `false`. If enabled, every JSON field name will be the number of the corresponding field in the `.proto` file. This can reduce significantly the size of the JSON output.
 * **cpp_enable_parent** (top-level) &ndash; Enable (`true`) or disable (`false`) the use of a parent class. The default value is `false`. When enabled, every message will specialize the `Message` class which contains a virtual destructor and a couple of pure virtual functions. If you do not need a common ancestor for your message classes, you can keep this option disabled.
 * **cpp_enable_errors** (top-level) &ndash; Enable (`true`) or disable (`false`) information about parsing errors. The default value is `false`. If enabled, `deserializer` functions will populate the `ErrorInfo` object given as argument. This option can also be enabled by defining the `PROTOGEN_CPP_ENABLE_ERRORS` macro before including the generated C++ header.
+* **transient** (field-level) &ndash; Make the field transient ('true') or not ('false'). Transient fields are not serialized/deserialized. The default value is 'false'.
 
 ## Features
 

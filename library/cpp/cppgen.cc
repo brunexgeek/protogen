@@ -330,6 +330,11 @@ static void generateDeserializer( GeneratorContext &ctx, const Message &message 
     for (auto fi = message.fields.begin(); fi != message.fields.end(); ++fi, ++count)
     {
         if (!IS_VALID_TYPE(fi->type.id)) continue;
+        if (fi->options.count(PROTOGEN_O_TRANSIENT))
+        {
+            OptionEntry opt = fi->options.at(PROTOGEN_O_TRANSIENT);
+            if (opt.type == OptionType::BOOLEAN && opt.value == "true") continue;
+        }
 
         std::string storage = fieldStorage(*fi);
         std::string type = nativeType(*fi);
@@ -409,6 +414,11 @@ static void generateSerializer( GeneratorContext &ctx, const Message &message )
     for (auto fi = message.fields.begin(); fi != message.fields.end(); ++fi)
     {
         std::string storage = fieldStorage(*fi);
+        if (fi->options.count(PROTOGEN_O_TRANSIENT))
+        {
+            OptionEntry opt = fi->options.at(PROTOGEN_O_TRANSIENT);
+            if (opt.type == OptionType::BOOLEAN && opt.value == "true") continue;
+        }
 
         ctx.printer(
             "// $1$\n"
