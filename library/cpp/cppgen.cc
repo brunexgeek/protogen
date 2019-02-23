@@ -382,6 +382,11 @@ static void generateDeserializer( GeneratorContext &ctx, const Message &message 
     ctx.printer("if (required) {\n\t");
     for (size_t i = 0, t = message.fields.size(); i < t; ++i)
     {
+        if (message.fields[i].options.count(PROTOGEN_O_TRANSIENT))
+        {
+            OptionEntry opt = message.fields[i].options.at(PROTOGEN_O_TRANSIENT);
+            if (opt.type == OptionType::BOOLEAN && opt.value == "true") continue;
+        }
         ctx.printer("if (!hfld[$1$]) PROTOGEN_REM(err, in, \"$2$\");\n", i, message.fields[i].name);
     }
     ctx.printer("\b}\nreturn true;\n\b}\n");
