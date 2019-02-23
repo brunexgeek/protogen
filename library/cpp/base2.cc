@@ -1,20 +1,24 @@
 
+#undef PROTOGEN_TRAIT_MACRO
 #define PROTOGEN_TRAIT_MACRO(MSGTYPE) \
 	namespace PROTOGEN_NS { \
 		template<> struct traits<MSGTYPE> { \
 			static void clear( MSGTYPE &value ) { value.clear(); } \
 			static void write( std::ostream &out, const MSGTYPE &value ) { value.serialize(out); } \
-			template<typename I> static bool read( PROTOGEN_NS::InputStream<I> &in, MSGTYPE &value ) { return value.deserialize(in); } \
+			template<typename I> static bool read( PROTOGEN_NS::InputStream<I> &in, MSGTYPE &value, \
+                bool required = false, PROTOGEN_NS::ErrorInfo *err = NULL ) { return value.deserialize(in, required, err); } \
 			static void swap( MSGTYPE &a, MSGTYPE &b ) { a.swap(b); } \
 		}; \
 	}
 
+#undef PROTOGEN_FIELD_MOVECTOR_TEMPLATE
 #if __cplusplus >= 201103L
 #define PROTOGEN_FIELD_MOVECTOR_TEMPLATE(MSGTYPE) Field( Field<MSGTYPE> &&that ) { this->value_.swap(that.value_); }
 #else
 #define PROTOGEN_FIELD_MOVECTOR_TEMPLATE(MSGTYPE)
 #endif
 
+#undef PROTOGEN_FIELD_TEMPLATE
 #define PROTOGEN_FIELD_TEMPLATE(MSGTYPE) \
 	namespace PROTOGEN_NS { \
         template<> class Field<MSGTYPE> { \
@@ -156,8 +160,10 @@ template<typename T> struct traits
     static void clear( T &value ) { value = (T) 0; }
     static void write( std::ostream &out, const T &value ) { out << value; }
     template<typename I>
-    static bool read( InputStream<I> &in, T &value )
+    static bool read( InputStream<I> &in, T &value, bool required = false, PROTOGEN_NS::ErrorInfo *err = NULL )
     {
+        (void) required;
+        (void) err;
         in.skipws();
         std::string temp;
         while (true)
@@ -195,8 +201,10 @@ template<> struct traits<bool>
     static void clear( bool &value ) { value = false; }
     static void write( std::ostream &out, const bool &value ) { out << ((value) ? "true" : "false"); }
     template<typename I>
-    static bool read( InputStream<I> &in, bool &value )
+    static bool read( InputStream<I> &in, bool &value, bool required = false, PROTOGEN_NS::ErrorInfo *err = NULL )
     {
+        (void) required;
+        (void) err;
         in.skipws();
         std::string temp;
         while (true)
@@ -257,8 +265,10 @@ template<> struct traits<std::string>
         out << '"';
     }
     template <typename I>
-    static bool read( InputStream<I> &in, std::string &value )
+    static bool read( InputStream<I> &in, std::string &value, bool required = false, PROTOGEN_NS::ErrorInfo *err = NULL )
     {
+        (void) required;
+        (void) err;
         in.skipws();
         if (in.get() != '"') return false;
         while (true)
@@ -312,7 +322,7 @@ template <typename T> struct traits< std::vector<T> >
     }
 
     template<typename I>
-    static bool read( InputStream<I> &in, std::vector<T> &value )
+    static bool read( InputStream<I> &in, std::vector<T> &value, bool required = false, PROTOGEN_NS::ErrorInfo *err = NULL )
     {
         in.skipws();
         if (in.get() != '[') return false;
@@ -320,7 +330,7 @@ template <typename T> struct traits< std::vector<T> >
         while (true)
         {
             T entry;
-            if (!traits<T>::read(in, entry)) return false;
+            if (!traits<T>::read(in, entry, required, err)) return false;
             value.push_back(entry);
             in.skipws();
             if (!in.expect(',')) break;
@@ -389,8 +399,10 @@ template <> struct traits< std::vector<uint8_t> >
     }
 
     template<typename I>
-    static bool read( InputStream<I> &in, std::vector<uint8_t> &array )
+    static bool read( InputStream<I> &in, std::vector<uint8_t> &array, bool required = false, PROTOGEN_NS::ErrorInfo *err = NULL )
     {
+        (void) required;
+        (void) err;
         size_t k = 0;
         int s[4];
 

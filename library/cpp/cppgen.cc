@@ -340,32 +340,30 @@ static void generateDeserializer( GeneratorContext &ctx, const Message &message 
         std::string type = nativeType(*fi);
 
         if (!first) ctx.printer("else\n");
+
+        // start of the new field
         ctx.printer("// $1$\n", fi->name);
         ctx.printer("if (name == PROTOGEN_FN_$1$) {\n\t", storage); // open the main 'if'
 
+        // 'repeated' and 'bytes'
         if (fi->type.repeated || fi->type.id == protogen::TYPE_BYTES)
         {
             ctx.printer(
-                "if (!PROTOGEN_NS::traits< std::vector<$1$> >::read(in, this->$2$())) "
+                "if (!PROTOGEN_NS::traits< std::vector<$1$> >::read(in, this->$2$(), required, err)) "
                 "PROTOGEN_REV(err, in, name, \"$3$\");\n",
                 type, storage, proto3Type(*fi));
         }
         else
         {
-            if (fi->type.id >= protogen::TYPE_DOUBLE && fi->type.id <= protogen::TYPE_STRING)
+            // all other types
+            if ((fi->type.id >= protogen::TYPE_DOUBLE && fi->type.id <= protogen::TYPE_STRING) || fi->type.id == protogen::TYPE_MESSAGE)
             {
                 ctx.printer(
                     "$1$ value;\n"
-                    "if (!PROTOGEN_NS::traits<$1$>::read(in, value)) "
+                    "if (!PROTOGEN_NS::traits<$1$>::read(in, value, required, err)) "
                     "PROTOGEN_REV(err, in, name, \"$3$\");\n"
                     "this->$2$(value);\n", type, storage, proto3Type(*fi));
             }
-            else
-            if (fi->type.id == protogen::TYPE_MESSAGE)
-                ctx.printer(
-                    "if (!this->$1$().deserialize(in, required, err)) "
-                    "PROTOGEN_REV(err, in, name, \"$2$\");\n",
-                    storage, proto3Type(*fi));
         }
         ctx.printer(
             "if (!PROTOGEN_NS::json::next(in)) PROTOGEN_REI(err, in, name);\n"
@@ -711,7 +709,6 @@ static void generateModel( GeneratorContext &ctx )
         "#undef PROTOGEN_OBFUSCATE_STRINGS\n"
         "#undef PROTOGEN_CPP_ENABLE_PARENT\n"
         "#undef PROTOGEN_CPP_ENABLE_ERRORS\n"
-        "#undef PROTOGEN_NS\n"
         "#undef PROTOGEN_REV\n"
         "#undef PROTOGEN_REI\n"
         "#undef PROTOGEN_REF\n"
