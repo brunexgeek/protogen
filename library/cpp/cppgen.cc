@@ -387,7 +387,7 @@ static void generateDeserializer( GeneratorContext &ctx, const Message &message 
             OptionEntry opt = message.fields[i].options.at(PROTOGEN_O_TRANSIENT);
             if (opt.type == OptionType::BOOLEAN && opt.value == "true") continue;
         }
-        ctx.printer("if (!hfld[$1$]) PROTOGEN_REM(err, in, \"$2$\");\n", i, message.fields[i].name);
+        ctx.printer("if (!hfld[$1$]) PROTOGEN_REM(err, in, PROTOGEN_FN_$2$);\n", i, fieldStorage(message.fields[i]));
     }
     ctx.printer("\b}\nreturn true;\n\b}\n");
 }
@@ -583,7 +583,7 @@ static void generateMessage( GeneratorContext &ctx, const Message &message, bool
 
     // message trait
     generateTrait(ctx, message);
-    // 'Field' template specializarion
+    // 'Field' template specialization
     generateFieldTemplate(ctx, message);
 
     for (auto fi = message.fields.begin(); fi != message.fields.end(); ++fi)
