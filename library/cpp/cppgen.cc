@@ -239,7 +239,7 @@ static void generateMoveCtor( GeneratorContext &ctx, const Message &message )
         "$1$($1$ &&that) {\n\t", message.name);
     for (auto fi = message.fields.begin(); fi != message.fields.end(); ++fi)
     {
-        if (fi->type.id == TYPE_MESSAGE || fi->type.repeated)
+        if (fi->type.id == TYPE_MESSAGE || fi->type.repeated || fi->type.id == TYPE_STRING)
             ctx.printer("this->$1$.swap(that.$1$);\n", fieldStorage(*fi));
         else
             ctx.printer("this->$1$ = that.$1$;\n", fieldStorage(*fi));
@@ -714,11 +714,15 @@ static void generateModel( GeneratorContext &ctx )
         "#undef PROTOGEN_OBFUSCATE_STRINGS\n"
         "#undef PROTOGEN_CPP_ENABLE_PARENT\n"
         "#undef PROTOGEN_CPP_ENABLE_ERRORS\n"
+        "#undef PROTOGEN_FIELD_MOVECTOR_TEMPLATE\n"
+        "#undef PROTOGEN_FIELD_TEMPLATE\n"
+        "#undef PROTOGEN_TRAIT_MACRO\n"
         "#undef PROTOGEN_REV\n"
         "#undef PROTOGEN_REI\n"
         "#undef PROTOGEN_REF\n"
         "#undef PROTOGEN_REM\n"
         "#undef PROTOGEN_REG\n"
+        "#undef PROTOGEN_NS\n"
         "#endif // $1$\n", guard);
 }
 
