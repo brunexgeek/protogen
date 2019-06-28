@@ -239,7 +239,7 @@ static void generateMoveCtor( GeneratorContext &ctx, const Message &message )
         "$1$($1$ &&that) {\n\t", message.name);
     for (auto fi = message.fields.begin(); fi != message.fields.end(); ++fi)
     {
-        if (fi->type.id == TYPE_MESSAGE || fi->type.repeated || fi->type.id == TYPE_STRING)
+        if (fi->type.id == TYPE_MESSAGE || fi->type.repeated || fi->type.id == protogen::TYPE_BYTES || fi->type.id == TYPE_STRING)
             ctx.printer("this->$1$.swap(that.$1$);\n", fieldStorage(*fi));
         else
             ctx.printer("this->$1$ = that.$1$;\n", fieldStorage(*fi));
