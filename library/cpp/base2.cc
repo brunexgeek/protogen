@@ -1,44 +1,4 @@
 
-#undef PROTOGEN_TRAIT_MACRO
-#define PROTOGEN_TRAIT_MACRO(MSGTYPE) \
-	namespace PROTOGEN_NS { \
-		template<> struct traits<MSGTYPE> { \
-			static void clear( MSGTYPE &value ) { value.clear(); } \
-			static void write( std::ostream &out, const MSGTYPE &value ) { value.serialize(out); } \
-			template<typename I> static bool read( PROTOGEN_NS::InputStream<I> &in, MSGTYPE &value, \
-                bool required = false, PROTOGEN_NS::ErrorInfo *err = NULL ) { return value.deserialize(in, required, err); } \
-			static void swap( MSGTYPE &a, MSGTYPE &b ) { a.swap(b); } \
-		}; \
-	}
-
-#undef PROTOGEN_FIELD_MOVECTOR_TEMPLATE
-#if __cplusplus >= 201103L
-#define PROTOGEN_FIELD_MOVECTOR_TEMPLATE(MSGTYPE) Field( Field<MSGTYPE> &&that ) { this->value_.swap(that.value_); }
-#else
-#define PROTOGEN_FIELD_MOVECTOR_TEMPLATE(MSGTYPE)
-#endif
-
-#undef PROTOGEN_FIELD_TEMPLATE
-#define PROTOGEN_FIELD_TEMPLATE(MSGTYPE) \
-	namespace PROTOGEN_NS { \
-        template<> class Field<MSGTYPE> { \
-		protected: \
-			MSGTYPE value_; \
-		public: \
-			Field() { clear(); } \
-			PROTOGEN_FIELD_MOVECTOR_TEMPLATE(MSGTYPE); \
-			void swap( Field<MSGTYPE> &that ) { traits<MSGTYPE>::swap(this->value_, that.value_); } \
-			const MSGTYPE &operator()() const { return value_; } \
-			MSGTYPE &operator()() { return value_; } \
-			void operator ()(const MSGTYPE &value ) { this->value_ = value; } \
-			bool undefined() const { return value_.undefined(); } \
-			void clear() { traits<MSGTYPE>::clear(value_); } \
-			Field<MSGTYPE> &operator=( const Field<MSGTYPE> &that ) { this->value_ = that.value_; return *this; } \
-			bool operator==( const MSGTYPE &that ) const { return this->value_ == that; } \
-			bool operator==( const Field<MSGTYPE> &that ) const { return this->value_ == that.value_; } \
-	    }; \
-    }
-
 
 namespace PROTOGEN_NS {
 
