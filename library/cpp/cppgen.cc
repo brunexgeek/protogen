@@ -37,6 +37,7 @@ struct GeneratorContext
     bool obfuscate_strings;
     bool cpp_enable_parent;
     bool cpp_enable_errors;
+    std::string custom_parent;
     std::string version;
     std::string versionNo;
 
@@ -515,7 +516,14 @@ static void generateMessage( GeneratorContext &ctx, const Message &message, bool
     generateNamespace(ctx, message, true);
 
     ctx.printer("\nclass $1$", message.name);
-    if (ctx.cpp_enable_parent) ctx.printer(": public PROTOGEN_NS::Message");
+    if (ctx.cpp_enable_parent)
+        ctx.printer(": public PROTOGEN_NS::Message");
+    else
+    if (!ctx.custom_parent.empty())
+    {
+        ctx.printer(": public ");
+        ctx.printer( nativePackage(ctx.custom_parent).c_str() );
+    }
     ctx.printer(
         " {\npublic:\n"
         "\ttypedef PROTOGEN_NS::ErrorInfo ErrorInfo;\n"
@@ -754,6 +762,12 @@ void CppGenerator::generate( Proto3 &root, std::ostream &out )
     {
         OptionEntry opt = ctx.root.options.at(PROTOGEN_O_CPP_ENABLE_ERRORS);
         ctx.cpp_enable_errors = (opt.type == OptionType::BOOLEAN && opt.value == "true");
+    }
+
+    if (ctx.root.options.count(PROTOGEN_O_CUSTOM_PARENT))
+    {
+        OptionEntry opt = ctx.root.options.at(PROTOGEN_O_CUSTOM_PARENT);
+        ctx.custom_parent = opt.value;
     }
 
     generateModel(ctx);

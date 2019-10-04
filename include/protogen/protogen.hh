@@ -45,6 +45,9 @@ namespace protogen {
 // Make a field transient (true) or not (false). The default value is false.
 #define PROTOGEN_O_TRANSIENT               "transient"
 
+// Define a custom parent class for all messages. Use the same syntax as package definition.
+#define PROTOGEN_O_CUSTOM_PARENT           "custom_parent"
+
 class Generator
 {
     public:
