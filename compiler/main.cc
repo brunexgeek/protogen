@@ -20,6 +20,9 @@
 #include <limits.h>
 #include <stdlib.h>
 
+#ifdef _WIN32
+#include <Windows.h>
+#endif
 
 void main_usage()
 {
@@ -47,8 +50,14 @@ int main( int argc, char **argv )
     if (!output.good()) main_error(std::string("Unable to open '") + argv[2] + "'");
 
     int result = 0;
-    char fullPath[PATH_MAX] = { 0 };
-    if (realpath(argv[1], fullPath) == nullptr) return 1;
+    #ifdef _WIN32
+	char fullPath[MAX_PATH] = { 0 };
+	if (GetFullPathName(argv[1], MAX_PATH, fullPath, nullptr) == 0) return 1;
+	#else
+	char fullPath[PATH_MAX] = { 0 };
+	if (realpath(argv[1], fullPath) == nullptr) return 1;
+	#endif
+
 
     protogen::Proto3 proto;
     try

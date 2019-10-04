@@ -11,8 +11,10 @@ add_definitions(-DPROTOGEN_MINOR=${PROTOGEN_MINOR})
 add_definitions(-DPROTOGEN_PATCH=${PROTOGEN_PATCH})
 add_definitions(-DPROTOGEN_VERSION="${PROTOGEN_MAJOR}.${PROTOGEN_MINOR}.${PROTOGEN_PATCH}")
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wfatal-errors -pedantic -std=c++11 -Wl,--no-undefined -fPIC -Wall -Wextra -Wconversion -Werror=return-type -Werror=implicit-function-declaration")
-set(CMAKE_CXX_FLAGS_RELEASE "-O3")
+if (UNIX)
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wfatal-errors -pedantic -std=c++11 -Wl,--no-undefined -fPIC -Wall -Wextra -Wconversion -Werror=return-type -Werror=implicit-function-declaration")
+	set(CMAKE_CXX_FLAGS_RELEASE "-O3")
+endif()
 
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
     add_definitions(-DBUILD_DEBUG)
