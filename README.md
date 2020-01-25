@@ -1,4 +1,4 @@
-# protogen
+# protogen [![Build Status](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Factions-badge.atrox.dev%2Fbrunexgeek%2Fprotogen%2Fbadge%3Fref%3Dmaster&label=build&logo=none)](https://actions-badge.atrox.dev/brunexgeek/protogen/goto?ref=master)
 
 Tool to compile ``proto3`` schemas and generate C++ classes which serialize and deserialize JSON messages. The compiler generates a C++ header file to be included in your program. This file is all you need: no external dependencies.
 
