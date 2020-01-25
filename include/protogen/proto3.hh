@@ -91,7 +91,6 @@ class Field
 {
     public:
         TypeInfo type;
-        TypeInfo valueType;
         std::string name;
         int index;
         OptionMap options;

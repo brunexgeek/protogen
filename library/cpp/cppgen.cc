@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include <algorithm>
 #include <protogen/protogen.hh>
 #include "../printer.hh"
 
@@ -649,6 +650,52 @@ static void generateLicense( GeneratorContext &ctx )
         " * For more information, please refer to <http://unlicense.org>\n */\n\n");
 }
 
+typedef std::vector<protogen::Message *> MessageList;
+
+static bool contains( const MessageList &items, const protogen::Message *message )
+{
+    for (auto mi = items.begin(); mi != items.end(); ++mi)
+    {
+        std::cout << (*mi)->name << " == " << message->name << "?\n";
+        if (*mi == message) return true;
+    }
+    return false;
+}
+
+
+static void sort( MessageList &items, MessageList &pending, protogen::Message *message )
+{
+    std::cout << "sort(" << message->name << ")\n" ;
+    if (contains(pending, message)) return; // circular reference
+    if (contains(items, message)) return; // already processed
+
+    pending.push_back(message);
+
+    for (auto fi = message->fields.begin(); fi != message->fields.end(); ++fi)
+    {
+        if (fi->type.ref == nullptr) continue;
+        if (!contains(items, fi->type.ref)) sort(items, pending, fi->type.ref);
+    }
+
+    items.push_back(message);
+
+    auto it = std::find(pending.begin(), pending.end(), message);
+    if (it != pending.end()) pending.erase(it);
+}
+
+
+static void sort( GeneratorContext &ctx )
+{
+    std::vector<protogen::Message *> items;
+    std::vector<protogen::Message *> pending;
+    for (auto mi = ctx.root.messages.begin(); mi != ctx.root.messages.end(); ++mi)
+    {
+        sort(items, pending, *mi);
+    }
+
+    ctx.root.messages.swap(items);
+}
+
 
 static void generateModel( GeneratorContext &ctx )
 {
@@ -705,6 +752,8 @@ static void generateModel( GeneratorContext &ctx )
         "#define PROTOGEN_BASE_$1$\n", ctx.version);
     ctx.printer.output() << BASE_2_TEMPLATE;
     ctx.printer("#endif // PROTOGEN_BASE_$1$\n", version);
+
+    sort(ctx);
 
     // forward declarations
     ctx.printer("\n// forward declarations\n");
