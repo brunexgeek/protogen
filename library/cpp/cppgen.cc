@@ -655,17 +655,13 @@ typedef std::vector<protogen::Message *> MessageList;
 static bool contains( const MessageList &items, const protogen::Message *message )
 {
     for (auto mi = items.begin(); mi != items.end(); ++mi)
-    {
-        std::cout << (*mi)->name << " == " << message->name << "?\n";
         if (*mi == message) return true;
-    }
     return false;
 }
 
 
 static void sort( MessageList &items, MessageList &pending, protogen::Message *message )
 {
-    std::cout << "sort(" << message->name << ")\n" ;
     if (contains(pending, message)) return; // circular reference
     if (contains(items, message)) return; // already processed
 

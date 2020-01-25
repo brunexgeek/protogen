@@ -416,8 +416,11 @@ template<typename T> class Field
         bool undefined() const { return undefined_; }
         void clear() { traits<T>::clear(value_); undefined_ = true; }
         Field<T> &operator=( const Field<T> &that ) { this->undefined_ = that.undefined_; if (!undefined_) this->value_ = that.value_; return *this; }
+        Field<T> &operator=( const T &that ) { this->undefined_ = false; this->value_ = that; return *this; }
         bool operator==( const T &that ) const { return !this->undefined_ && this->value_ == that; }
         bool operator==( const Field<T> &that ) const { return this->undefined_ == that.undefined_ && this->value_ == that.value_;  }
+        explicit operator T() { return this->value_; }
+        explicit operator T() const { return this->value_; }
 };
 
 template<typename T> class RepeatedField

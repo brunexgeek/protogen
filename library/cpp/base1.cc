@@ -72,7 +72,10 @@
 			bool undefined() const { return value_.undefined(); } \
 			void clear() { traits<MSGTYPE>::clear(value_); } \
 			Field<MSGTYPE> &operator=( const Field<MSGTYPE> &that ) { this->value_ = that.value_; return *this; } \
-			bool operator==( const MSGTYPE &that ) const { return this->value_ == that; } \
+			Field<MSGTYPE> &operator=( const MSGTYPE &that ) { this->value_ = that; return *this; } \
 			bool operator==( const Field<MSGTYPE> &that ) const { return this->value_ == that.value_; } \
+			bool operator==( const MSGTYPE &that ) const { return this->value_ == that; } \
+			explicit operator MSGTYPE() { return this->value_; } \
+			explicit operator MSGTYPE() const { return this->value_; } \
 	    }; \
     }
