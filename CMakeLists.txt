@@ -34,15 +34,10 @@ function(fileToSource inputFileName outputFileName variableName)
     FILE(APPEND "${outputFileName}" "\";\n\n")
 endfunction(fileToSource)
 
-file(REMOVE "library/cpp/base-auto.cc")
-fileToSource("library/cpp/base1.cc" "library/cpp/base-auto.cc" "BASE_1_TEMPLATE")
-fileToSource("library/cpp/base2.cc" "library/cpp/base-auto.cc" "BASE_2_TEMPLATE")
-
 add_library(libprotogen_static STATIC
     "library/proto3.cc"
     "library/printer.cc"
     "library/exception.cc"
-    "library/cpp/base-auto.cc"
     "library/cpp/cppgen.cc" )
 target_include_directories(libprotogen_static
     PUBLIC "include/")
@@ -56,8 +51,20 @@ set_target_properties(libprotogen_static PROPERTIES
 add_executable(protogen
     "compiler/main.cc")
 target_link_libraries(protogen libprotogen_static)
+add_dependencies(protogen process_template)
 set_target_properties(protogen PROPERTIES
     OUTPUT_NAME "protogen"
+    ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
+    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}" )
+
+add_custom_target(process_template
+    "${CMAKE_BINARY_DIR}/template" "${CMAKE_CURRENT_LIST_DIR}/library/cpp/code.txt" "${CMAKE_CURRENT_LIST_DIR}/library/cpp/auto-code.hh"
+    DEPENDS template)
+
+add_executable(template "library/template.cc")
+set_target_properties(template PROPERTIES
+    OUTPUT_NAME "template"
     ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
     LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}" )

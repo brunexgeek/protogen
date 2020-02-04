@@ -15,6 +15,7 @@
  */
 
 #include <algorithm>
+#include "auto-code.hh"
 #include <protogen/protogen.hh>
 #include "../printer.hh"
 
@@ -742,11 +743,11 @@ static void generateModel( GeneratorContext &ctx )
     ctx.printer(
         "#undef PROTOGEN_NS\n"
         "#define PROTOGEN_NS protogen_$1$\n\n", ctx.version);
-    ctx.printer.output() << BASE_1_TEMPLATE;
+    ctx.printer.output() << CODE_BLOCK_1;
     ctx.printer(
         "\n#ifndef PROTOGEN_BASE_$1$\n"
         "#define PROTOGEN_BASE_$1$\n", ctx.version);
-    ctx.printer.output() << BASE_2_TEMPLATE;
+    ctx.printer.output() << CODE_BLOCK_2;
     ctx.printer("#endif // PROTOGEN_BASE_$1$\n", version);
 
     sort(ctx);

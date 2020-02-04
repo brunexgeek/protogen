@@ -1,4 +1,89 @@
 
+--- CODE_BLOCK_1
+#ifndef PROTOGEN_CPP_ENABLE_ERRORS
+    #define PROTOGEN_REV(err,input,name,type) return false
+    #define PROTOGEN_REI(err,input,name) return false
+    #define PROTOGEN_REF(err,input,name) return false
+    #define PROTOGEN_REM(err,input,name) return false
+    #define PROTOGEN_REG(err,input,name) return false
+#else
+    #define PROTOGEN_REV(err,input,name,type) \
+        do { if (err == NULL || err->set) return false; \
+             err->set = true; \
+             err->line = input.line(); err->column = input.column(); \
+             err->message = std::string("Invalid '") + type + "' value in field '" + name + "'"; \
+             return false; } while(false)
+    #define PROTOGEN_REI(err,input,name) \
+        do { if (err == NULL || err->set) return false; \
+             err->set = true; \
+             err->line = input.line(); err->column = input.column(); \
+             err->message = std::string("Unable to skip field '") + name + "'"; \
+             return false; } while(false)
+    #define PROTOGEN_RETERR_FORMAT(err,input,name) \
+        do { if (err == NULL || err->set) return false; \
+             err->set = true; \
+             err->line = input.line(); err->column = input.column(); \
+             err->message = std::string("Invalid JSON after field '") + name + "'"; \
+             return false; } while(false)
+    #define PROTOGEN_REM(err,input,name) \
+        do { if (err == NULL || err->set) return false; \
+             err->set = true; \
+             err->line = input.line(); err->column = input.column(); \
+             err->message = std::string("Missing required field '") + name + "'"; \
+             return false; } while(false)
+    #define PROTOGEN_REG(err,input,msg) \
+        do { if (err == NULL || err->set) return false; \
+             err->set = true; \
+             err->line = input.line(); err->column = input.column(); \
+             err->message = msg; \
+             return false; } while(false)
+#endif
+
+#undef PROTOGEN_TRAIT_MACRO
+#define PROTOGEN_TRAIT_MACRO(MSGTYPE) \
+	namespace PROTOGEN_NS { \
+		template<> struct traits<MSGTYPE> { \
+			static void clear( MSGTYPE &value ) { value.clear(); } \
+			static void write( std::ostream &out, const MSGTYPE &value ) { value.serialize(out); } \
+			template<typename I> static bool read( PROTOGEN_NS::InputStream<I> &in, MSGTYPE &value, \
+                bool required = false, PROTOGEN_NS::ErrorInfo *err = NULL ) { return value.deserialize(in, required, err); } \
+			static void swap( MSGTYPE &a, MSGTYPE &b ) { a.swap(b); } \
+		}; \
+	}
+
+#undef PROTOGEN_FIELD_MOVECTOR_TEMPLATE
+#if __cplusplus >= 201103L
+#define PROTOGEN_FIELD_MOVECTOR_TEMPLATE(MSGTYPE) Field( Field<MSGTYPE> &&that ) { this->value_.swap(that.value_); }
+#else
+#define PROTOGEN_FIELD_MOVECTOR_TEMPLATE(MSGTYPE)
+#endif
+
+#undef PROTOGEN_FIELD_TEMPLATE
+#define PROTOGEN_FIELD_TEMPLATE(MSGTYPE) \
+	namespace PROTOGEN_NS { \
+        template<> class Field<MSGTYPE> { \
+		protected: \
+			MSGTYPE value_; \
+		public: \
+			Field() { clear(); } \
+			PROTOGEN_FIELD_MOVECTOR_TEMPLATE(MSGTYPE); \
+			void swap( Field<MSGTYPE> &that ) { traits<MSGTYPE>::swap(this->value_, that.value_); } \
+			const MSGTYPE &operator()() const { return value_; } \
+			MSGTYPE &operator()() { return value_; } \
+			void operator ()(const MSGTYPE &value ) { this->value_ = value; } \
+			bool undefined() const { return value_.undefined(); } \
+			void clear() { traits<MSGTYPE>::clear(value_); } \
+			Field<MSGTYPE> &operator=( const Field<MSGTYPE> &that ) { this->value_ = that.value_; return *this; } \
+			Field<MSGTYPE> &operator=( const MSGTYPE &that ) { this->value_ = that; return *this; } \
+			bool operator==( const Field<MSGTYPE> &that ) const { return this->value_ == that.value_; } \
+			bool operator==( const MSGTYPE &that ) const { return this->value_ == that; } \
+			explicit operator MSGTYPE() { return this->value_; } \
+			explicit operator MSGTYPE() const { return this->value_; } \
+	    }; \
+    }
+------
+
+--- CODE_BLOCK_2
 
 namespace PROTOGEN_NS {
 
@@ -261,7 +346,6 @@ template<> struct traits<std::string>
     }
     static void swap( std::string &a, std::string &b ) { a.swap(b); }
 };
-
 // proto3 'repeated'
 template <typename T> struct traits< std::vector<T> >
 {
@@ -600,3 +684,48 @@ static bool ignore( InputStream<I> &in )
 } // namespace json
 } // namespace PROTOGEN_NS
 
+------
+
+
+--- CODE_REPEATED_TEMPLATE
+// proto3 'repeated'
+template <typename T> struct traits< $1$<T> >
+{
+    static void clear( $1$<T> &value ) { value.clear(); }
+
+    static bool write( std::ostream &out, const $1$<T> &value )
+    {
+        bool begin = true;
+        out << '[';
+        for (typename $1$<T>::const_iterator it = value.begin(); it != value.end(); ++it)
+        {
+            if (!begin) out << ",";
+            begin = false;
+            traits<T>::write(out, *it);
+        }
+        out << ']';
+        return true;
+    }
+
+    template<typename I>
+    static bool read( InputStream<I> &in, $1$<T> &value, bool required = false, PROTOGEN_NS::ErrorInfo *err = NULL )
+    {
+        in.skipws();
+        if (in.get() != '[') return false;
+        in.skipws();
+        while (true)
+        {
+            T entry;
+            if (!traits<T>::read(in, entry, required, err)) return false;
+            value.push_back(entry);
+            in.skipws();
+            if (!in.expect(',')) break;
+        }
+        if (in.get() != ']') return false;
+
+        return true;
+    }
+
+    static void swap( $1$<T> &a, $1$<T> &b ) { a.swap(b); }
+};
+------
