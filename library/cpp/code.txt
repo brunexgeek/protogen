@@ -346,16 +346,19 @@ template<> struct traits<std::string>
     }
     static void swap( std::string &a, std::string &b ) { a.swap(b); }
 };
-// proto3 'repeated'
-template <typename T> struct traits< std::vector<T> >
-{
-    static void clear( std::vector<T> &value ) { value.clear(); }
+------
 
-    static bool write( std::ostream &out, const std::vector<T> &value )
+--- CODE_REPEATED_TEMPLATE
+// proto3 'repeated'
+template <typename T> struct traits< $1$<T> >
+{
+    static void clear( $1$<T> &value ) { value.clear(); }
+
+    static bool write( std::ostream &out, const $1$<T> &value )
     {
         bool begin = true;
         out << '[';
-        for (typename std::vector<T>::const_iterator it = value.begin(); it != value.end(); ++it)
+        for (typename $1$<T>::const_iterator it = value.begin(); it != value.end(); ++it)
         {
             if (!begin) out << ",";
             begin = false;
@@ -366,7 +369,7 @@ template <typename T> struct traits< std::vector<T> >
     }
 
     template<typename I>
-    static bool read( InputStream<I> &in, std::vector<T> &value, bool required = false, PROTOGEN_NS::ErrorInfo *err = NULL )
+    static bool read( InputStream<I> &in, $1$<T> &value, bool required = false, PROTOGEN_NS::ErrorInfo *err = NULL )
     {
         in.skipws();
         if (in.get() != '[') return false;
@@ -384,8 +387,11 @@ template <typename T> struct traits< std::vector<T> >
         return true;
     }
 
-    static void swap( std::vector<T> &a, std::vector<T> &b ) { a.swap(b); }
+    static void swap( $1$<T> &a, $1$<T> &b ) { a.swap(b); }
 };
+------
+
+--- CODE_BLOCK_3
 
 // Base64 encoder/decoder based on Joe DF's implementation
 // Original source at <https://github.com/joedf/base64.c> (MIT licensed)
@@ -507,24 +513,30 @@ template<typename T> class Field
         explicit operator T() const { return this->value_; }
 };
 
+------
+
+--- CODE_REPEATED_FIELD
 template<typename T> class RepeatedField
 {
     protected:
-        std::vector<T> value_;
+        $1$<T> value_;
     public:
         RepeatedField() {}
         RepeatedField( const RepeatedField<T> &that ) { this->value_ = that.value_; }
         #if __cplusplus >= 201103L
         RepeatedField( RepeatedField<T> &&that ) { this->value_.swap(that.value_); }
         #endif
-        void swap( RepeatedField<T> &that ) { traits< std::vector<T> >::swap(this->value_, that.value_); }
-        const std::vector<T> &operator()() const { return value_; }
-        std::vector<T> &operator()() { return value_; }
+        void swap( RepeatedField<T> &that ) { traits< $1$<T> >::swap(this->value_, that.value_); }
+        const $1$<T> &operator()() const { return value_; }
+        $1$<T> &operator()() { return value_; }
         bool undefined() const { return value_.size() == 0; }
         void clear() { value_.clear(); }
         RepeatedField<T> &operator=( const RepeatedField<T> &that ) { this->value_ = that.value_; return *this; }
         bool operator==( const RepeatedField<T> &that ) const { return this->value_ == that.value_; }
 };
+------
+
+--- CODE_BLOCK_4
 
 #ifdef PROTOGEN_CPP_ENABLE_PARENT
 
@@ -684,48 +696,4 @@ static bool ignore( InputStream<I> &in )
 } // namespace json
 } // namespace PROTOGEN_NS
 
-------
-
-
---- CODE_REPEATED_TEMPLATE
-// proto3 'repeated'
-template <typename T> struct traits< $1$<T> >
-{
-    static void clear( $1$<T> &value ) { value.clear(); }
-
-    static bool write( std::ostream &out, const $1$<T> &value )
-    {
-        bool begin = true;
-        out << '[';
-        for (typename $1$<T>::const_iterator it = value.begin(); it != value.end(); ++it)
-        {
-            if (!begin) out << ",";
-            begin = false;
-            traits<T>::write(out, *it);
-        }
-        out << ']';
-        return true;
-    }
-
-    template<typename I>
-    static bool read( InputStream<I> &in, $1$<T> &value, bool required = false, PROTOGEN_NS::ErrorInfo *err = NULL )
-    {
-        in.skipws();
-        if (in.get() != '[') return false;
-        in.skipws();
-        while (true)
-        {
-            T entry;
-            if (!traits<T>::read(in, entry, required, err)) return false;
-            value.push_back(entry);
-            in.skipws();
-            if (!in.expect(',')) break;
-        }
-        if (in.get() != ']') return false;
-
-        return true;
-    }
-
-    static void swap( $1$<T> &a, $1$<T> &b ) { a.swap(b); }
-};
 ------

@@ -15,13 +15,9 @@
  */
 
 #include <algorithm>
-#include "auto-code.hh"
+#include <auto-code.hh>
 #include <protogen/protogen.hh>
 #include "../printer.hh"
-
-
-extern const char *BASE_1_TEMPLATE;
-extern const char *BASE_2_TEMPLATE;
 
 
 namespace protogen {
@@ -748,6 +744,10 @@ static void generateModel( GeneratorContext &ctx )
         "\n#ifndef PROTOGEN_BASE_$1$\n"
         "#define PROTOGEN_BASE_$1$\n", ctx.version);
     ctx.printer.output() << CODE_BLOCK_2;
+    ctx.printer(CODE_REPEATED_TEMPLATE, "std::vector");
+    ctx.printer.output() << CODE_BLOCK_3;
+    ctx.printer(CODE_REPEATED_FIELD, "std::vector");
+    ctx.printer.output() << CODE_BLOCK_4;
     ctx.printer("#endif // PROTOGEN_BASE_$1$\n", version);
 
     sort(ctx);

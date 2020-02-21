@@ -24,7 +24,7 @@ void process( std::istream &input, std::ostream &output )
         {
             if (line.find("------") == 0)
             {
-                output << ";\n";
+                output << "\n";
                 content = false;
                 continue;
             }
@@ -50,7 +50,9 @@ void process( std::istream &input, std::ostream &output )
 int main( int argc, char **argv )
 {
     if (argc != 3) return 1;
-std::cout << argv[1] << "  " << argv[2] << "----------\n";
+
+    std::cout << "Processing '"<< argv[1] << "' to generate '" << argv[2] << "'" << std::endl;
+
     std::ifstream input(argv[1]);
     if (!input.good()) return 1;
 
