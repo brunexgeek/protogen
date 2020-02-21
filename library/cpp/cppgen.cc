@@ -35,13 +35,14 @@ struct GeneratorContext
     bool obfuscate_strings;
     bool cpp_enable_parent;
     bool cpp_enable_errors;
+    bool cpp_use_lists;
     std::string custom_parent;
     std::string version;
     std::string versionNo;
 
     GeneratorContext( Printer &printer, Proto3 &root ) : printer(printer), root(root),
         number_names(false), obfuscate_strings(false), cpp_enable_parent(false),
-        cpp_enable_errors(false)
+        cpp_enable_errors(false), cpp_use_lists(false)
     {
     }
 };
@@ -181,34 +182,52 @@ static std::string nativeType( const Field &field )
         throw protogen::exception("Invalid field type");
 }
 
-/**
- * Translates protobuf3 types to protogen types.
- */
-static std::string fieldNativeType( const Field &field )
-{
-    std::string output = "PROTOGEN_NS::";
+ /**
+  * Translates protobuf3 types to protogen types.
+  */
+static std::string fieldNativeType( const Field &field, bool useLists )
+ {
+     std::string output = "PROTOGEN_NS::";
+     std::string valueType;
 
-    if (field.type.repeated || field.type.id == protogen::TYPE_BYTES)
-        output += "RepeatedField<";
-    else
-        output += "Field<";
+     // field type
+     if (field.type.repeated || field.type.id == protogen::TYPE_BYTES)
+     {
+         output += "RepeatedField<";
+     }
+     else
+         output += "Field<";
 
-    if (field.type.id >= protogen::TYPE_DOUBLE && field.type.id <= protogen::TYPE_BYTES)
-    {
-        int index = (int)field.type.id - (int)protogen::TYPE_DOUBLE;
-        output += TYPE_MAPPING[index].nativeType;
-    }
-    else
-    if (field.type.id == protogen::TYPE_MESSAGE)
-    {
-        output += nativeType(field);
-    }
-    else
-        throw protogen::exception("Invalid field type");
+     // value type
+     if (field.type.id >= protogen::TYPE_DOUBLE && field.type.id <= protogen::TYPE_BYTES)
+     {
+         int index = (int)field.type.id - (int)protogen::TYPE_DOUBLE;
+         output += (valueType = TYPE_MAPPING[index].nativeType);
+     }
+     else
+     if (field.type.id == protogen::TYPE_MESSAGE)
+     {
+         output += (valueType = nativeType(field));
+     }
+     else
+         throw protogen::exception("Invalid field type");
 
-    output += '>';
-    return output;
-}
+     if (field.type.id == protogen::TYPE_BYTES || (field.type.repeated && !useLists) )
+     {
+         output += ", std::vector<";
+         output += valueType;
+         output += "> ";
+     }
+     else
+     if (field.type.repeated)
+     {
+         output += ", std::list<";
+         output += valueType;
+         output += "> ";
+     }
+     output += '>';
+     return output;
+ }
 
 
 static void generateVariable( GeneratorContext &ctx, const Field &field )
@@ -221,7 +240,7 @@ static void generateVariable( GeneratorContext &ctx, const Field &field )
 
     ctx.printer(
         "static const int $3$_NO = $4$;\n"
-        "$1$ $2$;\n", fieldNativeType(field), storage, toUpper(storage), number);
+        "$1$ $2$;\n", fieldNativeType(field, ctx.cpp_use_lists), storage, toUpper(storage), number);
 }
 
 
@@ -347,10 +366,15 @@ static void generateDeserializer( GeneratorContext &ctx, const Message &message 
         // 'repeated' and 'bytes'
         if (fi->type.repeated || fi->type.id == protogen::TYPE_BYTES)
         {
-            ctx.printer(
-                "if (!PROTOGEN_NS::traits< std::vector<$1$> >::read(in, this->$2$(), required, err)) "
-                "PROTOGEN_REV(err, in, name, \"$3$\");\n",
-                type, storage, proto3Type(*fi));
+             const char *arrayType = "std::vector";
+
+             if (ctx.cpp_use_lists && fi->type.id != protogen::TYPE_BYTES)
+                 arrayType = "std::list";
+
+             ctx.printer(
+                 "if (!PROTOGEN_NS::traits< $4$<$1$> >::read(in, this->$2$(), required, err)) "
+                 "PROTOGEN_REV(err, in, name, \"$3$\");\n",
+                 type, storage, proto3Type(*fi), arrayType);
         }
         else
         {
@@ -709,9 +733,6 @@ static void generateModel( GeneratorContext &ctx )
         "// Source: $2$\n"
         "\n#ifndef $3$\n"
         "#define $3$\n\n"
-        "#if !defined(_WIN32) && !defined(_WIN64)\n"
-        "   #pragma GCC diagnostic ignored \"-Wunused-function\"\n"
-        "#endif\n"
         "#ifdef PROTOGEN_VERSION\n"
         "   #undef PROTOGEN_VERSION\n"
         "#endif\n\n", PROTOGEN_VERSION, ctx.root.fileName, guard);
@@ -722,6 +743,9 @@ static void generateModel( GeneratorContext &ctx )
         ctx.printer("#define PROTOGEN_CPP_ENABLE_PARENT // common parent class for messages\n");
     if (ctx.cpp_enable_errors)
         ctx.printer("#define PROTOGEN_CPP_ENABLE_ERRORS // enable parsing error information\n");
+
+    if (ctx.cpp_use_lists)
+        ctx.printer("\n#include <list>\n");
 
     ctx.printer(
         "\n#include <string>\n"
@@ -743,10 +767,14 @@ static void generateModel( GeneratorContext &ctx )
     ctx.printer(
         "\n#ifndef PROTOGEN_BASE_$1$\n"
         "#define PROTOGEN_BASE_$1$\n", ctx.version);
+
+    const char *repeatedType = "std::vector";
+    if (ctx.cpp_use_lists) repeatedType = "std::list";
+
     ctx.printer.output() << CODE_BLOCK_2;
-    ctx.printer(CODE_REPEATED_TEMPLATE, "std::vector");
+    ctx.printer(CODE_REPEATED_TEMPLATE, repeatedType);
     ctx.printer.output() << CODE_BLOCK_3;
-    ctx.printer(CODE_REPEATED_FIELD, "std::vector");
+    ctx.printer(CODE_REPEATED_FIELD, repeatedType);
     ctx.printer.output() << CODE_BLOCK_4;
     ctx.printer("#endif // PROTOGEN_BASE_$1$\n", version);
 
@@ -777,6 +805,7 @@ static void generateModel( GeneratorContext &ctx )
         "#undef PROTOGEN_REM\n"
         "#undef PROTOGEN_REG\n"
         "#undef PROTOGEN_NS\n"
+        "#undef PROTOGEN_EXPLICIT\n"
         "#endif // $1$\n", guard);
 }
 
@@ -814,6 +843,12 @@ void CppGenerator::generate( Proto3 &root, std::ostream &out )
     {
         OptionEntry opt = ctx.root.options.at(PROTOGEN_O_CUSTOM_PARENT);
         ctx.custom_parent = opt.value;
+    }
+
+    if (ctx.root.options.count(PROTOGEN_O_CPP_USE_LISTS))
+    {
+        OptionEntry opt = ctx.root.options.at(PROTOGEN_O_CPP_USE_LISTS);
+        ctx.cpp_use_lists = (opt.type == OptionType::BOOLEAN && opt.value == "true");
     }
 
     generateModel(ctx);

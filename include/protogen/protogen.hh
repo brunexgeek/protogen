@@ -48,6 +48,10 @@ namespace protogen {
 // Define a custom parent class for all messages. Use the same syntax as package definition.
 #define PROTOGEN_O_CUSTOM_PARENT           "custom_parent"
 
+// Enable (true) or disable (false) the use of 'std::list' as container class for repeated
+// fields. If disabled, 'std::vector' will be used instead. The default value is false.
+#define PROTOGEN_O_CPP_USE_LISTS           "cpp_use_lists"
+
 class Generator
 {
     public:

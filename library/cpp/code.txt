@@ -1,5 +1,13 @@
 
 --- CODE_BLOCK_1
+
+#if __cplusplus >= 201103L
+#define PROTOGEN_EXPLICIT explicit
+#else
+#define PROTOGEN_EXPLICIT
+#endif
+
+
 #ifndef PROTOGEN_CPP_ENABLE_ERRORS
     #define PROTOGEN_REV(err,input,name,type) return false
     #define PROTOGEN_REI(err,input,name) return false
@@ -77,8 +85,8 @@
 			Field<MSGTYPE> &operator=( const MSGTYPE &that ) { this->value_ = that; return *this; } \
 			bool operator==( const Field<MSGTYPE> &that ) const { return this->value_ == that.value_; } \
 			bool operator==( const MSGTYPE &that ) const { return this->value_ == that; } \
-			explicit operator MSGTYPE() { return this->value_; } \
-			explicit operator MSGTYPE() const { return this->value_; } \
+			PROTOGEN_EXPLICIT operator MSGTYPE() { return this->value_; } \
+			PROTOGEN_EXPLICIT operator MSGTYPE() const { return this->value_; } \
 	    }; \
     }
 ------
@@ -516,24 +524,24 @@ template<typename T> class Field
 ------
 
 --- CODE_REPEATED_FIELD
-template<typename T> class RepeatedField
+template< class T, class CT > class RepeatedField
 {
-    protected:
-        $1$<T> value_;
-    public:
+     protected:
+        CT value_;
+     public:
         RepeatedField() {}
-        RepeatedField( const RepeatedField<T> &that ) { this->value_ = that.value_; }
+        RepeatedField( const RepeatedField<T, CT> &that ) { this->value_ = that.value_; }
         #if __cplusplus >= 201103L
-        RepeatedField( RepeatedField<T> &&that ) { this->value_.swap(that.value_); }
+        RepeatedField( RepeatedField<T, CT> &&that ) { this->value_.swap(that.value_); }
         #endif
-        void swap( RepeatedField<T> &that ) { traits< $1$<T> >::swap(this->value_, that.value_); }
-        const $1$<T> &operator()() const { return value_; }
-        $1$<T> &operator()() { return value_; }
+        void swap( RepeatedField<T, CT> &that ) { traits< CT >::swap(this->value_, that.value_); }
+        const CT &operator()() const { return value_; }
+        CT &operator()() { return value_; }
         bool undefined() const { return value_.size() == 0; }
         void clear() { value_.clear(); }
-        RepeatedField<T> &operator=( const RepeatedField<T> &that ) { this->value_ = that.value_; return *this; }
-        bool operator==( const RepeatedField<T> &that ) const { return this->value_ == that.value_; }
-};
+        RepeatedField<T, CT> &operator=( const RepeatedField<T, CT> &that ) { this->value_ = that.value_; return *this; }
+        bool operator==( const RepeatedField<T, CT> &that ) const { return this->value_ == that.value_; }
+ };
 ------
 
 --- CODE_BLOCK_4
