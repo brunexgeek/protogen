@@ -49,43 +49,30 @@ struct GeneratorContext
 
 
 static struct {
-    bool needTemplate;
     protogen::FieldType type;
     const char *typeName;
     const char *nativeType;
     const char *defaultValue;
 } TYPE_MAPPING[] =
 {
-    { true,  protogen::TYPE_DOUBLE,   "double",    "double"      , "0.0" },
-    { true,  protogen::TYPE_FLOAT,    "float",     "float"       , "0.0F" },
-    { true,  protogen::TYPE_INT32,    "int32",     "int32_t"     , "0" },
-    { true,  protogen::TYPE_INT64,    "int64",     "int64_t"     , "0" },
-    { true,  protogen::TYPE_UINT32,   "uint32",    "uint32_t"    , "0" },
-    { true,  protogen::TYPE_UINT64,   "uint64",    "uint64_t"    , "0" },
-    { false, protogen::TYPE_SINT32,   "sint32",    "int32_t"     , "0" },
-    { false, protogen::TYPE_SINT64,   "sint64",    "int64_t"     , "0" },
-    { false, protogen::TYPE_FIXED32,  "fixed32",   "uint32_t"    , "0" },
-    { false, protogen::TYPE_FIXED64,  "fixed64",   "uint64_t"    , "0" },
-    { false, protogen::TYPE_SFIXED32, "sfixed32",  "int32_t"     , "0" },
-    { false, protogen::TYPE_SFIXED64, "sfixed64",  "int64_t"     , "0" },
-    { true,  protogen::TYPE_BOOL,     "bool",      "bool"        , "false" },
-    { true,  protogen::TYPE_STRING,   "string",    "std::string" , "\"\"" },
-    { true,  protogen::TYPE_BYTES,    "bytes",     "uint8_t"     , nullptr },
-    { false, protogen::TYPE_MESSAGE,  nullptr,     nullptr       , nullptr }
+    { protogen::TYPE_DOUBLE,   "double",    "double"      , "0.0" },
+    { protogen::TYPE_FLOAT,    "float",     "float"       , "0.0F" },
+    { protogen::TYPE_INT32,    "int32",     "int32_t"     , "0" },
+    { protogen::TYPE_INT64,    "int64",     "int64_t"     , "0" },
+    { protogen::TYPE_UINT32,   "uint32",    "uint32_t"    , "0" },
+    { protogen::TYPE_UINT64,   "uint64",    "uint64_t"    , "0" },
+    { protogen::TYPE_SINT32,   "sint32",    "int32_t"     , "0" },
+    { protogen::TYPE_SINT64,   "sint64",    "int64_t"     , "0" },
+    { protogen::TYPE_FIXED32,  "fixed32",   "uint32_t"    , "0" },
+    { protogen::TYPE_FIXED64,  "fixed64",   "uint64_t"    , "0" },
+    { protogen::TYPE_SFIXED32, "sfixed32",  "int32_t"     , "0" },
+    { protogen::TYPE_SFIXED64, "sfixed64",  "int64_t"     , "0" },
+    { protogen::TYPE_BOOL,     "bool",      "bool"        , "false" },
+    { protogen::TYPE_STRING,   "string",    "std::string" , "\"\"" },
+    { protogen::TYPE_BYTES,    "bytes",     "uint8_t"     , nullptr },
+    { protogen::TYPE_MESSAGE,  nullptr,     nullptr       , nullptr }
 };
 
-
-#if 0
-
-static std::string toLower( const std::string &value )
-{
-    std::string output = value;
-    for (size_t i = 0, t = output.length(); i < t; ++i)
-        if (output[i] >= 'A' && output[i] <= 'Z') output[i] = (char)(output[i] + 32);
-
-    return output;
-}
-#endif
 
 static std::string toUpper( const std::string &value )
 {
@@ -113,7 +100,6 @@ static std::string obfuscate( const std::string &value )
 }
 
 
-//static std::string nativePackage( const std::vector<std::string> &package )
 static std::string nativePackage( const std::string &package )
 {
     // extra space because the compiler may complain about '<::' (i.e. using in templates)
@@ -457,8 +443,7 @@ static void generateSerializer( GeneratorContext &ctx, const Message &message )
 
 static void generateTrait( GeneratorContext &ctx, const Message &message )
 {
-    ctx.printer(
-        "PROTOGEN_TRAIT_MACRO($1$::$2$)\n", nativePackage(message.package), message.name);
+    ctx.printer("PROTOGEN_TRAIT($1$::$2$)\n", nativePackage(message.package), message.name);
 }
 
 
@@ -509,7 +494,7 @@ static void generateNamespace( GeneratorContext &ctx, const Message &message, bo
 static void generateFieldTemplate( GeneratorContext &ctx, const Message &message )
 {
     ctx.printer(
-        "PROTOGEN_FIELD_TEMPLATE($1$::$2$)\n", nativePackage(message.package), message.name);
+        "PROTOGEN_FIELD($1$::$2$)\n", nativePackage(message.package), message.name);
 }
 
 
@@ -737,10 +722,6 @@ static void generateModel( GeneratorContext &ctx )
         "   #undef PROTOGEN_VERSION\n"
         "#endif\n\n", PROTOGEN_VERSION, ctx.root.fileName, guard);
 
-    if (ctx.obfuscate_strings)
-        ctx.printer("#define PROTOGEN_OBFUSCATE_STRINGS // strings obfuscation\n");
-    if (ctx.cpp_enable_parent)
-        ctx.printer("#define PROTOGEN_CPP_ENABLE_PARENT // common parent class for messages\n");
     if (ctx.cpp_enable_errors)
         ctx.printer("#define PROTOGEN_CPP_ENABLE_ERRORS // enable parsing error information\n");
 
@@ -775,30 +756,24 @@ static void generateModel( GeneratorContext &ctx )
     ctx.printer(CODE_REPEATED_TEMPLATE, repeatedType);
     ctx.printer.output() << CODE_BLOCK_3;
     ctx.printer(CODE_REPEATED_FIELD, repeatedType);
+    if (ctx.cpp_enable_parent)
+        ctx.printer(CODE_PARENT_CLASS);
+    if (ctx.obfuscate_strings)
+        ctx.printer(CODE_STRING_REVEAL);
     ctx.printer.output() << CODE_BLOCK_4;
     ctx.printer("#endif // PROTOGEN_BASE_$1$\n", version);
 
     sort(ctx);
 
-    // forward declarations
-    ctx.printer("\n// forward declarations\n");
-    for (auto mi = ctx.root.messages.begin(); mi != ctx.root.messages.end(); ++mi)
-    {
-        generateNamespace(ctx, **mi, true);
-        ctx.printer("\tclass $1$;\n\b", (*mi)->name);
-        generateNamespace(ctx, **mi, false);
-    }
     // message declarations
     for (auto mi = ctx.root.messages.begin(); mi != ctx.root.messages.end(); ++mi)
         generateMessage(ctx, **mi, ctx.obfuscate_strings);
 
     ctx.printer(
-        "#undef PROTOGEN_OBFUSCATE_STRINGS\n"
-        "#undef PROTOGEN_CPP_ENABLE_PARENT\n"
         "#undef PROTOGEN_CPP_ENABLE_ERRORS\n"
-        "#undef PROTOGEN_FIELD_MOVECTOR_TEMPLATE\n"
-        "#undef PROTOGEN_FIELD_TEMPLATE\n"
-        "#undef PROTOGEN_TRAIT_MACRO\n"
+        "#undef PROTOGEN_FIELD_MOVECTOR\n"
+        "#undef PROTOGEN_FIELD\n"
+        "#undef PROTOGEN_TRAIT\n"
         "#undef PROTOGEN_REV\n"
         "#undef PROTOGEN_REI\n"
         "#undef PROTOGEN_REF\n"
