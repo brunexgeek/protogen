@@ -1,13 +1,13 @@
 #include <fstream>
 #include <iostream>
 
-void process( std::istream &input, std::ostream &output )
+void process( std::istream &input, std::ostream &output, const std::string &guard )
 {
     std::string line;
     bool content = false;
 
-    output << "#ifndef CODE\n";
-    output << "#define CODE\n";
+    output << "#ifndef " << guard << '\n';
+    output << "#define " << guard << '\n';
 
     while (!input.eof())
     {
@@ -43,7 +43,7 @@ void process( std::istream &input, std::ostream &output )
         }
     }
 
-    output << "#endif // CODE\n";
+    output << "#endif // " << guard << '\n';
 }
 
 
@@ -59,7 +59,19 @@ int main( int argc, char **argv )
     std::ofstream output(argv[2]);
     if (!output.good()) return 1;
 
-    process(input, output);
+    std::string guard = argv[1];
+    #ifdef _WIN32
+    const char DIR_SEPARATOR = '\\';
+    #else
+    const char DIR_SEPARATOR = '/';
+    #endif
+    auto pos = guard.rfind(DIR_SEPARATOR);
+    if (pos != std::string::npos) guard = guard.substr(pos);
+    guard = "GENERATED_" + guard;
+    for (auto it = guard.begin(); it++ != guard.end();)
+        if (!isalpha(*it)) *it = '_';
+
+    process(input, output, guard);
 
     return 0;
 }

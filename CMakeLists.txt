@@ -1,4 +1,4 @@
-project(webster)
+project(protogen)
 
 cmake_minimum_required(VERSION 2.8)
 
@@ -23,16 +23,6 @@ else()
     add_definitions(-DBUILD_RELEASE)
 endif()
 message("Build type: ${CMAKE_BUILD_TYPE}")
-
-function(fileToSource inputFileName outputFileName variableName)
-    FILE(READ "${inputFileName}" CONTENT)
-    STRING(REPLACE "\\" "\\\\" CONTENT "${CONTENT}")
-    STRING(REPLACE "\"" "\\\"" CONTENT "${CONTENT}")
-    STRING(REPLACE "\n" "\\n\"\n\"" CONTENT "${CONTENT}")
-    FILE(APPEND "${outputFileName}" "const char *${variableName} = \"")
-    FILE(APPEND "${outputFileName}" "${CONTENT}")
-    FILE(APPEND "${outputFileName}" "\";\n\n")
-endfunction(fileToSource)
 
 add_library(libprotogen_static STATIC
     "library/proto3.cc"
