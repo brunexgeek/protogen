@@ -23,8 +23,9 @@
 #define IS_DIGIT(x)            ( (x) >= '0' && (x) <= '9' )
 #define IS_LETTER_OR_DIGIT(x)  ( IS_LETTER(x) || IS_DIGIT(x) )
 
-#define IS_VALID_TYPE(x)      ( (x) >= protogen::TYPE_DOUBLE && (x) <= protogen::TYPE_MESSAGE )
-#define TOKEN_POSITION(t)     (t).line, (t).column
+#define IS_VALID_TYPE(x)       ( (x) >= protogen::TYPE_DOUBLE && (x) <= protogen::TYPE_MESSAGE )
+#define TOKEN_POSITION(t)      (t).line, (t).column
+#define CURRENT_TOKEN_POSITION ctx.tokens.current.line, ctx.tokens.current.column
 
 #define TOKEN_EOF              0
 #define TOKEN_MESSAGE          1
@@ -614,7 +615,7 @@ static void parseField( ProtoContext &ctx, Message &message )
     if (ctx.tokens.current.code >= TOKEN_T_DOUBLE && ctx.tokens.current.code <= TOKEN_T_BYTES)
         field.type.id = (FieldType) ctx.tokens.current.code;
     else
-    if (ctx.tokens.current.code == TOKEN_NAME)
+    if (ctx.tokens.current.code == TOKEN_NAME || ctx.tokens.current.code == TOKEN_QNAME)
     {
         field.type.id = (FieldType) TOKEN_T_MESSAGE;
         if (!message.package.empty())
@@ -670,6 +671,11 @@ static void parseField( ProtoContext &ctx, Message &message )
     if (ctx.tokens.current.code != TOKEN_SCOLON)
         throw exception("Expected ';'", TOKEN_POSITION(ctx.tokens.current));
 
+    // check for repeated field indices
+    for (auto it = message.fields.begin(); it++ != message.fields.end();)
+        if (it->index == field.index)
+            throw exception("Field '" + it->name + "' has the same index as '" + field.name + "'", CURRENT_TOKEN_POSITION);
+
     message.fields.push_back(field);
 }
 
@@ -708,20 +714,20 @@ static void parseMessage( ProtoContext &ctx )
         //splitPackage(message.package, ctx.package);
         message->package = ctx.package;
         message->name = ctx.tokens.current.value;
-        if (ctx.tokens.next().code == TOKEN_BEGIN)
+        if (ctx.tokens.next().code != TOKEN_BEGIN)
+            throw exception("Missing message body", CURRENT_TOKEN_POSITION);
+
+        while (ctx.tokens.next().code != TOKEN_END)
         {
-            while (ctx.tokens.next().code != TOKEN_END)
-            {
-                if (ctx.tokens.current.code == TOKEN_OPTION)
-                    parseStandardOption(ctx, message->options);
-                else
-                    parseField(ctx, *message);
-            }
+            if (ctx.tokens.current.code == TOKEN_OPTION)
+                parseStandardOption(ctx, message->options);
+            else
+                parseField(ctx, *message);
         }
         ctx.tree.messages.push_back(message);
     }
     else
-        throw exception("Invalid message");
+        throw exception("Invalid message", CURRENT_TOKEN_POSITION);
 }
 
 
@@ -733,7 +739,7 @@ static void parsePackage( ProtoContext &ctx )
         ctx.package = tt.value;
     }
     else
-        throw exception("Invalid package");
+        throw exception("Invalid package", CURRENT_TOKEN_POSITION);
 }
 
 
@@ -742,14 +748,14 @@ static void parseSyntax( ProtoContext &ctx )
     // the token 'syntax' is already consumed at this point
 
     if (ctx.tokens.next().code != TOKEN_EQUAL)
-        throw exception("Expected '='", TOKEN_POSITION(ctx.tokens.current));
+        throw exception("Expected '='", CURRENT_TOKEN_POSITION);
     Token tt = ctx.tokens.next();
     if (tt.code == TOKEN_STRING && ctx.tokens.next().code == TOKEN_SCOLON)
     {
-        if (tt.value != "proto3") throw exception("Invalid language version", TOKEN_POSITION(ctx.tokens.current));
+        if (tt.value != "proto3") throw exception("Invalid language version", CURRENT_TOKEN_POSITION);
     }
     else
-        throw exception("Invalid package");
+        throw exception("Invalid syntax", CURRENT_TOKEN_POSITION);
 }
 
 
