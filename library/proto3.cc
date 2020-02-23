@@ -532,6 +532,8 @@ static OptionEntry parseOption( ProtoContext &ctx )
     // the token 'option' is already consumed at this point
     OptionEntry temp;
 
+    temp.line = ctx.tokens.current.line;
+
     // option name
     ctx.tokens.next();
     if (ctx.tokens.current.code != TOKEN_NAME && ctx.tokens.current.code != TOKEN_QNAME)

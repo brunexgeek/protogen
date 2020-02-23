@@ -81,6 +81,7 @@ struct OptionEntry
     std::string name;
     OptionType type;
     std::string value;
+    int line;
 };
 
 

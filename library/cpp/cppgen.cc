@@ -818,37 +818,51 @@ void CppGenerator::generate( Proto3 &root, std::ostream &out )
     if (ctx.root.options.count(PROTOGEN_O_OBFUSCATE_STRINGS))
     {
         OptionEntry opt = ctx.root.options.at(PROTOGEN_O_OBFUSCATE_STRINGS);
-        ctx.obfuscate_strings = (opt.type == OptionType::BOOLEAN && opt.value == "true");
+        if (opt.type != OptionType::BOOLEAN)
+            throw exception("The value for 'obfuscate_strings' must be a boolean", opt.line, 1);
+        ctx.obfuscate_strings = opt.value == "true";
     }
 
     if (ctx.root.options.count(PROTOGEN_O_NUMBER_NAMES))
     {
         OptionEntry opt = ctx.root.options.at(PROTOGEN_O_NUMBER_NAMES);
-        ctx.number_names = (opt.type == OptionType::BOOLEAN && opt.value == "true");
+        if (opt.type != OptionType::BOOLEAN)
+            throw exception("The value for 'number_names' must be a boolean", opt.line, 1);
+        ctx.number_names = opt.value == "true";
     }
 
     if (ctx.root.options.count(PROTOGEN_O_CPP_ENABLE_PARENT))
     {
         OptionEntry opt = ctx.root.options.at(PROTOGEN_O_CPP_ENABLE_PARENT);
-        ctx.cpp_enable_parent = (opt.type == OptionType::BOOLEAN && opt.value == "true");
+        if (opt.type != OptionType::BOOLEAN)
+            throw exception("The value for 'cpp_enable_parent' must be a boolean", opt.line, 1);
+        ctx.cpp_enable_parent = opt.value == "true";
     }
 
     if (ctx.root.options.count(PROTOGEN_O_CPP_ENABLE_ERRORS))
     {
         OptionEntry opt = ctx.root.options.at(PROTOGEN_O_CPP_ENABLE_ERRORS);
-        ctx.cpp_enable_errors = (opt.type == OptionType::BOOLEAN && opt.value == "true");
+        if (opt.type != OptionType::BOOLEAN)
+            throw exception("The value for 'cpp_enable_errors' must be a boolean", opt.line, 1);
+        ctx.cpp_enable_errors = opt.value == "true";
     }
 
     if (ctx.root.options.count(PROTOGEN_O_CUSTOM_PARENT))
     {
+        if (ctx.cpp_enable_parent)
+            throw exception("The options 'custom_parent' and 'cpp_enable_parent' can't be used together");
         OptionEntry opt = ctx.root.options.at(PROTOGEN_O_CUSTOM_PARENT);
+        if (opt.type != OptionType::STRING && opt.type != OptionType::IDENTIFIER)
+            throw exception("The value for 'custom_parent' must be a string or an identifier", opt.line, 1);
         ctx.custom_parent = opt.value;
     }
 
     if (ctx.root.options.count(PROTOGEN_O_CPP_USE_LISTS))
     {
         OptionEntry opt = ctx.root.options.at(PROTOGEN_O_CPP_USE_LISTS);
-        ctx.cpp_use_lists = (opt.type == OptionType::BOOLEAN && opt.value == "true");
+        if (opt.type != OptionType::BOOLEAN)
+            throw exception("The value for 'cpp_use_lists' must be a boolean", opt.line, 1);
+        ctx.cpp_use_lists = opt.value == "true";
     }
 
     generateModel(ctx);
