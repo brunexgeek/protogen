@@ -31,6 +31,7 @@ namespace protogen {
 #ifndef PROTOGEN_FIELD_TYPES
 #define PROTOGEN_FIELD_TYPES
 
+
 enum FieldType
 {
     TYPE_DOUBLE   = 6,

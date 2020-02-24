@@ -115,6 +115,8 @@ static const char *TOKENS[] =
     "TOKEN_RBRACKET",
 };
 
+#endif
+
 static const char *TYPES[] =
 {
     "double",
@@ -135,7 +137,6 @@ static const char *TYPES[] =
     nullptr,
 };
 
-#endif
 
 static const struct
 {
@@ -593,11 +594,72 @@ static void parseStandardOption( ProtoContext &ctx, OptionMap &entries )
 }
 
 
-static Message *findMessage( ProtoContext &ctx, const std::string &name )
+static Message *findMessage( ProtoContext &ctx, const std::string &package, const std::string &name, bool raise = false )
 {
+    // search for the message in the current package
+    std::string temp = package + '.' + name;
+    for (auto it = ctx.tree.messages.begin(); it != ctx.tree.messages.end(); ++it)
+        if ((*it)->qualifiedName() == temp) return *it;
+    // search for the message in the top level (i.e. the name is fully qualified)
     for (auto it = ctx.tree.messages.begin(); it != ctx.tree.messages.end(); ++it)
         if ((*it)->qualifiedName() == name) return *it;
+
+    if (raise) throw exception("Unable to find message '" + name + "'", CURRENT_TOKEN_POSITION);
     return nullptr;
+}
+
+static std::string makeName( const std::string &name )
+{
+    std::string out = name;
+    for (auto it = out.begin(); it != out.end(); ++it)
+    {
+        if (isalpha(*it) || isdigit(*it)) continue;
+        *it = '_';
+    }
+    return out;
+}
+
+static std::string getTypeName( const TypeInfo &type )
+{
+    if (type.id == TYPE_MESSAGE)
+    {
+        return makeName(type.ref->qualifiedName());
+    }
+    else
+    if (type.id >= TYPE_DOUBLE && type.id <= TYPE_BYTES)
+    {
+        return TYPES[(int)type.id - (int)TYPE_DOUBLE];
+    }
+    else
+        return "";
+}
+
+static Message *createMapType( ProtoContext &ctx, const TypeInfo &key, const TypeInfo &value )
+{
+    std::string typeName = "map_entry_" + getTypeName(key) + "_" + getTypeName(value);
+    std::string package = ctx.package + ".__protogen";
+    Message *message = findMessage(ctx, package, typeName);
+    if (message != nullptr) return message;
+
+    Field keyField;
+    keyField.name = "key";
+    keyField.type = key;
+    keyField.index = 1;
+
+    Field valueField;
+    valueField.name = "value";
+    valueField.type = value;
+    valueField.index = 2;
+
+    message = new Message();
+    message->name = typeName;
+    message->fields.push_back(keyField);
+    message->fields.push_back(valueField);
+    message->package = package;
+
+    ctx.tree.messages.push_back(message);
+
+    return message;
 }
 
 
@@ -620,32 +682,44 @@ static void parseField( ProtoContext &ctx, Message &message )
     if (ctx.tokens.current.code == TOKEN_NAME || ctx.tokens.current.code == TOKEN_QNAME)
     {
         field.type.id = (FieldType) TOKEN_T_MESSAGE;
-        if (!message.package.empty())
-        {
-            field.type.qname += message.package;
-            field.type.qname += '.';
-        }
-        field.type.qname += ctx.tokens.current.value;
-        field.type.ref = findMessage(ctx, field.type.qname);
+        field.type.qname = ctx.tokens.current.value;
     }
-# if 0
     else
     if (ctx.tokens.current.code == TOKEN_MAP)
     {
+        TypeInfo keyType, valueType;
+
         if (ctx.tokens.next().code != TOKEN_LT) throw exception("Missing <");
 
         // key type
-        if (ctx.tokens.next().code != TOKEN_T_STRING) throw exception("Key type must be 'string'");
-        field.type.id = (FieldType) ctx.tokens.current.code;
+        if (ctx.tokens.next().code != TOKEN_T_STRING &&
+            (ctx.tokens.next().code < TOKEN_T_INT32 || ctx.tokens.next().code > TOKEN_T_SFIXED64))
+            throw exception("Invalid key type");
+        keyType.id = (FieldType) ctx.tokens.current.code;
         // comma
         if (ctx.tokens.next().code != TOKEN_COMMA) throw exception("Missing comma");
         //value type
-        if (ctx.tokens.next().code != TOKEN_T_STRING) throw exception("Key type must be 'string'");
-        field.type.id = (FieldType) ctx.tokens.current.code;
+        ctx.tokens.next();
+        if (ctx.tokens.current.code != TOKEN_QNAME && ctx.tokens.current.code != TOKEN_NAME &&
+            (ctx.tokens.current.code < TOKEN_T_DOUBLE || ctx.tokens.current.code > TOKEN_T_BYTES))
+            throw exception("Invalid value type");
+        if (ctx.tokens.current.code == TOKEN_QNAME || ctx.tokens.current.code == TOKEN_NAME)
+        {
+            valueType.id = TYPE_MESSAGE;
+            valueType.ref = findMessage(ctx, ctx.package, ctx.tokens.current.value, true);
+        }
+        else
+            valueType.id = (FieldType) ctx.tokens.current.code;
 
         if (ctx.tokens.next().code != TOKEN_GT) throw exception("Missing >");
+
+        Message *entry = createMapType(ctx, keyType, valueType);
+        if (entry == nullptr)
+            throw exception("Unable to create map entry type", TOKEN_POSITION(ctx.tokens.current));
+
+        field.type.id = (FieldType) TOKEN_T_MESSAGE;
+        field.type.ref = entry;
     }
-#endif
     else
         throw exception("Missing field type", TOKEN_POSITION(ctx.tokens.current));
 
@@ -827,7 +901,7 @@ void Proto3::parse( Proto3 &tree, std::istream &input, const std::string &fileNa
         {
             if (fit->type.ref != nullptr || fit->type.id != TYPE_MESSAGE) continue;
 
-            fit->type.ref = findMessage(ctx, fit->type.qname);
+            fit->type.ref = findMessage(ctx, (*mit)->package, fit->type.qname);
             if (fit->type.ref == nullptr)
                 throw exception("Unable to find message '" + fit->type.qname + "'");
         }
