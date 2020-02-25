@@ -54,14 +54,16 @@ Person person;
 Person::ErrorInfo err;
 if (!person.deserialize(json, false, &err))
     std::cerr << "Error: " << err.message << " at " << err.line << ':' << err.column << std::endl;
+std::cout << girl.name() << std::endl;
 
 ...
 ```
 
-Compile your program as usual (no additional library is required). In the example above, the output would be:
+Compile your program as usual. In the example above, the output would be:
 
 ```
 {"name":"Michelle","age":24,"colors":["yellow"]}
+Michelle
 ```
 
 ## Supported options
@@ -72,7 +74,7 @@ Compile your program as usual (no additional library is required). In the exampl
 * **cpp_enable_errors** (top-level) &ndash; Enable (`true`) or disable (`false`) information about parsing errors. The default value is `false`. If enabled, `deserializer` functions will populate the `ErrorInfo` object given as argument. This option can also be enabled by defining the `PROTOGEN_CPP_ENABLE_ERRORS` macro before including the generated C++ header.
 * **transient** (field-level) &ndash; Make the field transient (`true`) or not (`false`). Transient fields are not serialized/deserialized. The default value is `false`.
 * **custom_parent** (top-level) &ndash; Define a custom parent class for all messages. Use the same syntax as package definition.
-* **cpp_use_lists** (top-level) &ndash; Use `std::list` (`true`) instead of `std::vector` (`false`) in repeated fields for C++ outputs. This is useful if your program constantly changes repeated fields (add and/or remove items). This option does not affect `bytes` fields which always use `std::vector`. Do not mix progoten outputs with different values for this option in the same project. The default value is `false`.
+* **cpp_use_lists** (top-level) &ndash; Use `std::list` (`true`) instead of `std::vector` (`false`) in repeated fields for C++ outputs. This gives best performance if your program constantly changes repeated fields (add and/or remove items). This option does not affect `bytes` fields which always use `std::vector`. The default value is `false`.
 
 ## Features
 

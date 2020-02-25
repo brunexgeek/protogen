@@ -26,6 +26,11 @@ namespace protogen {
 #define IS_VALID_TYPE(x)      ( (x) >= protogen::TYPE_DOUBLE && (x) <= protogen::TYPE_MESSAGE )
 #define IS_NUMERIC_TYPE(x)    ( (x) >= protogen::TYPE_DOUBLE && (x) <= protogen::TYPE_SFIXED64 )
 
+#ifdef _WIN32
+#define SNPRINTF snprintf_
+#else
+#define SNPRINTF snprintf
+#endif
 
 struct GeneratorContext
 {
@@ -220,13 +225,9 @@ static void generateVariable( GeneratorContext &ctx, const Field &field )
 {
     std::string storage = fieldStorage(field);
 
-    char number[10];
-    snprintf(number, sizeof(number), "%d", field.index);
-    number[9] = 0;
-
     ctx.printer(
         "static const int $3$_NO = $4$;\n"
-        "$1$ $2$;\n", fieldNativeType(field, ctx.cpp_use_lists), storage, toUpper(storage), number);
+        "$1$ $2$;\n", fieldNativeType(field, ctx.cpp_use_lists), storage, toUpper(storage), std::to_string(field.index));
 }
 
 
@@ -543,9 +544,7 @@ static void generateMessage( GeneratorContext &ctx, const Message &message, bool
         std::string name;
         if (ctx.number_names)
         {
-            char temp[12] = {0};
-            snprintf(temp, sizeof(temp) - 1, "%d", fi->index);
-            name = temp;
+            name = std::to_string(fi->index);
         }
         else
             name = fieldStorage(*fi);
@@ -702,10 +701,10 @@ static void sort( GeneratorContext &ctx )
 static void generateModel( GeneratorContext &ctx )
 {
     char version[12] = { 0 };
-    snprintf(version, sizeof(version) - 1, "%02X%02X%02X",
+    SNPRINTF(version, sizeof(version) - 1, "%02X%02X%02X",
         (int) PROTOGEN_MAJOR, (int) PROTOGEN_MINOR, (int) PROTOGEN_PATCH);
     ctx.versionNo = version;
-    snprintf(version, sizeof(version) - 1, "%d_%d_%d",
+    SNPRINTF(version, sizeof(version) - 1, "%d_%d_%d",
         (int) PROTOGEN_MAJOR, (int) PROTOGEN_MINOR, (int) PROTOGEN_PATCH);
     ctx.version = version;
 
@@ -725,9 +724,6 @@ static void generateModel( GeneratorContext &ctx )
     if (ctx.cpp_enable_errors)
         ctx.printer("#define PROTOGEN_CPP_ENABLE_ERRORS // enable parsing error information\n");
 
-    if (ctx.cpp_use_lists)
-        ctx.printer("\n#include <list>\n");
-
     ctx.printer(
         "\n#include <string>\n"
         "#include <cstring>\n"
@@ -736,6 +732,7 @@ static void generateModel( GeneratorContext &ctx )
         "#include <sstream>\n"
         "#include <iostream>\n"
         "#include <vector>\n"
+        "#include <list>\n"
         "#include <cstdlib>\n"
         "#include <locale.h>\n"
         "#include <stdexcept>\n\n");
@@ -749,13 +746,11 @@ static void generateModel( GeneratorContext &ctx )
         "\n#ifndef PROTOGEN_BASE_$1$\n"
         "#define PROTOGEN_BASE_$1$\n", ctx.version);
 
-    const char *repeatedType = "std::vector";
-    if (ctx.cpp_use_lists) repeatedType = "std::list";
-
     ctx.printer.output() << CODE_BLOCK_2;
-    ctx.printer(CODE_REPEATED_TEMPLATE, repeatedType);
+    ctx.printer(CODE_REPEATED_TRAIT, "std::vector");
+    ctx.printer(CODE_REPEATED_TRAIT, "std::list");
     ctx.printer.output() << CODE_BLOCK_3;
-    ctx.printer(CODE_REPEATED_FIELD, repeatedType);
+    ctx.printer(CODE_REPEATED_FIELD);
     if (ctx.cpp_enable_parent)
         ctx.printer(CODE_PARENT_CLASS);
     if (ctx.obfuscate_strings)

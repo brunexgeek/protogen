@@ -333,8 +333,8 @@ template<> struct traits<std::string>
 };
 ------
 
---- CODE_REPEATED_TEMPLATE
-// proto3 'repeated'
+--- CODE_REPEATED_TRAIT
+// proto3 'repeated' with $1$ as container
 template <typename T> struct traits< $1$<T> >
 {
     static void clear( $1$<T> &value ) { value.clear(); }
