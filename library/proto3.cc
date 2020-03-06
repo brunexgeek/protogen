@@ -674,7 +674,7 @@ static void parseField( ProtoContext &ctx, Message &message )
         throw exception("Expected ';'", TOKEN_POSITION(ctx.tokens.current));
 
     // check for repeated field indices
-    for (auto it = message.fields.begin(); it++ != message.fields.end();)
+    for (auto it = message.fields.begin(); it != message.fields.end(); it++)
         if (it->index == field.index)
             throw exception("Field '" + it->name + "' has the same index as '" + field.name + "'", CURRENT_TOKEN_POSITION);
 

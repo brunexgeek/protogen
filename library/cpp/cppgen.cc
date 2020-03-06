@@ -750,11 +750,10 @@ static void generateModel( GeneratorContext &ctx )
     ctx.printer(CODE_REPEATED_TRAIT, "std::vector");
     ctx.printer(CODE_REPEATED_TRAIT, "std::list");
     ctx.printer.output() << CODE_BLOCK_3;
-    ctx.printer(CODE_REPEATED_FIELD);
+    ctx.printer.output() << CODE_REPEATED_FIELD;
     if (ctx.cpp_enable_parent)
         ctx.printer(CODE_PARENT_CLASS);
-    if (ctx.obfuscate_strings)
-        ctx.printer(CODE_STRING_REVEAL);
+    ctx.printer.output() << (CODE_STRING_REVEAL);
     ctx.printer.output() << CODE_BLOCK_4;
     ctx.printer("#endif // PROTOGEN_BASE_$1$\n", version);
 

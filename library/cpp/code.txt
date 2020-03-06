@@ -548,8 +548,6 @@ static std::string reveal( const char *value, size_t length )
 	return result;
 }
 }
-#endif
-
 ------
 
 --- CODE_BLOCK_4
