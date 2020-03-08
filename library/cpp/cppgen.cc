@@ -281,53 +281,19 @@ static void generateEqualityOperator( GeneratorContext &ctx, const Message &mess
 
 static void generateDeserializer( GeneratorContext &ctx, const Message &message )
 {
+    ctx.printer.output() << CODE_DESERIALIZER;
     ctx.printer(
-        // deserializer receiving a 'istream'
-        "bool deserialize( std::istream &in, bool required = false, PROTOGEN_NS::ErrorInfo *err = NULL ) {\n"
-        "\tbool skip = in.flags() & std::ios_base::skipws;\n"
-        "std::noskipws(in);\n"
-        "std::istream_iterator<char> itb(in);\n"
-        "std::istream_iterator<char> ite;\n"
-        "PROTOGEN_NS::InputStream< std::istream_iterator<char> > is(itb, ite);\n"
-        "bool result = this->deserialize(is, required, err);\n"
-        "if (skip) std::skipws(in);\n"
-        "return result;\n"
-        "\b}\n"
-
-        // deserializer receiving a 'string'
-        "bool deserialize( const std::string &in, bool required = false, PROTOGEN_NS::ErrorInfo *err = NULL ) {\n"
-        "\tPROTOGEN_NS::InputStream<std::string::const_iterator> is(in.begin(), in.end());\n"
-        "return this->deserialize(is, required, err);\n"
-        "\b}\n"
-
-        // deserializer receiving a 'vector'
-        "bool deserialize( const std::vector<char> &in, bool required = false, PROTOGEN_NS::ErrorInfo *err = NULL ) {\n"
-        "\tPROTOGEN_NS::InputStream<std::vector<char>::const_iterator> is(in.begin(), in.end());\n"
-        "return this->deserialize(is, required, err);\n"
-        "\b}\n"
-
-        // deserializer receiving iterators
-       	"template <typename IT>\n"
-        "bool deserialize( IT begin, IT end, bool required = false, PROTOGEN_NS::ErrorInfo *err = NULL ){\n"
-        "\tPROTOGEN_NS::InputStream<IT> is(begin, end);\n"
-        "return this->deserialize(is, required, err);\n\b}\n"
-
         // 'real' deserializer
-        "template<typename T>\n"
-        "bool deserialize( PROTOGEN_NS::InputStream<T> &in, bool required = false, PROTOGEN_NS::ErrorInfo *err = NULL ) {\n"
+        "PROTOGEN_NS::parse_result deserialize( PROTOGEN_NS::tokenizer &tok, bool required = false, PROTOGEN_NS::ErrorInfo *err = NULL ) {\n"
         "\t(void) err;\n"
-        "in.skipws();\n"
-        "if (in.get() != '{') PROTOGEN_REG(err, in, \"Invalid object\");\n"
-        "in.skipws();\n"
-        "std::string name;\n");
-
-    ctx.printer(
         "bool hfld[$1$] = {false};\n"
-        "while (true) {\n\t"
-        "if (in.get() == '}') break;\n"
-        "in.unget();\n"
-        "name.clear();\n"
-        "if (!PROTOGEN_NS::json::readName(in, name)) PROTOGEN_REG(err, in, \"Invalid field name\");\n", message.fields.size());
+        "if (tok.next().id != PROTOGEN_NS::token_id::OBJS) PROTOGEN_REG(err, in, \"Invalid field name\");;\n"
+        "while (true)\n{\n"
+        "\tstd::string name;\nPROTOGEN_NS::token tt;\n"
+        "tt = tok.next();\nif (tt.id == PROTOGEN_NS::token_id::OBJE) break;\n"
+        "if (tt.id != PROTOGEN_NS::token_id::STRING) PROTOGEN_REG(err, in, \"Invalid field name\");\n"
+        "name.swap(tok.current().value);\n"
+        "if (tok.next().id != PROTOGEN_NS::token_id::COLON) PROTOGEN_REG(err, in, \"Missing colon after field name\");\n", message.fields.size());
 
     bool first = true;
     size_t count = 0;
@@ -359,7 +325,7 @@ static void generateDeserializer( GeneratorContext &ctx, const Message &message 
                  arrayType = "std::list";
 
              ctx.printer(
-                 "if (!PROTOGEN_NS::traits< $4$<$1$> >::read(in, this->$2$(), required, err)) "
+                 "if (PROTOGEN_NS::traits< $4$<$1$> >::read(tok, this->$2$(), required, err) == PROTOGEN_NS::parse_result::ERROR) "
                  "PROTOGEN_REV(err, in, name, \"$3$\");\n",
                  type, storage, proto3Type(*fi), arrayType);
         }
@@ -370,13 +336,12 @@ static void generateDeserializer( GeneratorContext &ctx, const Message &message 
             {
                 ctx.printer(
                     "$1$ value;\n"
-                    "if (!PROTOGEN_NS::traits<$1$>::read(in, value, required, err)) "
+                    "if (PROTOGEN_NS::traits<$1$>::read(tok, value, required, err) == PROTOGEN_NS::parse_result::ERROR) "
                     "PROTOGEN_REV(err, in, name, \"$3$\");\n"
-                    "this->$2$(value);\n", type, storage, proto3Type(*fi));
+                    "this->$2$.swap(value);\n", type, storage, proto3Type(*fi));
             }
         }
         ctx.printer(
-            "if (!PROTOGEN_NS::json::next(in)) PROTOGEN_REI(err, in, name);\n"
             "hfld[$1$] = true;\n"
             "\b}\n", // closes the main 'if'
             count);
@@ -385,11 +350,14 @@ static void generateDeserializer( GeneratorContext &ctx, const Message &message 
     ctx.printer(
         "else\n"
         "// ignore the current field\n"
-        "{\n\tif (!PROTOGEN_NS::json::ignore(in)) PROTOGEN_REI(err, in, name);\n"
-        "if (!PROTOGEN_NS::json::next(in)) PROTOGEN_REI(err, in, name);\n\b}\n\b}\n");
+        "{\n\tif (PROTOGEN_NS::json::ignore_value(tok) == PROTOGEN_NS::parse_result::ERROR) PROTOGEN_REI(err, in, name);\n"
+        "\b}\n"
+        "if (PROTOGEN_NS::json::next_field(tok) == PROTOGEN_NS::parse_result::ERROR) PROTOGEN_REI(err, in, name);\n"
+        "\b}\n");
 
     // check whether we missed any required field
-    ctx.printer("if (required) {\n\t");
+    ctx.printer(
+        "if (required) {\n\t");
     for (size_t i = 0, t = message.fields.size(); i < t; ++i)
     {
         if (message.fields[i].options.count(PROTOGEN_O_TRANSIENT))
@@ -399,7 +367,7 @@ static void generateDeserializer( GeneratorContext &ctx, const Message &message 
         }
         ctx.printer("if (!hfld[$1$]) PROTOGEN_REM(err, in, PROTOGEN_FN_$2$);\n", i, fieldStorage(message.fields[i]));
     }
-    ctx.printer("\b}\nreturn true;\n\b}\n");
+    ctx.printer("\b}\nreturn PROTOGEN_NS::parse_result::OK;\n\b}\n");
 }
 
 
@@ -612,37 +580,6 @@ static std::string makeGuard( const std::string &fileName )
     return out;
 }
 
-
-static void generateLicense( GeneratorContext &ctx )
-{
-    ctx.printer(
-        "/*\n"
-        " * This is free and unencumbered software released into the public domain.\n"
-        " * \n"
-        " * Anyone is free to copy, modify, publish, use, compile, sell, or\n"
-        " * distribute this software, either in source code form or as a compiled\n"
-        " * binary, for any purpose, commercial or non-commercial, and by any\n"
-        " * means.\n"
-        " * \n"
-        " * In jurisdictions that recognize copyright laws, the author or authors\n"
-        " * of this software dedicate any and all copyright interest in the\n"
-        " * software to the public domain. We make this dedication for the benefit\n"
-        " * of the public at large and to the detriment of our heirs and\n"
-        " * successors. We intend this dedication to be an overt act of\n"
-        " * relinquishment in perpetuity of all present and future rights to this\n"
-        " * software under copyright law.\n"
-        " * \n"
-        " * THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND,\n"
-        " * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF\n"
-        " * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.\n"
-        " * IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR\n"
-        " * OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,\n"
-        " * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR\n"
-        " * OTHER DEALINGS IN THE SOFTWARE.\n"
-        " * \n"
-        " * For more information, please refer to <http://unlicense.org>\n */\n\n");
-}
-
 typedef std::vector<protogen::Message *> MessageList;
 
 static bool contains( const MessageList &items, const protogen::Message *message )
@@ -696,44 +633,19 @@ static void generateModel( GeneratorContext &ctx )
         (int) PROTOGEN_MAJOR, (int) PROTOGEN_MINOR, (int) PROTOGEN_PATCH);
     ctx.version = version;
 
-    generateLicense(ctx);
-
     std::string guard = makeGuard(ctx.root.fileName);
-    ctx.printer(
-        "// AUTO-GENERATED FILE. DO NOT EDIT!\n"
-        "// Generated by the protogen $1$ compiler <https://github.com/brunexgeek/protogen>\n"
-        "// Source: $2$\n"
-        "\n#ifndef $3$\n"
-        "#define $3$\n\n"
-        "#ifdef PROTOGEN_VERSION\n"
-        "   #undef PROTOGEN_VERSION\n"
-        "#endif\n\n", PROTOGEN_VERSION, ctx.root.fileName, guard);
+    ctx.printer(CODE_HEADER, PROTOGEN_VERSION, ctx.root.fileName, guard, ctx.version);
 
     if (ctx.cpp_enable_errors)
         ctx.printer("#define PROTOGEN_CPP_ENABLE_ERRORS // enable parsing error information\n");
 
-    ctx.printer(
-        "\n#include <string>\n"
-        "#include <cstring>\n"
-        "#include <stdint.h>\n"
-        "#include <iterator>\n"
-        "#include <sstream>\n"
-        "#include <iostream>\n"
-        "#include <vector>\n"
-        "#include <list>\n"
-        "#include <cstdlib>\n"
-        "#include <locale.h>\n"
-        "#include <stdexcept>\n\n");
-
     // base template
-    ctx.printer(
-        "#undef PROTOGEN_NS\n"
-        "#define PROTOGEN_NS protogen_$1$\n\n", ctx.version);
-    ctx.printer.output() << CODE_BLOCK_1;
+    ctx.printer.output() << CODE_MACROS;
     ctx.printer(
         "\n#ifndef PROTOGEN_BASE_$1$\n"
         "#define PROTOGEN_BASE_$1$\n", ctx.version);
 
+    ctx.printer.output() << CODE_TOKENIZER;
     ctx.printer.output() << CODE_BLOCK_2;
     ctx.printer(CODE_REPEATED_TRAIT, "std::vector");
     ctx.printer(CODE_REPEATED_TRAIT, "std::list");
