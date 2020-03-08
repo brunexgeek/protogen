@@ -405,20 +405,8 @@ static void generateDeserializer( GeneratorContext &ctx, const Message &message 
 
 static void generateSerializer( GeneratorContext &ctx, const Message &message )
 {
+    ctx.printer.output() << CODE_SERIALIZER;
     ctx.printer(
-        // serializer writing to 'string'
-        "void serialize( std::string &out ) const {\n"
-        "\tstd::stringstream ss;\n"
-        "serialize(ss);\n"
-        "out = ss.str();\n\b}\n"
-
-        // serializer writing to 'vector'
-        "void serialize( std::vector<char> &out ) const {\n"
-        "\tstd::string temp;\n"
-        "serialize(temp);\n"
-        "out.resize(temp.length());\n"
-        "memcpy(&out.front(), temp.c_str(), temp.length());\n\b}\n"
-
         // serializer writing to 'ostream'
         "void serialize( std::ostream &out ) const {\n"
         "\tout << '{';\n"

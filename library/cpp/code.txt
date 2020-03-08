@@ -1,3 +1,204 @@
+--- CODE_TOKENIZER
+#include <iostream>
+#include <forward_list>
+#include <vector>
+#include <sstream>
+
+enum class token_id
+{
+    NONE, EOS, OBJS, OBJE, COLON, COMMA, STRING, ARRS,
+    ARRE, NIL, TRUE, FALSE, NUMBER,
+};
+
+static const char *TYPES[] =
+{
+    "NONE", "EOS", "OBJS", "OBJE", "COLON", "COMMA", "STRING", "ARRS",
+    "ARRE", "NIL", "TRUE", "FALSE", "NUMBER",
+};
+
+struct token
+{
+    std::string value;
+    token_id id = token_id::NONE;
+
+    token();
+    token( const token &that );
+    token( token &&that );
+    token( token_id id, const std::string &value = "" );
+    token &operator=( const token &that );
+    void swap( token &that );
+};
+
+token::token() {}
+
+token::token( const token &that ) : id(that.id), value(that.value) {}
+
+token::token( token &&that )
+{
+    swap(that);
+}
+
+token::token( token_id id, const std::string &value ) : id(id), value(value) {}
+
+token &token::operator=( const token &that )
+{
+    id = that.id, value = that.value;
+}
+
+void token::swap( token &that )
+{
+    std::swap(id, that.id);
+    value.swap(that.value);
+}
+
+static bool parse_string( std::istream &input, token &output )
+{
+    output.id = token_id::STRING;
+
+    while (!input.eof())
+    {
+        int c = input.get();
+        if (c == '"') return true;
+
+        if (c == '\\')
+        {
+            c = input.get();
+            switch (c)
+            {
+                case '"':  c = '"'; break;
+                case '\\': c = '\\'; break;
+                case '/':  c = '/'; break;
+                case 'b':  c = '\b'; break;
+                case 'f':  c = '\f'; break;
+                case 'r':  c = '\r'; break;
+                case 'n':  c = '\n'; break;
+                case 't':  c = '\t'; break;
+                default: return false;
+            }
+        }
+
+        if (c <= 0) return false;
+        output.value += (char) c;
+    }
+
+    return false;
+}
+
+static bool parse_keyword( std::istream &input, const std::string &keyword )
+{
+    for (auto c : keyword)
+        if (input.get() != c) return false;
+    return true;
+}
+
+static bool parse_number( std::istream &input, token &output )
+{
+    output.id = token_id::NUMBER;
+
+    while (!input.eof())
+    {
+        int c = input.get();
+        if (c == '.' || (c >= '0' && c <= '9') || c == 'e' || c == 'E' || c == '+' || c == '-')
+            output.value += c;
+        else
+        {
+            input.unget();
+            break;
+        }
+    }
+
+    return true;
+}
+
+class tokenizer
+{
+    public:
+        tokenizer( std::istream &input );
+        token next();
+        token current() const;
+        void unget();
+    protected:
+        token current_;
+        std::istream &input_;
+        std::forward_list<token> stack_;
+};
+
+tokenizer::tokenizer( std::istream &input ) : input_(input) {}
+
+token tokenizer::current() const
+{
+    return current_;
+}
+
+token tokenizer::next()
+{
+    if (!stack_.empty())
+    {
+        current_ = stack_.front();
+        stack_.pop_front();
+        return current_;
+    }
+
+    current_.id = token_id::NONE;
+    current_.value.clear();
+
+    while (!input_.eof())
+    {
+        int c = input_.get();
+        switch (c)
+        {
+            case ' ':
+            case '\t':
+            case '\n':
+            case '\r':
+                break;
+            case '{': return current_ = token(token_id::OBJS);
+            case '}': return current_ = token(token_id::OBJE);
+            case '[': return current_ = token(token_id::ARRS);
+            case ']': return current_ = token(token_id::ARRE);
+            case ':': return current_ = token(token_id::COLON);
+            case ',': return current_ = token(token_id::COMMA);
+            case '"':
+                parse_string(input_, current_);
+                return current_;
+            case 'n':
+                if (!parse_keyword(input_, "ull")) return current_;
+                return current_ = token_id(token_id::NIL);
+            case 't':
+                if (!parse_keyword(input_, "rue")) return current_;
+                return current_ = token_id(token_id::TRUE);
+            case 'f':
+                if (!parse_keyword(input_, "alse")) return current_;
+                return current_ = token_id(token_id::FALSE);
+            case '-':
+            case '0':
+            case '1':
+            case '2':
+            case '3':
+            case '4':
+            case '5':
+            case '6':
+            case '7':
+            case '8':
+            case '9':
+                current_.value += c;
+                if (!parse_number(input_, current_)) return current_;
+                return current_;
+            default:
+                return current_ = token(token_id::NONE);
+        }
+    }
+
+    return current_ = token(token_id::EOS);
+}
+
+void tokenizer::unget()
+{
+    token temp;
+    temp.swap(current_);
+    stack_.push_front(temp);
+}
+------
 
 --- CODE_BLOCK_1
 
@@ -680,4 +881,18 @@ static bool ignore( InputStream<I> &in )
 } // namespace json
 } // namespace PROTOGEN_NS
 
+------
+
+--- CODE_SERIALIZER
+    void serialize( std::string &out ) const {
+        std::stringstream ss;
+        serialize(ss);
+        out = ss.str();
+    }
+    void serialize( std::vector<char> &out ) const {
+        std::string temp;
+        serialize(temp);
+        out.resize(temp.length());
+        memcpy(&out.front(), temp.c_str(), temp.length());
+    }
 ------
