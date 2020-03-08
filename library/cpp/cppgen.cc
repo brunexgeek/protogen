@@ -281,53 +281,19 @@ static void generateEqualityOperator( GeneratorContext &ctx, const Message &mess
 
 static void generateDeserializer( GeneratorContext &ctx, const Message &message )
 {
+    ctx.printer.output() << CODE_DESERIALIZER;
     ctx.printer(
-        // deserializer receiving a 'istream'
-        "bool deserialize( std::istream &in, bool required = false, PROTOGEN_NS::ErrorInfo *err = NULL ) {\n"
-        "\tbool skip = in.flags() & std::ios_base::skipws;\n"
-        "std::noskipws(in);\n"
-        "std::istream_iterator<char> itb(in);\n"
-        "std::istream_iterator<char> ite;\n"
-        "PROTOGEN_NS::InputStream< std::istream_iterator<char> > is(itb, ite);\n"
-        "bool result = this->deserialize(is, required, err);\n"
-        "if (skip) std::skipws(in);\n"
-        "return result;\n"
-        "\b}\n"
-
-        // deserializer receiving a 'string'
-        "bool deserialize( const std::string &in, bool required = false, PROTOGEN_NS::ErrorInfo *err = NULL ) {\n"
-        "\tPROTOGEN_NS::InputStream<std::string::const_iterator> is(in.begin(), in.end());\n"
-        "return this->deserialize(is, required, err);\n"
-        "\b}\n"
-
-        // deserializer receiving a 'vector'
-        "bool deserialize( const std::vector<char> &in, bool required = false, PROTOGEN_NS::ErrorInfo *err = NULL ) {\n"
-        "\tPROTOGEN_NS::InputStream<std::vector<char>::const_iterator> is(in.begin(), in.end());\n"
-        "return this->deserialize(is, required, err);\n"
-        "\b}\n"
-
-        // deserializer receiving iterators
-       	"template <typename IT>\n"
-        "bool deserialize( IT begin, IT end, bool required = false, PROTOGEN_NS::ErrorInfo *err = NULL ){\n"
-        "\tPROTOGEN_NS::InputStream<IT> is(begin, end);\n"
-        "return this->deserialize(is, required, err);\n\b}\n"
-
         // 'real' deserializer
-        "template<typename T>\n"
-        "bool deserialize( PROTOGEN_NS::InputStream<T> &in, bool required = false, PROTOGEN_NS::ErrorInfo *err = NULL ) {\n"
+        "PROTOGEN_NS::parse_result deserialize( PROTOGEN_NS::tokenizer &tok, bool required = false, PROTOGEN_NS::ErrorInfo *err = NULL ) {\n"
         "\t(void) err;\n"
-        "in.skipws();\n"
-        "if (in.get() != '{') PROTOGEN_REG(err, in, \"Invalid object\");\n"
-        "in.skipws();\n"
-        "std::string name;\n");
-
-    ctx.printer(
         "bool hfld[$1$] = {false};\n"
-        "while (true) {\n\t"
-        "if (in.get() == '}') break;\n"
-        "in.unget();\n"
-        "name.clear();\n"
-        "if (!PROTOGEN_NS::json::readName(in, name)) PROTOGEN_REG(err, in, \"Invalid field name\");\n", message.fields.size());
+        "if (tok.next().id != PROTOGEN_NS::token_id::OBJS) PROTOGEN_REG(err, in, \"Invalid field name\");;\n"
+        "while (true)\n{\n"
+        "\tstd::string name;\nPROTOGEN_NS::token tt;\n"
+        "tt = tok.next();\nif (tt.id == PROTOGEN_NS::token_id::OBJE) break;\n"
+        "if (tt.id != PROTOGEN_NS::token_id::STRING) PROTOGEN_REG(err, in, \"Invalid field name\");\n"
+        "name.swap(tok.current().value);\n"
+        "if (tok.next().id != PROTOGEN_NS::token_id::COLON) PROTOGEN_REG(err, in, \"Missing colon after field name\");\n", message.fields.size());
 
     bool first = true;
     size_t count = 0;
@@ -359,7 +325,7 @@ static void generateDeserializer( GeneratorContext &ctx, const Message &message 
                  arrayType = "std::list";
 
              ctx.printer(
-                 "if (!PROTOGEN_NS::traits< $4$<$1$> >::read(in, this->$2$(), required, err)) "
+                 "if (PROTOGEN_NS::traits< $4$<$1$> >::read(tok, this->$2$(), required, err) == PROTOGEN_NS::parse_result::ERROR) "
                  "PROTOGEN_REV(err, in, name, \"$3$\");\n",
                  type, storage, proto3Type(*fi), arrayType);
         }
@@ -370,13 +336,13 @@ static void generateDeserializer( GeneratorContext &ctx, const Message &message 
             {
                 ctx.printer(
                     "$1$ value;\n"
-                    "if (!PROTOGEN_NS::traits<$1$>::read(in, value, required, err)) "
+                    "if (PROTOGEN_NS::traits<$1$>::read(tok, value, required, err) == PROTOGEN_NS::parse_result::ERROR) "
                     "PROTOGEN_REV(err, in, name, \"$3$\");\n"
                     "this->$2$(value);\n", type, storage, proto3Type(*fi));
             }
         }
         ctx.printer(
-            "if (!PROTOGEN_NS::json::next(in)) PROTOGEN_REI(err, in, name);\n"
+            "if (PROTOGEN_NS::json::next_field(tok) == PROTOGEN_NS::parse_result::ERROR) PROTOGEN_REI(err, in, name);\n"
             "hfld[$1$] = true;\n"
             "\b}\n", // closes the main 'if'
             count);
@@ -385,8 +351,8 @@ static void generateDeserializer( GeneratorContext &ctx, const Message &message 
     ctx.printer(
         "else\n"
         "// ignore the current field\n"
-        "{\n\tif (!PROTOGEN_NS::json::ignore(in)) PROTOGEN_REI(err, in, name);\n"
-        "if (!PROTOGEN_NS::json::next(in)) PROTOGEN_REI(err, in, name);\n\b}\n\b}\n");
+        "{\n\tif (PROTOGEN_NS::json::ignore_value(tok) == PROTOGEN_NS::parse_result::ERROR) PROTOGEN_REI(err, in, name);\n"
+        "if (PROTOGEN_NS::json::next_field(tok) == PROTOGEN_NS::parse_result::ERROR) PROTOGEN_REI(err, in, name);\n\b}\n\b}\n");
 
     // check whether we missed any required field
     ctx.printer("if (required) {\n\t");
@@ -399,7 +365,7 @@ static void generateDeserializer( GeneratorContext &ctx, const Message &message 
         }
         ctx.printer("if (!hfld[$1$]) PROTOGEN_REM(err, in, PROTOGEN_FN_$2$);\n", i, fieldStorage(message.fields[i]));
     }
-    ctx.printer("\b}\nreturn true;\n\b}\n");
+    ctx.printer("\b}\nreturn PROTOGEN_NS::parse_result::OK;\n\b}\n");
 }
 
 

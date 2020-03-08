@@ -54,6 +54,8 @@
 ------
 
 --- CODE_TOKENIZER
+namespace PROTOGEN_NS {
+
 enum class token_id
 {
     NONE, EOS, OBJS, OBJE, COLON, COMMA, STRING, ARRS,
@@ -68,14 +70,14 @@ static const char *TYPES[] =
 
 struct token
 {
-    std::string value;
     token_id id = token_id::NONE;
+    std::string value;
 
     token() {}
     token( const token &that ) : id(that.id), value(that.value) {}
     token( token &&that ) { swap(that); }
     token( token_id id, const std::string &value = "" ) : id(id), value(value) {}
-    token &operator=( const token &that ) { id = that.id, value = that.value; }
+    token &operator=( const token &that ) { id = that.id, value = that.value; return *this; }
     void swap( token &that ) { std::swap(id, that.id); value.swap(that.value); }
 };
 
@@ -142,8 +144,8 @@ class tokenizer
 {
     public:
         tokenizer( std::istream &input );
-        token next();
-        token current() const;
+        token &next();
+        token &current();
         void unget();
     protected:
         token current_;
@@ -153,12 +155,12 @@ class tokenizer
 
 tokenizer::tokenizer( std::istream &input ) : input_(input) {}
 
-token tokenizer::current() const
+token &tokenizer::current()
 {
     return current_;
 }
 
-token tokenizer::next()
+token &tokenizer::next()
 {
     if (!stack_.empty())
     {
@@ -226,46 +228,56 @@ void tokenizer::unget()
     temp.swap(current_);
     stack_.push_front(temp);
 }
+
+template<typename CharT, typename TraitsT = std::char_traits<CharT> >
+class vector_streambuf : public std::basic_streambuf<CharT, TraitsT> {
+public:
+    vector_streambuf(std::vector<CharT> &that) {
+        this->setg(that.data(), that.data(), that.data() + that.size());
+    }
+};
+
+} // PROTOGEN_NS
 ------
 
 --- CODE_MACROS
 #ifndef PROTOGEN_CPP_ENABLE_ERRORS
-    #define PROTOGEN_REV(err,input,name,type) return false
-    #define PROTOGEN_REI(err,input,name) return false
-    #define PROTOGEN_REF(err,input,name) return false
-    #define PROTOGEN_REM(err,input,name) return false
-    #define PROTOGEN_REG(err,input,name) return false
+    #define PROTOGEN_REV(err,input,name,type) return PROTOGEN_NS::parse_result::ERROR
+    #define PROTOGEN_REI(err,input,name) return PROTOGEN_NS::parse_result::ERROR
+    #define PROTOGEN_REF(err,input,name) return PROTOGEN_NS::parse_result::ERROR
+    #define PROTOGEN_REM(err,input,name) return PROTOGEN_NS::parse_result::ERROR
+    #define PROTOGEN_REG(err,input,name) return PROTOGEN_NS::parse_result::ERROR
 #else
     #define PROTOGEN_REV(err,input,name,type) \
-        do { if (err == NULL || err->set) return false; \
+        do { if (err == NULL || err->set) return PROTOGEN_NS::parse_result::ERROR; \
              err->set = true; \
              err->line = input.line(); err->column = input.column(); \
              err->message = std::string("Invalid '") + type + "' value in field '" + name + "'"; \
-             return false; } while(false)
+             return PROTOGEN_NS::parse_result::ERROR; } while(false)
     #define PROTOGEN_REI(err,input,name) \
-        do { if (err == NULL || err->set) return false; \
+        do { if (err == NULL || err->set) return PROTOGEN_NS::parse_result::ERROR; \
              err->set = true; \
              err->line = input.line(); err->column = input.column(); \
              err->message = std::string("Unable to skip field '") + name + "'"; \
-             return false; } while(false)
+             return PROTOGEN_NS::parse_result::ERROR; } while(false)
     #define PROTOGEN_RETERR_FORMAT(err,input,name) \
-        do { if (err == NULL || err->set) return false; \
+        do { if (err == NULL || err->set) return PROTOGEN_NS::parse_result::ERROR; \
              err->set = true; \
              err->line = input.line(); err->column = input.column(); \
              err->message = std::string("Invalid JSON after field '") + name + "'"; \
-             return false; } while(false)
+             return PROTOGEN_NS::parse_result::ERROR; } while(false)
     #define PROTOGEN_REM(err,input,name) \
-        do { if (err == NULL || err->set) return false; \
+        do { if (err == NULL || err->set) return PROTOGEN_NS::parse_result::ERROR; \
              err->set = true; \
              err->line = input.line(); err->column = input.column(); \
              err->message = std::string("Missing required field '") + name + "'"; \
-             return false; } while(false)
+             return PROTOGEN_NS::parse_result::ERROR; } while(false)
     #define PROTOGEN_REG(err,input,msg) \
-        do { if (err == NULL || err->set) return false; \
+        do { if (err == NULL || err->set) return PROTOGEN_NS::parse_result::ERROR; \
              err->set = true; \
              err->line = input.line(); err->column = input.column(); \
              err->message = msg; \
-             return false; } while(false)
+             return PROTOGEN_NS::parse_result::ERROR; } while(false)
 #endif
 
 #undef PROTOGEN_TRAIT
@@ -274,8 +286,8 @@ void tokenizer::unget()
 		template<> struct traits<M> { \
 			static void clear( M &value ) { value.clear(); } \
 			static void write( std::ostream &out, const M &value ) { value.serialize(out); } \
-			template<typename I> static bool read( PROTOGEN_NS::InputStream<I> &in, M &value, \
-                bool required = false, PROTOGEN_NS::ErrorInfo *err = NULL ) { return value.deserialize(in, required, err); } \
+			static PROTOGEN_NS::parse_result read( PROTOGEN_NS::tokenizer &tok, M &value, \
+                bool required = false, PROTOGEN_NS::ErrorInfo *err = NULL ) { return value.deserialize(tok, required, err); } \
 			static void swap( M &a, M &b ) { a.swap(b); } \
 		}; \
 	}
@@ -299,8 +311,8 @@ void tokenizer::unget()
 			Field<M> &operator=( const M &that ) { this->value_ = that; return *this; } \
 			bool operator==( const Field<M> &that ) const { return this->value_ == that.value_; } \
 			bool operator==( const M &that ) const { return this->value_ == that; } \
-			PROTOGEN_EXPLICIT operator M() { return this->value_; } \
-			PROTOGEN_EXPLICIT operator M() const { return this->value_; } \
+			explicit operator M() { return this->value_; } \
+			explicit operator M() const { return this->value_; } \
 	    }; \
     }
 ------
@@ -328,7 +340,7 @@ template<typename T> struct traits
 {
     static void clear( T &value ) { value = (T) 0; }
     static void write( std::ostream &out, const T &value ) { out << value; }
-    template<typename I>
+
     static parse_result read( tokenizer &tok, T &value, bool required = false, PROTOGEN_NS::ErrorInfo *err = NULL )
     {
         (void) required;
@@ -358,7 +370,7 @@ template<> struct traits<bool>
 {
     static void clear( bool &value ) { value = false; }
     static void write( std::ostream &out, const bool &value ) { out << ((value) ? "true" : "false"); }
-    template<typename I>
+
     static parse_result read(tokenizer &tok, bool &value, bool required = false, PROTOGEN_NS::ErrorInfo *err = NULL )
     {
         (void) required;
@@ -439,8 +451,9 @@ template <typename T> struct traits< $1$<T> >
         while (true)
         {
             T entry;
-            if (!traits<T>::read(tok, entry, required, err)) return false;
-            value.push_back(entry);
+            parse_result res = traits<T>::read(tok, entry, required, err);
+            if (res == parse_result::ERROR) return parse_result::ERROR;
+            if (res == parse_result::OK) value.push_back(entry);
             tt = tok.next();
             if (tt.id != token_id::COMMA) break;
         }
@@ -611,7 +624,7 @@ class Message
         virtual void serialize( std::ostream &out ) const = 0;
         virtual bool deserialize( std::istream &in, bool required = false, PROTOGEN_NS::ErrorInfo *err = NULL  ) = 0;
         virtual bool deserialize( const std::string &in, bool required = false, PROTOGEN_NS::ErrorInfo *err = NULL  ) = 0;
-        virtual bool deserialize( const std::vector<char> &in, bool required = false, PROTOGEN_NS::ErrorInfo *err = NULL  ) = 0;
+        virtual bool deserialize( std::vector<char> &in, bool required = false, PROTOGEN_NS::ErrorInfo *err = NULL  ) = 0;
         virtual void clear() = 0;
         virtual bool undefined() const = 0;
 };
@@ -643,7 +656,7 @@ static bool write( std::ostream &out, bool &first, const std::string &name, cons
     return true;
 }
 
-static parse_result next( tokenizer &tok )
+static parse_result next_field( tokenizer &tok )
 {
     token tt = tok.next();
     if (tt.id == token_id::COMMA) return parse_result::OK;
@@ -655,102 +668,69 @@ static parse_result next( tokenizer &tok )
     return parse_result::ERROR;
 }
 
-static parse_result readName( tokenizer &tok, std::string &name )
+static parse_result read_key( tokenizer &tok, std::string &name )
 {
     if (traits<std::string>::read(tok, name) != parse_result::OK) return parse_result::ERROR;
     return (tok.next().id == token_id::COLON) ? parse_result::OK : parse_result::ERROR;
 }
 
-template<typename I>
-static bool ignoreString( InputStream<I> &in )
+static parse_result ignore_value( tokenizer &tok );
+
+static parse_result ignore_array( tokenizer &tok )
 {
-    if (in.get() != '"') return false;
+    if (tok.next().id != token_id::OBJS) return parse_result::ERROR;
 
-    while (!in.eof())
+    while (true)
     {
-        int ch = in.get();
-        if (ch == '\\')
-        {
-            int ch = in.get();
-            switch (ch)
-            {
-                case '"':
-                case '\\':
-                case '/':
-                case 'b':
-                case 'f':
-                case 'r':
-                case 'n':
-                case 't':
-                    break;
-                default: // invalid escape sequence
-                    return false;
-            }
-        }
-        else
-        if (ch == '"')
-            return true;
+        if (ignore_value(tok) == parse_result::ERROR) return parse_result::ERROR;
+        if (tok.next().id != token_id::COMMA) break;
     }
+    if (tok.next().id != token_id::OBJE) return parse_result::ERROR;
 
-    return false;
+    return parse_result::OK;
 }
 
-template<typename I>
-static bool ignoreEnclosing( InputStream<I> &in, int begin, int end )
+static parse_result ignore_object( tokenizer &tok )
 {
-    if (in.get() != begin) return false;
+    if (tok.next().id != token_id::OBJS) return parse_result::ERROR;
 
-    int count = 1;
-
-    bool text = false;
-    while (count != 0 && !in.eof())
+    while (true)
     {
-        int ch = in.get();
-        if (ch == '"' && !text)
-        {
-            in.unget();
-            if (!ignoreString(in)) return false;
-        }
-        else
-        if (ch == end)
-            --count;
-        else
-        if (ch == begin)
-            ++count;
+        if (tok.next().id != token_id::STRING) return parse_result::ERROR;
+        if (tok.next().id != token_id::COLON) return parse_result::ERROR;
+        if (ignore_value(tok) == parse_result::ERROR) return parse_result::ERROR;
+        if (tok.next().id != token_id::COMMA) break;
     }
+    if (tok.next().id != token_id::OBJE) return parse_result::ERROR;
 
-    return count == 0;
+    return parse_result::OK;
 }
 
-template<typename I>
-static bool ignore( InputStream<I> &in )
+static parse_result ignore_value( tokenizer &tok )
 {
-    in.skipws();
-    int ch = in.get();
-    in.unget();
-    if (ch == '[')
-        return ignoreEnclosing(in, '[', ']');
-    else
-    if (ch == '{')
-        return ignoreEnclosing(in, '{', '}');
-    else
-    if (ch == '"')
-        return ignoreString(in);
-    else
+    switch (tok.next().id)
     {
-        while (!in.eof())
-        {
-            int ch = in.get();
-            if (ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r' || ch == ',' || ch == ']' || ch == '}')
-            {
-                in.unget();
-                return true;
-            }
-        }
+        case token_id::NONE:
+            return parse_result::ERROR;
+        case token_id::OBJS:
+            tok.unget();
+            if (ignore_object(tok) == parse_result::ERROR)
+                return parse_result::ERROR;
+        case token_id::ARRS:
+            tok.unget();
+            if (ignore_array(tok) == parse_result::ERROR)
+                return parse_result::ERROR;
+        case token_id::STRING:
+        case token_id::NUMBER:
+        case token_id::NIL:
+        case token_id::TRUE:
+        case token_id::FALSE:
+            break;
+        default:
+            return parse_result::ERROR;
     }
-
-    return false;
 }
+
 
 } // namespace json
 } // namespace PROTOGEN_NS
@@ -764,9 +744,28 @@ static bool ignore( InputStream<I> &in )
         out = ss.str();
     }
     void serialize( std::vector<char> &out ) const {
-        std::string temp;
-        serialize(temp);
-        out.resize(temp.length());
-        memcpy(&out.front(), temp.c_str(), temp.length());
+        PROTOGEN_NS::vector_streambuf<char> sb(out);
+        std::ostream os(&sb);
+        serialize(os);
     }
+------
+
+--- CODE_DESERIALIZER
+    bool deserialize( std::istream &in, bool required = false, PROTOGEN_NS::ErrorInfo *err = NULL ) {
+		bool skip = in.flags() & std::ios_base::skipws;
+		std::noskipws(in);
+        PROTOGEN_NS::tokenizer tok(in);
+		bool result = this->deserialize(tok, required, err) != PROTOGEN_NS::parse_result::ERROR;
+		if (skip) std::skipws(in);
+		return result;
+	}
+	bool deserialize( const std::string &in, bool required = false, PROTOGEN_NS::ErrorInfo *err = NULL ) {
+		std::istringstream is(in);
+		return this->deserialize(is, required, err);
+	}
+	bool deserialize( std::vector<char> &in, bool required = false, PROTOGEN_NS::ErrorInfo *err = NULL ) {
+		PROTOGEN_NS::vector_streambuf<char> sb(in);
+        std::istream is(&sb);
+		return this->deserialize(is, required, err);
+	}
 ------
