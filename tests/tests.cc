@@ -92,11 +92,29 @@ bool RUN_TEST3( int argc, char **argv)
     return result;
 }
 
+bool RUN_TEST4( int argc, char **argv)
+{
+    (void) argc;
+    (void) argv;
+
+    std::string json1 = "{ \n\n   \"bla\" : 55,,";
+    options::Person temp;
+    options::Person::ErrorInfo err;
+    bool result = !temp.deserialize(json1, false, &err);
+
+    std::cerr << "[TEST #4] " << ((result) ? "Passed!" : "Failed!" ) << std::endl;
+    if (result)
+        std::cerr << "   " << err.message << " at " << err.line << ':' << err.column << std::endl;
+
+    return result;
+}
+
 int main( int argc, char **argv)
 {
     bool result;
     result  = RUN_TEST1(argc, argv);
     result &= RUN_TEST2(argc, argv);
     result &= RUN_TEST3(argc, argv);
+    result &= RUN_TEST4(argc, argv);
     return (int) !result;
 }
