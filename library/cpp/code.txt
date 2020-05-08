@@ -75,72 +75,99 @@ struct token
     void swap( token &that ) { std::swap(id, that.id); value.swap(that.value); }
 };
 
-static bool parse_string( std::istream &input, token &output )
-{
-    output.id = token_id::STRING;
-
-    while (!input.eof())
-    {
-        int c = input.get();
-        if (c == '"') return true;
-
-        if (c == '\\')
-        {
-            c = input.get();
-            switch (c)
-            {
-                case '"':  c = '"'; break;
-                case '\\': c = '\\'; break;
-                case '/':  c = '/'; break;
-                case 'b':  c = '\b'; break;
-                case 'f':  c = '\f'; break;
-                case 'r':  c = '\r'; break;
-                case 'n':  c = '\n'; break;
-                case 't':  c = '\t'; break;
-                default: return false;
-            }
-        }
-
-        if (c <= 0) return false;
-        output.value += (char) c;
-    }
-
-    return false;
-}
-
-static bool parse_keyword( std::istream &input, const std::string &keyword )
-{
-    for (auto c : keyword)
-        if (input.get() != c) return false;
-    return true;
-}
-
-static bool parse_number( std::istream &input, token &output )
-{
-    output.id = token_id::NUMBER;
-
-    while (!input.eof())
-    {
-        int c = input.get();
-        if (c == '.' || (c >= '0' && c <= '9') || c == 'e' || c == 'E' || c == '+' || c == '-')
-            output.value += (char) c;
-        else
-        {
-            input.unget();
-            break;
-        }
-    }
-
-    return true;
-}
-
 class tokenizer
 {
     public:
         tokenizer( std::istream &input );
-        token &next();
+
+        token &next()
+        {
+            if (!stack_.empty())
+            {
+                current_ = stack_.front();
+                stack_.pop_front();
+                return current_;
+            }
+
+            current_.id = token_id::NONE;
+            current_.value.clear();
+
+            while (!input_.eof())
+            {
+                int c = get();
+                switch (c)
+                {
+                    case ' ':
+                    case '\t':
+                    case '\r':
+                    case '\n':
+                        break;
+                    case '{': return current_ = token(token_id::OBJS);
+                    case '}': return current_ = token(token_id::OBJE);
+                    case '[': return current_ = token(token_id::ARRS);
+                    case ']': return current_ = token(token_id::ARRE);
+                    case ':': return current_ = token(token_id::COLON);
+                    case ',': return current_ = token(token_id::COMMA);
+                    case '"':
+                        parse_string(current_);
+                        return current_;
+                    case 'n':
+                        if (!parse_keyword("ull")) return current_;
+                        return current_ = token_id(token_id::NIL);
+                    case 't':
+                        if (!parse_keyword("rue")) return current_;
+                        return current_ = token_id(token_id::TRUE);
+                    case 'f':
+                        if (!parse_keyword("alse")) return current_;
+                        return current_ = token_id(token_id::FALSE);
+                    case '-':
+                    case '0':
+                    case '1':
+                    case '2':
+                    case '3':
+                    case '4':
+                    case '5':
+                    case '6':
+                    case '7':
+                    case '8':
+                    case '9':
+                        current_.value += (char) c;
+                        if (!parse_number(current_)) return current_;
+                        return current_;
+                    default:
+                        return current_ = token(token_id::NONE);
+                }
+            }
+
+            return current_ = token(token_id::EOS);
+        }
+
+        void unnext()
+        {
+            token temp;
+            temp.swap(current_);
+            stack_.push_front(temp);
+        }
+
         token &current() { return current_; }
-        void unget();
+
+        int get()
+        {
+            ++column_;
+            int c = input_.get();
+            if (c == '\n')
+            {
+                ++line_;
+                column_ = 1;
+            }
+            return c;
+        }
+        void unget()
+        {
+            input_.unget();
+            if (input_.peek() != '\n' && column_ > 1) --column_;
+        }
+
         int line() const { return line_; }
         int column() const { return column_; }
     protected:
@@ -148,78 +175,68 @@ class tokenizer
         std::istream &input_;
         int line_, column_;
         std::forward_list<token> stack_;
+
+        bool parse_string( token &output )
+        {
+            output.id = token_id::STRING;
+
+            while (!input_.eof())
+            {
+                int c = get();
+                if (c == '"') return true;
+
+                if (c == '\\')
+                {
+                    c = get();
+                    switch (c)
+                    {
+                        case '"':  c = '"'; break;
+                        case '\\': c = '\\'; break;
+                        case '/':  c = '/'; break;
+                        case 'b':  c = '\b'; break;
+                        case 'f':  c = '\f'; break;
+                        case 'r':  c = '\r'; break;
+                        case 'n':  c = '\n'; break;
+                        case 't':  c = '\t'; break;
+                        default: return false;
+                    }
+                }
+
+                if (c <= 0) return false;
+                output.value += (char) c;
+            }
+
+            return false;
+        }
+
+        bool parse_keyword( const std::string &keyword )
+        {
+            for (auto c : keyword)
+                if (get() != c) return false;
+            return true;
+        }
+
+        bool parse_number( token &output )
+        {
+            output.id = token_id::NUMBER;
+
+            while (!input_.eof())
+            {
+                int c = get();
+                if (c == '.' || (c >= '0' && c <= '9') || c == 'e' || c == 'E' || c == '+' || c == '-')
+                    output.value += (char) c;
+                else
+                {
+                    unget();
+                    break;
+                }
+            }
+
+            return true;
+        }
 };
 
-tokenizer::tokenizer( std::istream &input ) : input_(input), line_(0), column_(0) {}
-
-token &tokenizer::next()
-{
-    if (!stack_.empty())
-    {
-        current_ = stack_.front();
-        stack_.pop_front();
-        return current_;
-    }
-
-    current_.id = token_id::NONE;
-    current_.value.clear();
-
-    while (!input_.eof())
-    {
-        int c = input_.get();
-        switch (c)
-        {
-            case ' ':
-            case '\t':
-            case '\n':
-            case '\r':
-                break;
-            case '{': return current_ = token(token_id::OBJS);
-            case '}': return current_ = token(token_id::OBJE);
-            case '[': return current_ = token(token_id::ARRS);
-            case ']': return current_ = token(token_id::ARRE);
-            case ':': return current_ = token(token_id::COLON);
-            case ',': return current_ = token(token_id::COMMA);
-            case '"':
-                parse_string(input_, current_);
-                return current_;
-            case 'n':
-                if (!parse_keyword(input_, "ull")) return current_;
-                return current_ = token_id(token_id::NIL);
-            case 't':
-                if (!parse_keyword(input_, "rue")) return current_;
-                return current_ = token_id(token_id::TRUE);
-            case 'f':
-                if (!parse_keyword(input_, "alse")) return current_;
-                return current_ = token_id(token_id::FALSE);
-            case '-':
-            case '0':
-            case '1':
-            case '2':
-            case '3':
-            case '4':
-            case '5':
-            case '6':
-            case '7':
-            case '8':
-            case '9':
-                current_.value += (char) c;
-                if (!parse_number(input_, current_)) return current_;
-                return current_;
-            default:
-                return current_ = token(token_id::NONE);
-        }
-    }
-
-    return current_ = token(token_id::EOS);
-}
-
-void tokenizer::unget()
-{
-    token temp;
-    temp.swap(current_);
-    stack_.push_front(temp);
-}
+tokenizer::tokenizer( std::istream &input ) : input_(input), line_(1), column_(1) {}
 
 template<typename CharT, typename TraitsT = std::char_traits<CharT> >
 class vector_streambuf : public std::basic_streambuf<CharT, TraitsT> {
@@ -686,7 +703,7 @@ static parse_result next_field( tokenizer &tok )
     if (tt.id == token_id::COMMA) return parse_result::OK;
     if (tt.id == token_id::OBJE || tt.id == token_id::ARRE)
     {
-        tok.unget();
+        tok.unnext();
         return parse_result::OK;
     }
     return parse_result::ERROR;
@@ -731,12 +748,12 @@ static parse_result ignore_value( tokenizer &tok )
         case token_id::NONE:
             return parse_result::ERROR;
         case token_id::OBJS:
-            tok.unget();
+            tok.unnext();
             if (ignore_object(tok) == parse_result::ERROR)
                 return parse_result::ERROR;
             break;
         case token_id::ARRS:
-            tok.unget();
+            tok.unnext();
             if (ignore_array(tok) == parse_result::ERROR)
                 return parse_result::ERROR;
             break;
