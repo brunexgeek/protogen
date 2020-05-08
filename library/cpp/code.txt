@@ -139,20 +139,18 @@ class tokenizer
     public:
         tokenizer( std::istream &input );
         token &next();
-        token &current();
+        token &current() { return current_; }
         void unget();
+        int line() const { return line_; }
+        int column() const { return column_; }
     protected:
         token current_;
         std::istream &input_;
+        int line_, column_;
         std::forward_list<token> stack_;
 };
 
-tokenizer::tokenizer( std::istream &input ) : input_(input) {}
-
-token &tokenizer::current()
-{
-    return current_;
-}
+tokenizer::tokenizer( std::istream &input ) : input_(input), line_(0), column_(0) {}
 
 token &tokenizer::next()
 {
@@ -307,7 +305,9 @@ public:
 			Field<M> &operator=( const Field<M> &that ) { this->value_ = that.value_; return *this; } \
 			Field<M> &operator=( const M &that ) { this->value_ = that; return *this; } \
 			bool operator==( const Field<M> &that ) const { return this->value_ == that.value_; } \
+			bool operator!=( const Field<M> &that ) const { return this->value_ != that.value_; } \
 			bool operator==( const M &that ) const { return this->value_ == that; } \
+			bool operator!=( const M &that ) const { return this->value_ != that; } \
 			explicit operator M() { return this->value_; } \
 			explicit operator M() const { return this->value_; } \
 	    }; \
@@ -581,8 +581,9 @@ template<typename T> class Field
         Field<T> &operator=( const Field<T> &that ) { this->undefined_ = that.undefined_; if (!undefined_) this->value_ = that.value_; return *this; }
         Field<T> &operator=( const T &that ) { this->undefined_ = false; this->value_ = that; return *this; }
         bool operator==( const T &that ) const { return !this->undefined_ && this->value_ == that; }
+        bool operator!=( const T &that ) const { return !this->undefined_ && this->value_ != that; }
         bool operator==( const Field<T> &that ) const { return this->undefined_ == that.undefined_ && this->value_ == that.value_;  }
-        explicit operator T() { return this->value_; }
+        bool operator!=( const Field<T> &that ) const { return this->undefined_ != that.undefined_ || this->value_ != that.value_;  }
         explicit operator T() const { return this->value_; }
 };
 
@@ -607,8 +608,9 @@ template<> class Field<std::string>
         Field<std::string> &operator=( const Field<std::string> &that ) { this->undefined_ = that.undefined_; if (!undefined_) this->value_ = that.value_; return *this; }
         Field<std::string> &operator=( const std::string &that ) { this->undefined_ = false; this->value_ = that; return *this; }
         bool operator==( const std::string &that ) const { return !this->undefined_ && this->value_ == that; }
+        bool operator!=( const std::string &that ) const { return !this->undefined_ && this->value_ != that; }
         bool operator==( const Field<std::string> &that ) const { return this->undefined_ == that.undefined_ && this->value_ == that.value_;  }
-        explicit operator std::string() { return this->value_; }
+        bool operator!=( const Field<std::string> &that ) const { return this->undefined_ != that.undefined_ || this->value_ != that.value_;  }
         explicit operator std::string() const { return this->value_; }
 };
 ------

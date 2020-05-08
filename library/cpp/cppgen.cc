@@ -265,6 +265,7 @@ static void generateAssignOperator( GeneratorContext &ctx, const Message &messag
 static void generateEqualityOperator( GeneratorContext &ctx, const Message &message )
 {
     ctx.printer(
+        "bool operator!=(const $1$ &that) const { return !(*this == that); }\n"
         "bool operator==(const $1$ &that) const {\n"
         "\treturn\n\t", message.name);
     for (auto fi = message.fields.begin(); fi != message.fields.end(); ++fi)
@@ -287,13 +288,13 @@ static void generateDeserializer( GeneratorContext &ctx, const Message &message 
         "PROTOGEN_NS::parse_result deserialize( PROTOGEN_NS::tokenizer &tok, bool required = false, PROTOGEN_NS::ErrorInfo *err = NULL ) {\n"
         "\t(void) err;\n"
         "bool hfld[$1$] = {false};\n"
-        "if (tok.next().id != PROTOGEN_NS::token_id::OBJS) PROTOGEN_REG(err, in, \"Invalid field name\");;\n"
+        "if (tok.next().id != PROTOGEN_NS::token_id::OBJS) PROTOGEN_REG(err, tok, \"Invalid field name\");;\n"
         "while (true)\n{\n"
         "\tstd::string name;\nPROTOGEN_NS::token tt;\n"
         "tt = tok.next();\nif (tt.id == PROTOGEN_NS::token_id::OBJE) break;\n"
-        "if (tt.id != PROTOGEN_NS::token_id::STRING) PROTOGEN_REG(err, in, \"Invalid field name\");\n"
+        "if (tt.id != PROTOGEN_NS::token_id::STRING) PROTOGEN_REG(err, tok, \"Invalid field name\");\n"
         "name.swap(tok.current().value);\n"
-        "if (tok.next().id != PROTOGEN_NS::token_id::COLON) PROTOGEN_REG(err, in, \"Missing colon after field name\");\n", message.fields.size());
+        "if (tok.next().id != PROTOGEN_NS::token_id::COLON) PROTOGEN_REG(err, tok, \"Missing colon after field name\");\n", message.fields.size());
 
     bool first = true;
     size_t count = 0;
@@ -326,7 +327,7 @@ static void generateDeserializer( GeneratorContext &ctx, const Message &message 
 
              ctx.printer(
                  "if (PROTOGEN_NS::traits< $4$<$1$> >::read(tok, this->$2$(), required, err) == PROTOGEN_NS::parse_result::ERROR) "
-                 "PROTOGEN_REV(err, in, name, \"$3$\");\n",
+                 "PROTOGEN_REV(err, tok, name, \"$3$\");\n",
                  type, storage, proto3Type(*fi), arrayType);
         }
         else
@@ -337,7 +338,7 @@ static void generateDeserializer( GeneratorContext &ctx, const Message &message 
                 ctx.printer(
                     "$1$ value;\n"
                     "if (PROTOGEN_NS::traits<$1$>::read(tok, value, required, err) == PROTOGEN_NS::parse_result::ERROR) "
-                    "PROTOGEN_REV(err, in, name, \"$3$\");\n"
+                    "PROTOGEN_REV(err, tok, name, \"$3$\");\n"
                     "this->$2$.swap(value);\n", type, storage, proto3Type(*fi));
             }
         }
@@ -350,9 +351,9 @@ static void generateDeserializer( GeneratorContext &ctx, const Message &message 
     ctx.printer(
         "else\n"
         "// ignore the current field\n"
-        "{\n\tif (PROTOGEN_NS::json::ignore_value(tok) == PROTOGEN_NS::parse_result::ERROR) PROTOGEN_REI(err, in, name);\n"
+        "{\n\tif (PROTOGEN_NS::json::ignore_value(tok) == PROTOGEN_NS::parse_result::ERROR) PROTOGEN_REI(err, tok, name);\n"
         "\b}\n"
-        "if (PROTOGEN_NS::json::next_field(tok) == PROTOGEN_NS::parse_result::ERROR) PROTOGEN_REI(err, in, name);\n"
+        "if (PROTOGEN_NS::json::next_field(tok) == PROTOGEN_NS::parse_result::ERROR) PROTOGEN_REI(err, tok, name);\n"
         "\b}\n");
 
     // check whether we missed any required field
@@ -365,7 +366,7 @@ static void generateDeserializer( GeneratorContext &ctx, const Message &message 
             OptionEntry opt = message.fields[i].options.at(PROTOGEN_O_TRANSIENT);
             if (opt.type == OptionType::BOOLEAN && opt.value == "true") continue;
         }
-        ctx.printer("if (!hfld[$1$]) PROTOGEN_REM(err, in, PROTOGEN_FN_$2$);\n", i, fieldStorage(message.fields[i]));
+        ctx.printer("if (!hfld[$1$]) PROTOGEN_REM(err, tok, PROTOGEN_FN_$2$);\n", i, fieldStorage(message.fields[i]));
     }
     ctx.printer("\b}\nreturn PROTOGEN_NS::parse_result::OK;\n\b}\n");
 }
@@ -651,8 +652,7 @@ static void generateModel( GeneratorContext &ctx )
     ctx.printer(CODE_REPEATED_TRAIT, "std::list");
     ctx.printer.output() << CODE_BLOCK_3;
     ctx.printer.output() << CODE_REPEATED_FIELD;
-    if (ctx.cpp_enable_parent)
-        ctx.printer(CODE_PARENT_CLASS);
+    ctx.printer(CODE_PARENT_CLASS);
     ctx.printer.output() << (CODE_STRING_REVEAL);
     ctx.printer.output() << CODE_BLOCK_4;
     ctx.printer("#endif // PROTOGEN_BASE_$1$\n", version);
