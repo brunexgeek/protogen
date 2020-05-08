@@ -61,4 +61,28 @@ set_target_properties(template PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}" )
 
+
+add_custom_target(generate_test1
+    "${CMAKE_BINARY_DIR}/protogen" "${CMAKE_CURRENT_LIST_DIR}/tests/test1.proto" "${CMAKE_BINARY_DIR}/__include/test1.pg.hh"
+    DEPENDS protogen)
+
+add_custom_target(generate_test2
+    "${CMAKE_BINARY_DIR}/protogen" "${CMAKE_CURRENT_LIST_DIR}/tests/test2.proto" "${CMAKE_BINARY_DIR}/__include/test2.pg.hh"
+    DEPENDS protogen)
+
+add_custom_target(generate_test3
+    "${CMAKE_BINARY_DIR}/protogen" "${CMAKE_CURRENT_LIST_DIR}/tests/test3.proto" "${CMAKE_BINARY_DIR}/__include/test3.pg.hh"
+    DEPENDS protogen)
+
+add_executable(tests "tests/tests.cc")
+target_include_directories(tests
+    PUBLIC "include/"
+    PRIVATE "${CMAKE_BINARY_DIR}/__include/")
+add_dependencies(tests generate_test1 generate_test2 generate_test3)
+set_target_properties(tests PROPERTIES
+    OUTPUT_NAME "tests"
+    ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
+    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}" )
+
 install(TARGETS protogen DESTINATION bin)
