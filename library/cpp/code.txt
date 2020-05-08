@@ -123,7 +123,7 @@ static bool parse_number( std::istream &input, token &output )
     {
         int c = input.get();
         if (c == '.' || (c >= '0' && c <= '9') || c == 'e' || c == 'E' || c == '+' || c == '-')
-            output.value += c;
+            output.value += (char) c;
         else
         {
             input.unget();
@@ -205,7 +205,7 @@ token &tokenizer::next()
             case '7':
             case '8':
             case '9':
-                current_.value += c;
+                current_.value += (char) c;
                 if (!parse_number(input_, current_)) return current_;
                 return current_;
             default:
@@ -542,13 +542,13 @@ template <> struct traits< std::vector<uint8_t> >
                 s[j] = PROTOGEN_NS::traits< std::vector<uint8_t> >::b64_int(ch);
             }
             // decode base64 tuple
-            array.push_back( ((s[0] & 0xFF) << 2 ) | ((s[1] & 0x30) >> 4) );
+            array.push_back( (uint8_t) (((s[0] & 0xFF) << 2 ) | ((s[1] & 0x30) >> 4)) );
             if (s[2] != 64)
             {
-                array.push_back( ((s[1] & 0x0F) << 4) | ((s[2] & 0x3C) >> 2) );
+                array.push_back( (uint8_t) (((s[1] & 0x0F) << 4) | ((s[2] & 0x3C) >> 2)) );
                 if ((s[3]!=64))
                 {
-                    array.push_back( ((s[2] & 0x03) << 6) | s[3] );
+                    array.push_back( (uint8_t) (((s[2] & 0x03) << 6) | s[3]) );
                     k+=3;
                 }
                 else
@@ -732,10 +732,12 @@ static parse_result ignore_value( tokenizer &tok )
             tok.unget();
             if (ignore_object(tok) == parse_result::ERROR)
                 return parse_result::ERROR;
+            break;
         case token_id::ARRS:
             tok.unget();
             if (ignore_array(tok) == parse_result::ERROR)
                 return parse_result::ERROR;
+            break;
         case token_id::STRING:
         case token_id::NUMBER:
         case token_id::NIL:

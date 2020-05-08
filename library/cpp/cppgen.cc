@@ -226,7 +226,7 @@ static void generateVariable( GeneratorContext &ctx, const Field &field )
     std::string storage = fieldStorage(field);
 
     ctx.printer(
-        "static const int $3$_NO = $4$;\n"
+        //"static const int $3$_NO = $4$;\n"
         "$1$ $2$;\n", fieldNativeType(field, ctx.cpp_use_lists), storage, toUpper(storage), std::to_string(field.index));
 }
 
