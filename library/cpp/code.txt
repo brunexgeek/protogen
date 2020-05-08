@@ -62,12 +62,6 @@ enum class token_id
     ARRE, NIL, TRUE, FALSE, NUMBER,
 };
 
-static const char *TYPES[] =
-{
-    "NONE", "EOS", "OBJS", "OBJE", "COLON", "COMMA", "STRING", "ARRS",
-    "ARRE", "NIL", "TRUE", "FALSE", "NUMBER",
-};
-
 struct token
 {
     token_id id = token_id::NONE;
@@ -302,6 +296,7 @@ public:
 			Field() { clear(); } \
 			Field( Field<M> &&that ) { this->value_.swap(that.value_); } \
 			void swap( Field<M> &that ) { traits<M>::swap(this->value_, that.value_); } \
+            void swap( M &that ) { traits<M>::swap(this->value_, that); } \
 			const M &operator()() const { return value_; } \
 			M &operator()() { return value_; } \
 			void operator ()(const M &value ) { this->value_ = value; } \
@@ -574,10 +569,9 @@ template<typename T> class Field
     public:
         Field() { clear(); }
         Field( const Field<T> &that ) { this->undefined_ = that.undefined_; if (!undefined_) this->value_ = that.value_; }
-        #if __cplusplus >= 201103L
         Field( Field<T> &&that ) { this->undefined_ = that.undefined_; if (!undefined_) this->value_.swap(that.value_); }
-        #endif
         void swap( Field<T> &that ) { traits<T>::swap(this->value_, that.value_); traits<bool>::swap(this->undefined_, that.undefined_); }
+        void swap( T &that ) { traits<T>::swap(this->value_, that); undefined_ = false; }
         const T &operator()() const { return value_; }
         void operator ()(const T &value ) { this->value_ = value; this->undefined_ = false; }
         bool undefined() const { return undefined_; }
@@ -600,9 +594,7 @@ template< class T, class CT > class RepeatedField
      public:
         RepeatedField() {}
         RepeatedField( const RepeatedField<T, CT> &that ) { this->value_ = that.value_; }
-        #if __cplusplus >= 201103L
         RepeatedField( RepeatedField<T, CT> &&that ) { this->value_.swap(that.value_); }
-        #endif
         void swap( RepeatedField<T, CT> &that ) { traits< CT >::swap(this->value_, that.value_); }
         const CT &operator()() const { return value_; }
         CT &operator()() { return value_; }
@@ -632,11 +624,12 @@ class Message
 
 --- CODE_STRING_REVEAL
 namespace json {
-static std::string reveal( const char *value, size_t length )
+template<typename T>
+static std::string reveal( const T *value, size_t length )
 {
 	std::string result(length, ' ');
 	for (size_t i = 0; i < length; ++i)
-		result[i] = (char) ((int) value[i] ^ 0x33);
+		result[i] = (T) ((int) value[i] ^ 0x33);
 	return result;
 }
 }
@@ -666,12 +659,6 @@ static parse_result next_field( tokenizer &tok )
         return parse_result::OK;
     }
     return parse_result::ERROR;
-}
-
-static parse_result read_key( tokenizer &tok, std::string &name )
-{
-    if (traits<std::string>::read(tok, name) != parse_result::OK) return parse_result::ERROR;
-    return (tok.next().id == token_id::COLON) ? parse_result::OK : parse_result::ERROR;
 }
 
 static parse_result ignore_value( tokenizer &tok );
@@ -729,6 +716,7 @@ static parse_result ignore_value( tokenizer &tok )
         default:
             return parse_result::ERROR;
     }
+    return parse_result::OK;
 }
 
 

@@ -338,11 +338,10 @@ static void generateDeserializer( GeneratorContext &ctx, const Message &message 
                     "$1$ value;\n"
                     "if (PROTOGEN_NS::traits<$1$>::read(tok, value, required, err) == PROTOGEN_NS::parse_result::ERROR) "
                     "PROTOGEN_REV(err, in, name, \"$3$\");\n"
-                    "this->$2$(value);\n", type, storage, proto3Type(*fi));
+                    "this->$2$.swap(value);\n", type, storage, proto3Type(*fi));
             }
         }
         ctx.printer(
-            "if (PROTOGEN_NS::json::next_field(tok) == PROTOGEN_NS::parse_result::ERROR) PROTOGEN_REI(err, in, name);\n"
             "hfld[$1$] = true;\n"
             "\b}\n", // closes the main 'if'
             count);
@@ -352,10 +351,13 @@ static void generateDeserializer( GeneratorContext &ctx, const Message &message 
         "else\n"
         "// ignore the current field\n"
         "{\n\tif (PROTOGEN_NS::json::ignore_value(tok) == PROTOGEN_NS::parse_result::ERROR) PROTOGEN_REI(err, in, name);\n"
-        "if (PROTOGEN_NS::json::next_field(tok) == PROTOGEN_NS::parse_result::ERROR) PROTOGEN_REI(err, in, name);\n\b}\n\b}\n");
+        "\b}\n"
+        "if (PROTOGEN_NS::json::next_field(tok) == PROTOGEN_NS::parse_result::ERROR) PROTOGEN_REI(err, in, name);\n"
+        "\b}\n");
 
     // check whether we missed any required field
-    ctx.printer("if (required) {\n\t");
+    ctx.printer(
+        "if (required) {\n\t");
     for (size_t i = 0, t = message.fields.size(); i < t; ++i)
     {
         if (message.fields[i].options.count(PROTOGEN_O_TRANSIENT))
