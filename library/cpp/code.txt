@@ -295,11 +295,13 @@ public:
 		public: \
 			Field() { clear(); } \
 			Field( Field<M> &&that ) { this->value_.swap(that.value_); } \
-			void swap( Field<M> &that ) { traits<M>::swap(this->value_, that.value_); } \
+            void swap( Field<M> &that ) { traits<M>::swap(this->value_, that.value_); } \
             void swap( M &that ) { traits<M>::swap(this->value_, that); } \
 			const M &operator()() const { return value_; } \
 			M &operator()() { return value_; } \
 			void operator ()(const M &value ) { this->value_ = value; } \
+            const M *operator->() const { return &value_; } \
+            M *operator->() { return &value_; } \
 			bool undefined() const { return value_.undefined(); } \
 			void clear() { traits<M>::clear(value_); } \
 			Field<M> &operator=( const Field<M> &that ) { this->value_ = that.value_; return *this; } \
@@ -573,7 +575,7 @@ template<typename T> class Field
         void swap( Field<T> &that ) { traits<T>::swap(this->value_, that.value_); traits<bool>::swap(this->undefined_, that.undefined_); }
         void swap( T &that ) { traits<T>::swap(this->value_, that); undefined_ = false; }
         const T &operator()() const { return value_; }
-        void operator ()(const T &value ) { this->value_ = value; this->undefined_ = false; }
+        void operator()(const T &value ) { this->value_ = value; this->undefined_ = false; }
         bool undefined() const { return undefined_; }
         void clear() { traits<T>::clear(value_); undefined_ = true; }
         Field<T> &operator=( const Field<T> &that ) { this->undefined_ = that.undefined_; if (!undefined_) this->value_ = that.value_; return *this; }
@@ -584,6 +586,31 @@ template<typename T> class Field
         explicit operator T() const { return this->value_; }
 };
 
+template<> class Field<std::string>
+{
+    protected:
+        std::string value_;
+        bool undefined_;
+    public:
+        Field() { clear(); }
+        Field( const Field<std::string> &that ) { this->undefined_ = that.undefined_; if (!undefined_) this->value_ = that.value_; }
+        Field( Field<std::string> &&that ) { this->undefined_ = that.undefined_; if (!undefined_) this->value_.swap(that.value_); }
+        void swap( Field<std::string> &that ) { traits<std::string>::swap(this->value_, that.value_); traits<bool>::swap(this->undefined_, that.undefined_); }
+        void swap( std::string &that ) { traits<std::string>::swap(this->value_, that); undefined_ = false; }
+        const std::string &operator()() const { return value_; }
+        std::string &operator()() { return value_; }
+        void operator()(const std::string &value ) { this->value_ = value; this->undefined_ = false; }
+        const std::string *operator->() const { return &value_; }
+        std::string *operator->() { return &value_; }
+        bool undefined() const { return undefined_; }
+        void clear() { traits<std::string>::clear(value_); undefined_ = true; }
+        Field<std::string> &operator=( const Field<std::string> &that ) { this->undefined_ = that.undefined_; if (!undefined_) this->value_ = that.value_; return *this; }
+        Field<std::string> &operator=( const std::string &that ) { this->undefined_ = false; this->value_ = that; return *this; }
+        bool operator==( const std::string &that ) const { return !this->undefined_ && this->value_ == that; }
+        bool operator==( const Field<std::string> &that ) const { return this->undefined_ == that.undefined_ && this->value_ == that.value_;  }
+        explicit operator std::string() { return this->value_; }
+        explicit operator std::string() const { return this->value_; }
+};
 ------
 
 --- CODE_REPEATED_FIELD
@@ -598,6 +625,8 @@ template< class T, class CT > class RepeatedField
         void swap( RepeatedField<T, CT> &that ) { traits< CT >::swap(this->value_, that.value_); }
         const CT &operator()() const { return value_; }
         CT &operator()() { return value_; }
+        const CT *operator->() const { return &value_; }
+        CT *operator->() { return &value_; }
         bool undefined() const { return value_.size() == 0; }
         void clear() { value_.clear(); }
         RepeatedField<T, CT> &operator=( const RepeatedField<T, CT> &that ) { this->value_ = that.value_; return *this; }
