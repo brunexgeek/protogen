@@ -12,7 +12,7 @@ add_definitions(-DPROTOGEN_PATCH=${PROTOGEN_PATCH})
 add_definitions(-DPROTOGEN_VERSION="${PROTOGEN_MAJOR}.${PROTOGEN_MINOR}.${PROTOGEN_PATCH}")
 
 if (UNIX)
-	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wfatal-errors -pedantic -std=c++11 -Wl,--no-undefined -fPIC -Wall -Wextra -Wconversion")
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wfatal-errors -pedantic -std=c++11 -Wl,--no-undefined -fPIC -Wall -Wextra -Wconversion -Wmaybe-uninitialized")
 	set(CMAKE_CXX_FLAGS_RELEASE "-O3")
 endif()
 
@@ -80,7 +80,7 @@ target_include_directories(tests
     PRIVATE "${CMAKE_BINARY_DIR}/__include/")
 add_dependencies(tests generate_test1 generate_test2 generate_test3)
 set_target_properties(tests PROPERTIES
-    OUTPUT_NAME "tests"
+    OUTPUT_NAME "run-tests"
     ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
     LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}" )

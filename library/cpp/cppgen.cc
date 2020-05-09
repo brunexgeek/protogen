@@ -335,8 +335,10 @@ static void generateDeserializer( GeneratorContext &ctx, const Message &message 
             // all other types
             if ((fi->type.id >= protogen::TYPE_DOUBLE && fi->type.id <= protogen::TYPE_STRING) || fi->type.id == protogen::TYPE_MESSAGE)
             {
+                ctx.printer("$1$ value;\n", type);
+                if (fi->type.id != protogen::TYPE_MESSAGE)
+                    ctx.printer("PROTOGEN_NS::traits<$1$>::clear(value);\n", type);
                 ctx.printer(
-                    "$1$ value;\n"
                     "if (PROTOGEN_NS::traits<$1$>::read(tok, value, required, err) == PROTOGEN_NS::parse_result::ERROR) "
                     "PROTOGEN_REV(err, tok, name, \"$3$\");\n"
                     "this->$2$.swap(value);\n", type, storage, proto3Type(*fi));
