@@ -100,14 +100,14 @@ bool RUN_TEST4( int argc, char **argv)
     struct { std::string json; int line; int col; int code; } CASES[] =
     {
         {"{ \n\n   \"bla\" : 55,,", 3, 15, PGERR_INVALID_NAME},
-        {"{\"bla", 1, 6, PGERR_INVALID_SEPARATOR},
+        {"{\"bla", 1, 5, PGERR_INVALID_SEPARATOR},
         {"{\"name\":\"bla\"}", 1, 14, PGERR_MISSING_FIELD},
-        {"", 1, 1, PGERR_INVALID_OBJECT},
+        {"", 1, 0, PGERR_INVALID_OBJECT},
         {"{\"name\":45}", 1, 10, PGERR_INVALID_VALUE},
         // FIXME: why different column numbers?
         {"{\"blip1\":{}", 1, 11, PGERR_IGNORE_FAILED},
         {"{\"blip2\":[}", 1, 10, PGERR_IGNORE_FAILED},
-        {"{\"blip3\":\"}", 1, 12, PGERR_IGNORE_FAILED},
+        {"{\"blip3\":\"}", 1, 11, PGERR_IGNORE_FAILED},
         {"", 0, 0, 0}
     };
 
@@ -115,7 +115,8 @@ bool RUN_TEST4( int argc, char **argv)
     options::Person::ErrorInfo err;
     bool result = true;
 
-    for (int i = 0; result && CASES[i].line != 0; ++i)
+    int i = 0;
+    for (; result && CASES[i].line != 0; ++i)
     {
         err.code = err.column = err.line = 0;
         err.message.clear();
@@ -127,17 +128,73 @@ bool RUN_TEST4( int argc, char **argv)
 
     std::cerr << "[TEST #4] " << ((result) ? "Passed!" : "Failed!" ) << std::endl;
     if (!result)
-        std::cerr << "   " << err.message << " at " << err.line << ':' << err.column << std::endl;
+    {
+        --i;
+        std::cerr << "   Failed JSON entry #" << i << ": " << CASES[i].json << std::endl;
+        std::cerr << "   Expected " << i << std::endl;
+        std::cerr << "   " << CASES[i].code << " at " << CASES[i].line << ':' << CASES[i].col << std::endl;
+        std::cerr << "   but got " << i << std::endl;
+        std::cerr << "   " << err.code << '(' << err.message << ") at " << err.line << ':' << err.column << std::endl;
+    }
 
     return result;
 }
 
+bool RUN_TEST5( int argc, char **argv)
+{
+    bool result = true;
+    int stage = 0;
+    phonebook::Person person;
+    person.email("test@example.com");
+    person.id(1234);
+    person.name("Michelle");
+
+    std::string json1;
+    person.serialize(json1);
+
+    std::vector<char> json2;
+    person.serialize(json2);
+
+    std::stringstream temp;
+    person.serialize(temp);
+    std::string json3 = temp.str();
+
+    result |= json1 != json2.data() && json2.data() != json3;
+
+    phonebook::Person retrieved1;
+    retrieved1.deserialize(json1);
+    if (retrieved1 != person) result |= false;
+
+    phonebook::Person retrieved2;
+    retrieved2.deserialize(json2);
+    if (retrieved2 != person) result |= false;
+
+    phonebook::Person retrieved3;
+    retrieved3.deserialize(json3);
+    if (retrieved3 != person) result |= false;
+
+    std::cerr << "[TEST #5] " << ((result) ? "Passed!" : "Failed!" ) << std::endl;
+
+    return true;
+}
+
 int main( int argc, char **argv)
 {
+/*    std::string buffer;
+    std::back_insert_iterator<std::string> it(buffer);
+
+    for (int i = 0; i < 10; ++i)
+    {
+        it++;
+        *it = (char)('0' + i);
+    }
+    std::cerr << buffer;
+    return 0;*/
     bool result;
     result  = RUN_TEST1(argc, argv);
     result &= RUN_TEST2(argc, argv);
     result &= RUN_TEST3(argc, argv);
     result &= RUN_TEST4(argc, argv);
+    result &= RUN_TEST5(argc, argv);
     return (int) !result;
 }

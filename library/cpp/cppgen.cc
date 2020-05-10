@@ -379,7 +379,7 @@ static void generateSerializer( GeneratorContext &ctx, const Message &message )
     ctx.printer.output() << CODE_SERIALIZER;
     ctx.printer(
         // serializer writing to 'ostream'
-        "void serialize( std::ostream &out ) const {\n"
+        "void serialize( PROTOGEN_NS::ostream &out ) const {\n"
         "\tout << '{';\n"
         "bool first = true;\n");
 

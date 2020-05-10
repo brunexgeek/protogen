@@ -75,12 +75,105 @@ struct token
     void swap( token &that ) { std::swap(id, that.id); value.swap(that.value); }
 };
 
+class ostream
+{
+    public:
+        ostream() = default;
+        virtual ~ostream() = default;
+        virtual ostream &operator<<( const std::string &value ) = 0;
+        virtual ostream &operator<<( const char *value ) = 0;
+        virtual ostream &operator<<( char value ) = 0;
+        virtual ostream &operator<<( int value ) = 0;
+        //virtual ostream &operator<<() { return *this; };
+};
+
+template<typename I>
+class iterator_ostream : public ostream
+{
+    public:
+        iterator_ostream( I& first ) : beg_(first)
+        {
+        }
+        ostream & operator<<( char value ) override
+        {
+            *++beg_ = value;
+            return *this;
+        }
+        ostream & operator<<( const std::string &value ) override
+        {
+            for (auto it = value.begin(); it != value.end(); ++it)
+                *++beg_ = *it;
+            return *this;
+        }
+        ostream & operator<<( const char *value ) override
+        {
+            while (*value != 0) *++beg_ = *value++;
+            return *this;
+        }
+        ostream & operator<<( int value ) override
+        {
+            this->operator<<( std::to_string(value) );
+            return *this;
+        }
+
+    protected:
+        I beg_;
+};
+
+class istream
+{
+    public:
+        istream() = default;
+        virtual ~istream() = default;
+        virtual int peek() = 0;
+        virtual int get() = 0;
+        virtual bool eof() const = 0;
+        virtual int line() const = 0;
+        virtual int column() const = 0;
+};
+
+template<typename I>
+class iterator_istream : public istream
+{
+    public:
+        iterator_istream( const I& first, const I& last ) : beg_(first), end_(last), line_(1),
+            column_(0)
+        {
+        }
+        int peek() override
+        {
+            if (beg_ == end_) return 0;
+            return *beg_;
+        }
+        int get() override
+        {
+            if (beg_ == end_) return 0;
+            ++column_;
+            int c = *beg_++;
+            if (c == '\n')
+            {
+                ++line_;
+                column_ = 0;
+            }
+            return c;
+        }
+        bool eof() const override { return beg_ == end_; }
+        int line() const override { return line_; }
+        int column() const override { return column_; }
+    protected:
+        I beg_, end_;
+        int line_, column_;
+};
+
 class tokenizer
 {
     public:
-        tokenizer( std::istream &input ) : input_(input), line_(1), column_(0)
+        tokenizer( istream &input ) : input_(input)
         {
         }
+
+        int line() const { return input_.line(); }
+        int column() const { return input_.column(); }
 
         token &next()
         {
@@ -90,13 +183,11 @@ class tokenizer
                 stack_.pop_front();
                 return current_;
             }
-
             current_.id = token_id::NONE;
             current_.value.clear();
-
             while (!input_.eof())
             {
-                int c = get();
+                int c = input_.get();
                 switch (c)
                 {
                     case ' ':
@@ -153,29 +244,9 @@ class tokenizer
 
         token &current() { return current_; }
 
-        int get()
-        {
-            ++column_;
-            int c = input_.get();
-            if (c == '\n')
-            {
-                ++line_;
-                column_ = 0;
-            }
-            return c;
-        }
-        void unget()
-        {
-            input_.unget();
-            if (input_.peek() != '\n' && column_ > 1) --column_;
-        }
-
-        int line() const { return line_; }
-        int column() const { return column_; }
     protected:
         token current_;
-        std::istream &input_;
-        int line_, column_;
+        istream &input_;
         std::forward_list<token> stack_;
 
         bool parse_string( token &output )
@@ -184,12 +255,12 @@ class tokenizer
 
             while (!input_.eof())
             {
-                int c = get();
+                int c = input_.get();
                 if (c == '"') return true;
 
                 if (c == '\\')
                 {
-                    c = get();
+                    c = input_.get();
                     switch (c)
                     {
                         case '"':  c = '"'; break;
@@ -214,7 +285,7 @@ class tokenizer
         bool parse_keyword( const std::string &keyword )
         {
             for (auto c : keyword)
-                if (get() != c) return false;
+                if (input_.get() != c) return false;
             return true;
         }
 
@@ -224,14 +295,14 @@ class tokenizer
 
             while (!input_.eof())
             {
-                int c = get();
+                int c = input_.peek();
                 if (c == '.' || (c >= '0' && c <= '9') || c == 'e' || c == 'E' || c == '+' || c == '-')
-                    output.value += (char) c;
-                else
                 {
-                    unget();
-                    break;
+                    output.value += (char) c;
+                    input_.get();
                 }
+                else
+                    break;
             }
 
             return true;
@@ -241,8 +312,13 @@ class tokenizer
 template<typename CharT, typename TraitsT = std::char_traits<CharT> >
 class vector_streambuf : public std::basic_streambuf<CharT, TraitsT> {
 public:
-    vector_streambuf(std::vector<CharT> &that) {
+    vector_streambuf(std::vector<CharT> &that)
+    {
         this->setg(that.data(), that.data(), that.data() + that.size());
+    }
+    vector_streambuf( CharT *that, size_t len )
+    {
+        this->setg(that, that, that + len);
     }
 };
 
@@ -322,7 +398,7 @@ public:
 	namespace PROTOGEN_NS { \
 		template<> struct traits<M> { \
 			static void clear( M &value ) { value.clear(); } \
-			static void write( std::ostream &out, const M &value ) { value.serialize(out); } \
+			static void write( PROTOGEN_NS::ostream &out, const M &value ) { value.serialize(out); } \
 			static PROTOGEN_NS::parse_result read( PROTOGEN_NS::tokenizer &tok, M &value, \
                 bool required = false, PROTOGEN_NS::ErrorInfo *err = NULL ) { return value.deserialize(tok, required, err); } \
 			static void swap( M &a, M &b ) { a.swap(b); } \
@@ -382,7 +458,7 @@ struct ErrorInfo
 template<typename T> struct traits
 {
     static void clear( T &value ) { value = (T) 0; }
-    static void write( std::ostream &out, const T &value ) { out << value; }
+    static void write( PROTOGEN_NS::ostream &out, const T &value ) { out << value; }
 
     static parse_result read( tokenizer &tok, T &value, bool required = false, PROTOGEN_NS::ErrorInfo *err = NULL )
     {
@@ -412,7 +488,7 @@ template<typename T> struct traits
 template<> struct traits<bool>
 {
     static void clear( bool &value ) { value = false; }
-    static void write( std::ostream &out, const bool &value ) { out << ((value) ? "true" : "false"); }
+    static void write( PROTOGEN_NS::ostream &out, const bool &value ) { out << ((value) ? "true" : "false"); }
 
     static parse_result read(tokenizer &tok, bool &value, bool required = false, PROTOGEN_NS::ErrorInfo *err = NULL )
     {
@@ -431,7 +507,7 @@ template<> struct traits<bool>
 template<> struct traits<std::string>
 {
     static void clear( std::string &value ) { value.clear(); }
-    static void write( std::ostream &out, const std::string &value )
+    static void write( PROTOGEN_NS::ostream &out, const std::string &value )
     {
         out << '"';
         for (std::string::const_iterator it = value.begin(); it != value.end(); ++it)
@@ -472,7 +548,7 @@ template <typename T> struct traits< $1$<T> >
 {
     static void clear( $1$<T> &value ) { value.clear(); }
 
-    static bool write( std::ostream &out, const $1$<T> &value )
+    static bool write( PROTOGEN_NS::ostream &out, const $1$<T> &value )
     {
         bool begin = true;
         out << '[';
@@ -528,7 +604,7 @@ template <> struct traits< std::vector<uint8_t> >
         return 0;
     }
 
-    static bool write( std::ostream &out, const std::vector<uint8_t> &value )
+    static bool write( PROTOGEN_NS::ostream &out, const std::vector<uint8_t> &value )
     {
         char o[5] = { 0 };
         size_t i = 0;
@@ -690,7 +766,7 @@ class Message
     public:
         virtual void serialize( std::string &out ) const = 0;
         virtual void serialize( std::vector<char> &out ) const = 0;
-        virtual void serialize( std::ostream &out ) const = 0;
+        virtual void serialize( PROTOGEN_NS::ostream &out ) const = 0;
         virtual bool deserialize( std::istream &in, bool required = false, PROTOGEN_NS::ErrorInfo *err = NULL  ) = 0;
         virtual bool deserialize( const std::string &in, bool required = false, PROTOGEN_NS::ErrorInfo *err = NULL  ) = 0;
         virtual bool deserialize( std::vector<char> &in, bool required = false, PROTOGEN_NS::ErrorInfo *err = NULL  ) = 0;
@@ -717,7 +793,7 @@ namespace json {
 
 // Write a complete JSON field
 template<typename T>
-static bool write( std::ostream &out, bool &first, const std::string &name, const T &value )
+static bool write( PROTOGEN_NS::ostream &out, bool &first, const std::string &name, const T &value )
 {
     if (!first) out << ',';
     out << '"' << name << "\":";
@@ -806,32 +882,51 @@ static parse_result ignore_value( tokenizer &tok )
 
 --- CODE_SERIALIZER
     void serialize( std::string &out ) const {
-        std::stringstream ss;
-        serialize(ss);
-        out = ss.str();
+        typedef std::back_insert_iterator<std::string> ittype;
+        ittype begin(out);
+        PROTOGEN_NS::iterator_ostream<ittype> os(begin);
+        serialize(os);
     }
     void serialize( std::vector<char> &out ) const {
-        PROTOGEN_NS::vector_streambuf<char> sb(out);
-        std::ostream os(&sb);
+        typedef std::back_insert_iterator<std::vector<char>> ittype;
+        ittype begin(out);
+        PROTOGEN_NS::iterator_ostream<ittype> os(begin);
+        serialize(os);
+    }
+    void serialize( std::ostream &out ) const {
+        typedef std::ostream_iterator<char> ittype;
+        ittype begin(out);
+        PROTOGEN_NS::iterator_ostream<ittype> os(begin);
         serialize(os);
     }
 ------
 
 --- CODE_DESERIALIZER
+    bool deserialize( PROTOGEN_NS::istream &in, bool required = false, PROTOGEN_NS::ErrorInfo *err = NULL ) {
+        PROTOGEN_NS::tokenizer tok(in);
+		int result = this->deserialize(tok, required, err) != PROTOGEN_NS::parse_result::ERROR;
+        return result;
+	}
     bool deserialize( std::istream &in, bool required = false, PROTOGEN_NS::ErrorInfo *err = NULL ) {
 		bool skip = in.flags() & std::ios_base::skipws;
 		std::noskipws(in);
-        PROTOGEN_NS::tokenizer tok(in);
-		bool result = this->deserialize(tok, required, err) != PROTOGEN_NS::parse_result::ERROR;
+        std::istream_iterator<char> end;
+        std::istream_iterator<char> begin(in);
+        PROTOGEN_NS::iterator_istream<std::istream_iterator<char>> ss(begin, end);
+		bool result = this->deserialize(ss, required, err);
 		if (skip) std::skipws(in);
 		return result;
 	}
 	bool deserialize( const std::string &in, bool required = false, PROTOGEN_NS::ErrorInfo *err = NULL ) {
-		std::istringstream is(in);
-		return this->deserialize(is, required, err);
+        PROTOGEN_NS::iterator_istream<std::string::const_iterator> ss(in.begin(), in.end());
+		return this->deserialize(ss, required, err);
 	}
 	bool deserialize( std::vector<char> &in, bool required = false, PROTOGEN_NS::ErrorInfo *err = NULL ) {
-		PROTOGEN_NS::vector_streambuf<char> sb(in);
+        PROTOGEN_NS::iterator_istream<std::vector<char>::iterator> ss(in.begin(), in.end());
+		return this->deserialize(ss, required, err);
+	}
+	bool deserialize( char *in, size_t len, bool required = false, PROTOGEN_NS::ErrorInfo *err = NULL ) {
+		PROTOGEN_NS::vector_streambuf<char> sb(in, len);
         std::istream is(&sb);
 		return this->deserialize(is, required, err);
 	}
