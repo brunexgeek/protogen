@@ -288,13 +288,13 @@ static void generateDeserializer( GeneratorContext &ctx, const Message &message 
         "PROTOGEN_NS::parse_result deserialize( PROTOGEN_NS::tokenizer &tok, bool required = false, PROTOGEN_NS::ErrorInfo *err = NULL ) {\n"
         "\t(void) err;\n"
         "bool hfld[$1$] = {false};\n"
-        "if (tok.next().id != PROTOGEN_NS::token_id::OBJS) PROTOGEN_REG(err, tok, \"Invalid field name\");;\n"
+        "if (tok.next().id != PROTOGEN_NS::token_id::OBJS) PROTOGEN_REO(err, tok);\n"
         "while (true)\n{\n"
         "\tstd::string name;\nPROTOGEN_NS::token tt;\n"
         "tt = tok.next();\nif (tt.id == PROTOGEN_NS::token_id::OBJE) break;\n"
-        "if (tt.id != PROTOGEN_NS::token_id::STRING) PROTOGEN_REG(err, tok, \"Invalid field name\");\n"
+        "if (tt.id != PROTOGEN_NS::token_id::STRING) PROTOGEN_REN(err, tok);\n"
         "name.swap(tok.current().value);\n"
-        "if (tok.next().id != PROTOGEN_NS::token_id::COLON) PROTOGEN_REG(err, tok, \"Missing colon after field name\");\n", message.fields.size());
+        "if (tok.next().id != PROTOGEN_NS::token_id::COLON) PROTOGEN_RES(err, tok);\n", message.fields.size());
 
     bool first = true;
     size_t count = 0;
@@ -670,11 +670,12 @@ static void generateModel( GeneratorContext &ctx )
         "#undef PROTOGEN_FIELD_MOVECTOR\n"
         "#undef PROTOGEN_FIELD\n"
         "#undef PROTOGEN_TRAIT\n"
-        "#undef PROTOGEN_REV\n"
         "#undef PROTOGEN_REI\n"
-        "#undef PROTOGEN_REF\n"
         "#undef PROTOGEN_REM\n"
-        "#undef PROTOGEN_REG\n"
+        "#undef PROTOGEN_RES\n"
+        "#undef PROTOGEN_REV\n"
+        "#undef PROTOGEN_REO\n"
+        "#undef PROTOGEN_REN\n"
         "#undef PROTOGEN_NS\n"
         "#undef PROTOGEN_EXPLICIT\n"
         "#endif // $1$\n", guard);

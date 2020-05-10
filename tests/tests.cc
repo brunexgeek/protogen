@@ -97,13 +97,36 @@ bool RUN_TEST4( int argc, char **argv)
     (void) argc;
     (void) argv;
 
-    std::string json1 = "{ \n\n   \"bla\" : 55,,";
+    struct { std::string json; int line; int col; int code; } CASES[] =
+    {
+        {"{ \n\n   \"bla\" : 55,,", 3, 15, PGERR_INVALID_NAME},
+        {"{\"bla", 1, 6, PGERR_INVALID_SEPARATOR},
+        {"{\"name\":\"bla\"}", 1, 14, PGERR_MISSING_FIELD},
+        {"", 1, 1, PGERR_INVALID_OBJECT},
+        {"{\"name\":45}", 1, 10, PGERR_INVALID_VALUE},
+        // FIXME: why different column numbers?
+        {"{\"blip1\":{}", 1, 11, PGERR_IGNORE_FAILED},
+        {"{\"blip2\":[}", 1, 10, PGERR_IGNORE_FAILED},
+        {"{\"blip3\":\"}", 1, 12, PGERR_IGNORE_FAILED},
+        {"", 0, 0, 0}
+    };
+
     options::Person temp;
     options::Person::ErrorInfo err;
-    bool result = !temp.deserialize(json1, false, &err);
+    bool result = true;
+
+    for (int i = 0; result && CASES[i].line != 0; ++i)
+    {
+        err.code = err.column = err.line = 0;
+        err.message.clear();
+        err.set = false;
+        result &= !temp.deserialize(CASES[i].json, CASES[i].code == PGERR_MISSING_FIELD, &err);
+        result &= CASES[i].line == err.line && CASES[i].col == err.column;
+        result &= CASES[i].code == err.code;
+    }
 
     std::cerr << "[TEST #4] " << ((result) ? "Passed!" : "Failed!" ) << std::endl;
-    if (result)
+    if (!result)
         std::cerr << "   " << err.message << " at " << err.line << ':' << err.column << std::endl;
 
     return result;

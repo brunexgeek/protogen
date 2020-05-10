@@ -78,7 +78,9 @@ struct token
 class tokenizer
 {
     public:
-        tokenizer( std::istream &input );
+        tokenizer( std::istream &input ) : input_(input), line_(1), column_(0)
+        {
+        }
 
         token &next()
         {
@@ -158,7 +160,7 @@ class tokenizer
             if (c == '\n')
             {
                 ++line_;
-                column_ = 1;
+                column_ = 0;
             }
             return c;
         }
@@ -236,8 +238,6 @@ class tokenizer
         }
 };
 
-tokenizer::tokenizer( std::istream &input ) : input_(input), line_(1), column_(1) {}
-
 template<typename CharT, typename TraitsT = std::char_traits<CharT> >
 class vector_streambuf : public std::basic_streambuf<CharT, TraitsT> {
 public:
@@ -250,42 +250,70 @@ public:
 ------
 
 --- CODE_MACROS
+#define PGERR_IGNORE_FAILED      -1
+#define PGERR_MISSING_FIELD      -2
+#define PGERR_INVALID_SEPARATOR  -3
+#define PGERR_INVALID_VALUE      -4
+#define PGERR_INVALID_OBJECT     -5
+#define PGERR_INVALID_NAME       -6
+
 #ifndef PROTOGEN_CPP_ENABLE_ERRORS
-    #define PROTOGEN_REV(err,input,name,type) return PROTOGEN_NS::parse_result::ERROR
-    #define PROTOGEN_REI(err,input,name) return PROTOGEN_NS::parse_result::ERROR
-    #define PROTOGEN_REF(err,input,name) return PROTOGEN_NS::parse_result::ERROR
-    #define PROTOGEN_REM(err,input,name) return PROTOGEN_NS::parse_result::ERROR
-    #define PROTOGEN_REG(err,input,name) return PROTOGEN_NS::parse_result::ERROR
+    #define PROTOGEN_REI(err,tok,name) return PROTOGEN_NS::parse_result::ERROR
+    #define PROTOGEN_REM(err,tok,name) return PROTOGEN_NS::parse_result::ERROR
+    #define PROTOGEN_RES(err,tok) return PROTOGEN_NS::parse_result::ERROR
+    #define PROTOGEN_REV(err,tok,name,type) return PROTOGEN_NS::parse_result::ERROR
+    #define PROTOGEN_REO(err,tok) return PROTOGEN_NS::parse_result::ERROR
+    #define PROTOGEN_REN(err,tok) return PROTOGEN_NS::parse_result::ERROR
 #else
-    #define PROTOGEN_REV(err,input,name,type) \
+    #define PROTOGEN_REI(err,tok,name) \
         do { if (err == NULL || err->set) return PROTOGEN_NS::parse_result::ERROR; \
              err->set = true; \
-             err->line = input.line(); err->column = input.column(); \
-             err->message = std::string("Invalid '") + type + "' value in field '" + name + "'"; \
+             err->line = tok.line(); err->column = tok.column(); \
+             err->message = "Unable to ignore field '"; \
+             err->message += name; \
+             err->message += "'"; \
+             err->code = PGERR_IGNORE_FAILED; \
              return PROTOGEN_NS::parse_result::ERROR; } while(false)
-    #define PROTOGEN_REI(err,input,name) \
+    #define PROTOGEN_REM(err,tok,name) \
         do { if (err == NULL || err->set) return PROTOGEN_NS::parse_result::ERROR; \
              err->set = true; \
-             err->line = input.line(); err->column = input.column(); \
-             err->message = std::string("Unable to skip field '") + name + "'"; \
+             err->line = tok.line(); err->column = tok.column(); \
+             err->message = "Missing required field '"; \
+             err->message += name; \
+             err->message += "'"; \
+             err->code = PGERR_MISSING_FIELD; \
              return PROTOGEN_NS::parse_result::ERROR; } while(false)
-    #define PROTOGEN_RETERR_FORMAT(err,input,name) \
+    #define PROTOGEN_RES(err,tok) \
         do { if (err == NULL || err->set) return PROTOGEN_NS::parse_result::ERROR; \
              err->set = true; \
-             err->line = input.line(); err->column = input.column(); \
-             err->message = std::string("Invalid JSON after field '") + name + "'"; \
+             err->line = tok.line(); err->column = tok.column(); \
+             err->message = "Invalid separator"; \
+             err->code = PGERR_INVALID_SEPARATOR; \
              return PROTOGEN_NS::parse_result::ERROR; } while(false)
-    #define PROTOGEN_REM(err,input,name) \
+    #define PROTOGEN_REV(err,tok,name,type) \
         do { if (err == NULL || err->set) return PROTOGEN_NS::parse_result::ERROR; \
              err->set = true; \
-             err->line = input.line(); err->column = input.column(); \
-             err->message = std::string("Missing required field '") + name + "'"; \
+             err->line = tok.line(); err->column = tok.column(); \
+             err->message = "Invalid '"; \
+             err->message += type; \
+             err->message += "' value in field '"; \
+             err->message += name; \
+             err->message += "'"; \
+             err->code = PGERR_INVALID_VALUE; \
              return PROTOGEN_NS::parse_result::ERROR; } while(false)
-    #define PROTOGEN_REG(err,input,msg) \
+    #define PROTOGEN_REO(err,tok) \
         do { if (err == NULL || err->set) return PROTOGEN_NS::parse_result::ERROR; \
              err->set = true; \
-             err->line = input.line(); err->column = input.column(); \
-             err->message = msg; \
+             err->line = tok.line(); err->column = tok.column(); \
+             err->message = "Invalid object"; \
+             err->code = PGERR_INVALID_OBJECT; \
+             return PROTOGEN_NS::parse_result::ERROR; } while(false)
+    #define PROTOGEN_REN(err,tok) \
+        do { if (err == NULL || err->set) return PROTOGEN_NS::parse_result::ERROR; \
+             err->set = true; \
+             err->line = tok.line(); err->column = tok.column(); \
+             err->message = "Invalid field name"; \
+             err->code = PGERR_INVALID_NAME; \
              return PROTOGEN_NS::parse_result::ERROR; } while(false)
 #endif
 
@@ -342,11 +370,12 @@ enum class parse_result
 
 struct ErrorInfo
 {
+    int code;
     int line;
     int column;
     std::string message;
     bool set;
-    ErrorInfo() : line(0), column(0), set(false) {}
+    ErrorInfo() : code(0), line(0), column(0), set(false) {}
 };
 
 // proto3 numerics
