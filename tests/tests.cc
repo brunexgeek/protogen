@@ -142,7 +142,7 @@ bool RUN_TEST4( int argc, char **argv)
 
 bool RUN_TEST5( int argc, char **argv)
 {
-    bool result = true;
+    bool result = false;
     int stage = 0;
     phonebook::Person person;
     person.email("test@example.com");
@@ -159,19 +159,19 @@ bool RUN_TEST5( int argc, char **argv)
     person.serialize(temp);
     std::string json3 = temp.str();
 
-    result |= json1 != json2.data() && json2.data() != json3;
+    result |= (json1 == json2.data() && json2.data() == json3);
 
     phonebook::Person retrieved1;
     retrieved1.deserialize(json1);
-    if (retrieved1 != person) result |= false;
+    result |= (retrieved1 == person);
 
     phonebook::Person retrieved2;
     retrieved2.deserialize(json2);
-    if (retrieved2 != person) result |= false;
+    result |= (retrieved2 != person);
 
     phonebook::Person retrieved3;
     retrieved3.deserialize(json3);
-    if (retrieved3 != person) result |= false;
+    result |= (retrieved3 != person);
 
     std::cerr << "[TEST #5] " << ((result) ? "Passed!" : "Failed!" ) << std::endl;
 
