@@ -309,19 +309,6 @@ class tokenizer
         }
 };
 
-template<typename CharT, typename TraitsT = std::char_traits<CharT> >
-class vector_streambuf : public std::basic_streambuf<CharT, TraitsT> {
-public:
-    vector_streambuf(std::vector<CharT> &that)
-    {
-        this->setg(that.data(), that.data(), that.data() + that.size());
-    }
-    vector_streambuf( CharT *that, size_t len )
-    {
-        this->setg(that, that, that + len);
-    }
-};
-
 } // PROTOGEN_NS
 ------
 
@@ -766,10 +753,13 @@ class Message
     public:
         virtual void serialize( std::string &out ) const = 0;
         virtual void serialize( std::vector<char> &out ) const = 0;
+        virtual void serialize( std::ostream &out ) const = 0;
         virtual void serialize( PROTOGEN_NS::ostream &out ) const = 0;
         virtual bool deserialize( std::istream &in, bool required = false, PROTOGEN_NS::ErrorInfo *err = NULL  ) = 0;
         virtual bool deserialize( const std::string &in, bool required = false, PROTOGEN_NS::ErrorInfo *err = NULL  ) = 0;
         virtual bool deserialize( std::vector<char> &in, bool required = false, PROTOGEN_NS::ErrorInfo *err = NULL  ) = 0;
+        virtual bool deserialize( const char *in, size_t len, bool required = false, PROTOGEN_NS::ErrorInfo *err = NULL ) = 0;
+        virtual bool deserialize( PROTOGEN_NS::istream &in, bool required = false, PROTOGEN_NS::ErrorInfo *err = NULL ) = 0;
         virtual void clear() = 0;
         virtual bool undefined() const = 0;
 };
@@ -874,8 +864,36 @@ static parse_result ignore_value( tokenizer &tok )
     return parse_result::OK;
 }
 
-
 } // namespace json
+
+template<class T>
+class mem_iterator
+{
+    static_assert(std::is_arithmetic<T>::value, "Invalid template parameters");
+    public:
+        mem_iterator( const T *begin, int count ) : cursor(begin), end(begin + count), empty(0)
+        {
+        }
+        mem_iterator &operator++(int)
+        {
+            if (cursor < end) cursor++;
+            return *this;
+        }
+        const T &operator*() const
+        {
+            if (cursor >= end) return empty;
+            return *cursor;
+        }
+        bool operator==( const mem_iterator<T> &that ) const
+        {
+            return cursor == that.cursor;
+        }
+    protected:
+        const T *cursor;
+        const T *end;
+        T empty;
+};
+
 } // namespace PROTOGEN_NS
 
 ------
@@ -925,9 +943,10 @@ static parse_result ignore_value( tokenizer &tok )
         PROTOGEN_NS::iterator_istream<std::vector<char>::iterator> ss(in.begin(), in.end());
 		return this->deserialize(ss, required, err);
 	}
-	bool deserialize( char *in, size_t len, bool required = false, PROTOGEN_NS::ErrorInfo *err = NULL ) {
-		PROTOGEN_NS::vector_streambuf<char> sb(in, len);
-        std::istream is(&sb);
+	bool deserialize( const char *in, size_t len, bool required = false, PROTOGEN_NS::ErrorInfo *err = NULL ) {
+        auto begin = PROTOGEN_NS::mem_iterator<char>(in, len);
+        auto end = PROTOGEN_NS::mem_iterator<char>(in + len, 0);
+        PROTOGEN_NS::iterator_istream<PROTOGEN_NS::mem_iterator<char>> is(begin, end);
 		return this->deserialize(is, required, err);
 	}
 ------

@@ -173,6 +173,10 @@ bool RUN_TEST5( int argc, char **argv)
     retrieved3.deserialize(json3);
     result |= (retrieved3 != person);
 
+    phonebook::Person retrieved4;
+    retrieved4.deserialize(json1.c_str(), json1.length());
+    result |= (retrieved4 != person);
+
     std::cerr << "[TEST #5] " << ((result) ? "Passed!" : "Failed!" ) << std::endl;
 
     return true;
