@@ -1,6 +1,7 @@
 #include <test1.pg.hh>
 #include <test2.pg.hh>
 #include <test3.pg.hh>
+#include <chrono>
 
 bool RUN_TEST1( int argc, char **argv)
 {
@@ -154,6 +155,7 @@ bool RUN_TEST5( int argc, char **argv)
 
     std::vector<char> json2;
     person.serialize(json2);
+    json2.push_back(0);
 
     std::stringstream temp;
     person.serialize(temp);
@@ -182,23 +184,47 @@ bool RUN_TEST5( int argc, char **argv)
     return true;
 }
 
+bool RUN_TEST6( int argc, char **argv)
+{
+    phonebook::Person person;
+    person.email("test@example.com");
+    person.id(1234);
+    person.name("Michelle");
+
+    phonebook::PhoneNumber number;
+    number.number("+55 33 995-3636-1111");
+    number.type(true);
+    person.phones->push_back(number);
+
+    number.clear();
+    number.number("+38 10 105-9482-3057");
+    number.type(false);
+    person.phones->push_back(number);
+
+    std::string json1;
+    person.serialize(json1);
+
+    auto t = std::chrono::system_clock::now();
+    for (int i = 0; i < 1000000; ++i)
+    {
+        person.deserialize(json1);
+    }
+    uint64_t count = (std::chrono::system_clock::now() - t).count() / 1000 / 1000;
+
+    std::cerr << "[TEST #6] Passed!" << std::endl;
+    std::cerr << "   Took " << count << " ms" << std::endl;
+
+    return true;
+}
+
 int main( int argc, char **argv)
 {
-/*    std::string buffer;
-    std::back_insert_iterator<std::string> it(buffer);
-
-    for (int i = 0; i < 10; ++i)
-    {
-        it++;
-        *it = (char)('0' + i);
-    }
-    std::cerr << buffer;
-    return 0;*/
     bool result;
     result  = RUN_TEST1(argc, argv);
     result &= RUN_TEST2(argc, argv);
     result &= RUN_TEST3(argc, argv);
     result &= RUN_TEST4(argc, argv);
     result &= RUN_TEST5(argc, argv);
+    result &= RUN_TEST6(argc, argv);
     return (int) !result;
 }
