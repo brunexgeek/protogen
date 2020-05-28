@@ -82,9 +82,13 @@ class ostream
         virtual ~ostream() = default;
         virtual ostream &operator<<( const std::string &value ) = 0;
         virtual ostream &operator<<( const char *value ) = 0;
+        virtual ostream &operator<<( char *value ) = 0;
         virtual ostream &operator<<( char value ) = 0;
-        virtual ostream &operator<<( int value ) = 0;
-        //virtual ostream &operator<<() { return *this; };
+        template<class T> ostream &operator<<( T value )
+        {
+            this->operator<<( std::to_string(value) );
+            return *this;
+        }
 };
 
 template<typename I>
@@ -110,11 +114,7 @@ class iterator_ostream : public ostream
             while (*value != 0) *++beg_ = *value++;
             return *this;
         }
-        ostream & operator<<( int value ) override
-        {
-            this->operator<<( std::to_string(value) );
-            return *this;
-        }
+        ostream & operator<<( char *value ) override { return *this << value; }
 
     protected:
         I beg_;
@@ -871,7 +871,7 @@ class mem_iterator
 {
     static_assert(std::is_arithmetic<T>::value, "Invalid template parameters");
     public:
-        mem_iterator( const T *begin, int count ) : cursor(begin), end(begin + count), empty(0)
+        mem_iterator( const T *begin, size_t count ) : cursor(begin), end(begin + count), empty(0)
         {
         }
         mem_iterator &operator++(int)

@@ -143,8 +143,10 @@ bool RUN_TEST4( int argc, char **argv)
 
 bool RUN_TEST5( int argc, char **argv)
 {
+    (void) argc;
+    (void) argv;
+
     bool result = false;
-    int stage = 0;
     phonebook::Person person;
     person.email("test@example.com");
     person.id(1234);
@@ -186,6 +188,9 @@ bool RUN_TEST5( int argc, char **argv)
 
 bool RUN_TEST6( int argc, char **argv)
 {
+    (void) argc;
+    (void) argv;
+
     phonebook::Person person;
     person.email("test@example.com");
     person.id(1234);
