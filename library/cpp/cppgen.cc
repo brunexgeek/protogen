@@ -176,65 +176,64 @@ static std::string nativeType( const Field &field )
   * Translates protobuf3 types to protogen types.
   */
 static std::string fieldNativeType( const Field &field, bool useLists )
- {
-     std::string output = "PROTOGEN_NS::";
-     std::string valueType;
+{
+    std::string output = "PROTOGEN_NS::";
+    std::string valueType;
 
-     // field type
-     if (field.type.repeated || field.type.id == protogen::TYPE_BYTES)
-     {
-         output += "RepeatedField<";
-     }
-     else
-         output += "Field<";
+    // value type
+    if (field.type.id >= protogen::TYPE_DOUBLE && field.type.id <= protogen::TYPE_BYTES)
+    {
+        int index = (int)field.type.id - (int)protogen::TYPE_DOUBLE;
+        valueType = TYPE_MAPPING[index].nativeType;
+    }
+    else
+    if (field.type.id == protogen::TYPE_MESSAGE)
+    {
+        valueType = nativeType(field);
+    }
+    else
+        throw protogen::exception("Invalid field type");
 
-     // value type
-     if (field.type.id >= protogen::TYPE_DOUBLE && field.type.id <= protogen::TYPE_BYTES)
-     {
-         int index = (int)field.type.id - (int)protogen::TYPE_DOUBLE;
-         output += (valueType = TYPE_MAPPING[index].nativeType);
-     }
-     else
-     if (field.type.id == protogen::TYPE_MESSAGE)
-     {
-         output += (valueType = nativeType(field));
-     }
-     else
-         throw protogen::exception("Invalid field type");
-
-     if (field.type.id == protogen::TYPE_BYTES || (field.type.repeated && !useLists) )
-     {
-         output += ", std::vector<";
-         output += valueType;
-         output += "> ";
-     }
-     else
-     if (field.type.repeated)
-     {
-         output += ", std::list<";
-         output += valueType;
-         output += "> ";
-     }
-     output += '>';
-     return output;
- }
-
+    if (field.type.repeated || field.type.id == protogen::TYPE_BYTES)
+    {
+        std::string output = "PROTOGEN_NS::RepeatedField<";
+        output += valueType;
+        if (field.type.id == protogen::TYPE_BYTES || !useLists)
+        {
+            output += ", std::vector<";
+            output += valueType;
+            output += "> ";
+        }
+        else
+        {
+            output += ", std::list<";
+            output += valueType;
+            output += "> ";
+        }
+        output += '>';
+        return output;
+    }
+    if (field.type.id == protogen::TYPE_MESSAGE)
+        return valueType;
+    else
+    {
+        std::string output = "PROTOGEN_NS::Field<";
+        output += valueType;
+        output += '>';
+        return output;
+    }
+}
 
 static void generateVariable( GeneratorContext &ctx, const Field &field )
 {
     std::string storage = fieldStorage(field);
-
-    ctx.printer(
-        //"static const int $3$_NO = $4$;\n"
-        "$1$ $2$;\n", fieldNativeType(field, ctx.cpp_use_lists), storage, toUpper(storage), std::to_string(field.index));
+    ctx.printer("$1$ $2$;\n", fieldNativeType(field, ctx.cpp_use_lists), storage, toUpper(storage), std::to_string(field.index));
 }
-
 
 static void generateCopyCtor( GeneratorContext &ctx, const Message &message )
 {
     ctx.printer("$1$(const $1$ &that) { *this = that; }\n", message.name);
 }
-
 
 static void generateMoveCtor( GeneratorContext &ctx, const Message &message )
 {
@@ -318,10 +317,8 @@ static void generateDeserializer( GeneratorContext &ctx, const Message &message 
         if (fi->type.repeated || fi->type.id == protogen::TYPE_BYTES)
         {
              const char *arrayType = "std::vector";
-
              if (ctx.cpp_use_lists && fi->type.id != protogen::TYPE_BYTES)
                  arrayType = "std::list";
-
              ctx.printer(
                  "if (PROTOGEN_NS::traits< $4$<$1$> >::read(tok, this->$2$(), required, err) == PROTOGEN_NS::parse_result::ERROR) "
                  "PROTOGEN_REV(err, tok, name, \"$3$\");\n",
@@ -329,17 +326,13 @@ static void generateDeserializer( GeneratorContext &ctx, const Message &message 
         }
         else
         {
-            // all other types
-            if ((fi->type.id >= protogen::TYPE_DOUBLE && fi->type.id <= protogen::TYPE_STRING) || fi->type.id == protogen::TYPE_MESSAGE)
-            {
-                ctx.printer("$1$ value;\n", type);
-                if (fi->type.id != protogen::TYPE_MESSAGE)
-                    ctx.printer("PROTOGEN_NS::traits<$1$>::clear(value);\n", type);
-                ctx.printer(
-                    "if (PROTOGEN_NS::traits<$1$>::read(tok, value, required, err) == PROTOGEN_NS::parse_result::ERROR) "
-                    "PROTOGEN_REV(err, tok, name, \"$3$\");\n"
-                    "this->$2$.swap(value);\n", type, storage, proto3Type(*fi));
-            }
+            ctx.printer("$1$ value;\n", type);
+            if (fi->type.id == protogen::TYPE_MESSAGE)
+                ctx.printer("PROTOGEN_NS::traits<$1$>::clear(value);\n", type);
+            ctx.printer(
+                "if (PROTOGEN_NS::traits<$1$>::read(tok, value, required, err) == PROTOGEN_NS::parse_result::ERROR) "
+                "PROTOGEN_REV(err, tok, name, \"$3$\");\n"
+                "this->$2$.swap(value);\n", type, storage, proto3Type(*fi));
         }
         ctx.printer(
             "hfld[$1$] = true;\n"
@@ -388,10 +381,16 @@ static void generateSerializer( GeneratorContext &ctx, const Message &message )
             if (opt.type == OptionType::BOOLEAN && opt.value == "true") continue;
         }
 
-        ctx.printer(
-            "// $1$\n"
-            "if (!this->$1$.undefined()) "
-            "PROTOGEN_NS::json::write(out, first, PROTOGEN_FN_$1$, this->$1$());\n", storage);
+        if (!fi->type.repeated && fi->type.id == protogen::TYPE_MESSAGE)
+            ctx.printer(
+                "// $1$\n"
+                "if (!this->$1$.undefined()) "
+                "PROTOGEN_NS::json::write(out, first, PROTOGEN_FN_$1$, this->$1$);\n", storage);
+        else
+            ctx.printer(
+                "// $1$\n"
+                "if (!this->$1$.undefined()) "
+                "PROTOGEN_NS::json::write(out, first, PROTOGEN_FN_$1$, this->$1$());\n", storage);
     }
     ctx.printer("out << '}';\n\b}\n");
 }
@@ -445,14 +444,6 @@ static void generateNamespace( GeneratorContext &ctx, const Message &message, bo
             name += *it;
     }
 }
-
-
-static void generateFieldTemplate( GeneratorContext &ctx, const Message &message )
-{
-    ctx.printer(
-        "PROTOGEN_FIELD($1$::$2$)\n", nativePackage(message.package), message.name);
-}
-
 
 static void generateUndefined( GeneratorContext &ctx, const Message &message )
 {
@@ -549,8 +540,6 @@ static void generateMessage( GeneratorContext &ctx, const Message &message, bool
 
     // message trait
     generateTrait(ctx, message);
-    // 'Field' template specialization
-    generateFieldTemplate(ctx, message);
 
     for (auto fi = message.fields.begin(); fi != message.fields.end(); ++fi)
     {

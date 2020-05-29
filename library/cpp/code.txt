@@ -412,6 +412,7 @@ class mem_iterator
 #define PROTOGEN_TRAIT(M) \
 	namespace PROTOGEN_NS { \
 		template<> struct traits<M> { \
+            static_assert(std::is_object<M>::value, "Invalid object type"); \
 			static void clear( M &value ) { value.clear(); } \
 			static void write( PROTOGEN_NS::ostream &out, const M &value ) { value.serialize(out); } \
 			static PROTOGEN_NS::parse_result read( PROTOGEN_NS::tokenizer &tok, M &value, \
@@ -423,6 +424,7 @@ class mem_iterator
 #undef PROTOGEN_FIELD
 #define PROTOGEN_FIELD(M) \
 	namespace PROTOGEN_NS { \
+        static_assert(std::is_object<M>::value, "Invalid object type"); \
         template<> class Field<M> { \
 		protected: \
 			M value_; \
@@ -454,10 +456,7 @@ class mem_iterator
 
 namespace PROTOGEN_NS {
 
-enum class parse_result
-{
-    OK, ERROR, UNDEFINED
-};
+enum class parse_result { OK, ERROR, UNDEFINED };
 
 struct ErrorInfo
 {
@@ -472,9 +471,9 @@ struct ErrorInfo
 // proto3 numerics
 template<typename T> struct traits
 {
+    static_assert(std::is_arithmetic<T>::value, "Invalid arithmetic type");
     static void clear( T &value ) { value = (T) 0; }
     static void write( PROTOGEN_NS::ostream &out, const T &value ) { out << value; }
-
     static parse_result read( tokenizer &tok, T &value, bool required = false, PROTOGEN_NS::ErrorInfo *err = NULL )
     {
         (void) required;
@@ -504,7 +503,6 @@ template<> struct traits<bool>
 {
     static void clear( bool &value ) { value = false; }
     static void write( PROTOGEN_NS::ostream &out, const bool &value ) { out << ((value) ? "true" : "false"); }
-
     static parse_result read(tokenizer &tok, bool &value, bool required = false, PROTOGEN_NS::ErrorInfo *err = NULL )
     {
         (void) required;
@@ -542,7 +540,6 @@ template<> struct traits<std::string>
         }
         out << '"';
     }
-
     static parse_result read( tokenizer &tok, std::string &value, bool required = false, PROTOGEN_NS::ErrorInfo *err = NULL )
     {
         (void) required;
@@ -557,12 +554,14 @@ template<> struct traits<std::string>
 };
 ------
 
+#
+# 'repeated' with $1$ as container
+#
+
 --- CODE_REPEATED_TRAIT
-// proto3 'repeated' with $1$ as container
 template <typename T> struct traits< $1$<T> >
 {
     static void clear( $1$<T> &value ) { value.clear(); }
-
     static bool write( PROTOGEN_NS::ostream &out, const $1$<T> &value )
     {
         bool begin = true;
@@ -576,7 +575,6 @@ template <typename T> struct traits< $1$<T> >
         out << ']';
         return true;
     }
-
     static parse_result read( tokenizer &tok, $1$<T> &value, bool required = false, PROTOGEN_NS::ErrorInfo *err = NULL )
     {
         token tt = tok.next();
@@ -594,7 +592,6 @@ template <typename T> struct traits< $1$<T> >
         if (tt.id != token_id::ARRE) return parse_result::ERROR;
         return parse_result::OK;
     }
-
     static void swap( $1$<T> &a, $1$<T> &b ) { a.swap(b); }
 };
 ------
@@ -607,7 +604,6 @@ static const char *B64_SYMBOLS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrst
 template <> struct traits< std::vector<uint8_t> >
 {
     static void clear( std::vector<uint8_t> &value ) { value.clear(); }
-
     static int b64_int( int ch )
     {
         if (ch == '+') return 62;
@@ -618,7 +614,6 @@ template <> struct traits< std::vector<uint8_t> >
         if (ch >= 'a' && ch <= 'z') return (ch - 'a') + 26;
         return 0;
     }
-
     static bool write( PROTOGEN_NS::ostream &out, const std::vector<uint8_t> &value )
     {
         char o[5] = { 0 };
@@ -655,7 +650,6 @@ template <> struct traits< std::vector<uint8_t> >
 
         return true;
     }
-
     static parse_result read( tokenizer &tok, std::vector<uint8_t> &array, bool required = false, PROTOGEN_NS::ErrorInfo *err = NULL )
     {
         (void) required;
@@ -695,13 +689,13 @@ template <> struct traits< std::vector<uint8_t> >
                 k+=1;
         }
     }
-
     static void swap( std::vector<uint8_t> &a, std::vector<uint8_t> &b ) { a.swap(b); }
 };
 
 // primitive fields
 template<typename T> class Field
 {
+    static_assert(std::is_arithmetic<T>::value, "Invalid arithmetic type");
     protected:
         T value_;
         bool undefined_;

@@ -8,29 +8,35 @@ bool RUN_TEST1( int argc, char **argv)
     (void) argc;
     (void) argv;
 
+    phonebook::AddressBook book;
+    book.owner.id = 33;
+    book.owner.name = "Bob";
+    book.owner.email = "bob@example.com";
+    book.owner.last_updated( (uint32_t) std::chrono::system_clock::now().time_since_epoch().count() );
+
     phonebook::Person person;
-    person.email("test@example.com");
-    person.id(1234);
-    person.name("Michelle");
+    person.email = "test@example.com";
+    person.id = 1234;
+    person.name = "Michelle";
 
     phonebook::PhoneNumber number;
-    number.number("+55 33 995-3636-1111");
+    number.number = "+55 33 995-3636-1111";
     number.type(true);
     person.phones->push_back(number);
 
     number.clear();
-    number.number("+38 10 105-9482-3057");
+    number.number = "+38 10 105-9482-3057";
     number.type(false);
     person.phones->push_back(number);
 
     std::string json1;
     std::string json2;
-    phonebook::Person temp;
-    person.serialize(json1);
+    phonebook::AddressBook temp;
+    book.serialize(json1);
     temp.deserialize(json1);
     temp.serialize(json2);
 
-    bool result = (json1 == json2) && (person == temp);
+    bool result = (json1 == json2) && (book == temp);
     std::cerr << "[TEST #1] " << ((result) ? "Passed!" : "Failed!" ) << std::endl;
     std::cerr << "   " << json1 << std::endl << "   " << json2 << std::endl;
 
