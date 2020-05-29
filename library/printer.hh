@@ -43,8 +43,6 @@ class Printer
             print(format, {toString(args)...});
         }
 
-        std::ostream &output() { return out_; }
-
     protected:
         std::ostream &out_;
         bool pretty_;

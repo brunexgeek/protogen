@@ -38,7 +38,6 @@ struct GeneratorContext
     Proto3 &root;
     bool number_names;
     bool obfuscate_strings;
-    bool cpp_enable_parent;
     bool cpp_enable_errors;
     bool cpp_use_lists;
     std::string custom_parent;
@@ -46,7 +45,7 @@ struct GeneratorContext
     std::string versionNo;
 
     GeneratorContext( Printer &printer, Proto3 &root ) : printer(printer), root(root),
-        number_names(false), obfuscate_strings(false), cpp_enable_parent(false),
+        number_names(false), obfuscate_strings(false),
         cpp_enable_errors(false), cpp_use_lists(false)
     {
     }
@@ -279,10 +278,8 @@ static void generateEqualityOperator( GeneratorContext &ctx, const Message &mess
     ctx.printer("\b\b}\n");
 }
 
-
 static void generateDeserializer( GeneratorContext &ctx, const Message &message )
 {
-    ctx.printer.output() << CODE_DESERIALIZER;
     ctx.printer(
         // 'real' deserializer
         "PROTOGEN_NS::parse_result deserialize( PROTOGEN_NS::tokenizer &tok, bool required = false, PROTOGEN_NS::ErrorInfo *err = NULL ) {\n"
@@ -376,7 +373,6 @@ static void generateDeserializer( GeneratorContext &ctx, const Message &message 
 
 static void generateSerializer( GeneratorContext &ctx, const Message &message )
 {
-    ctx.printer.output() << CODE_SERIALIZER;
     ctx.printer(
         // serializer writing to 'ostream'
         "void serialize( PROTOGEN_NS::ostream &out ) const {\n"
@@ -482,15 +478,10 @@ static void generateMessage( GeneratorContext &ctx, const Message &message, bool
     // begin namespace
     generateNamespace(ctx, message, true);
 
-    ctx.printer("\nclass $1$", message.name);
-    if (ctx.cpp_enable_parent)
-        ctx.printer(": public PROTOGEN_NS::Message");
-    else
-    if (!ctx.custom_parent.empty())
-    {
-        ctx.printer(": public ");
-        ctx.printer( nativePackage(ctx.custom_parent).c_str() );
-    }
+    std::string parent = "PROTOGEN_NS::Message";
+    if (!ctx.custom_parent.empty()) parent = nativePackage(ctx.custom_parent);
+
+    ctx.printer("\nclass $1$ : public $2$", message.name, parent);
     ctx.printer(
         " {\npublic:\n"
         "\ttypedef PROTOGEN_NS::ErrorInfo ErrorInfo;\n"
@@ -530,7 +521,7 @@ static void generateMessage( GeneratorContext &ctx, const Message &message, bool
     }
 
     // default constructor and destructor
-    ctx.printer("$2$() {}\n$1$~$2$() {}\n", ((ctx.cpp_enable_parent) ? "virtual " : ""), message.name);
+    ctx.printer("$1$() {}\nvirtual ~$1$() {}\n", message.name);
     // copy constructor
     generateCopyCtor(ctx, message);
     // move constructor
@@ -543,6 +534,8 @@ static void generateMessage( GeneratorContext &ctx, const Message &message, bool
     generateEqualityOperator(ctx, message);
     // undefined function
     generateUndefined(ctx, message);
+    // use parent versions of 'serialize' and 'deserialize'
+    ctx.printer("using $1$::serialize;\nusing $1$::deserialize;\n", parent);
     // message serializer
     generateSerializer(ctx, message);
     // message deserializer
@@ -643,20 +636,20 @@ static void generateModel( GeneratorContext &ctx )
         ctx.printer("#define PROTOGEN_CPP_ENABLE_ERRORS // enable parsing error information\n");
 
     // base template
-    ctx.printer.output() << CODE_MACROS;
+    ctx.printer.print(CODE_MACROS);
     ctx.printer(
         "\n#ifndef PROTOGEN_BASE_$1$\n"
         "#define PROTOGEN_BASE_$1$\n", ctx.version);
 
-    ctx.printer.output() << CODE_TOKENIZER;
-    ctx.printer.output() << CODE_BLOCK_2;
+    ctx.printer.print(CODE_TOKENIZER);
+    ctx.printer.print(CODE_BLOCK_2);
     ctx.printer(CODE_REPEATED_TRAIT, "std::vector");
     ctx.printer(CODE_REPEATED_TRAIT, "std::list");
-    ctx.printer.output() << CODE_BLOCK_3;
-    ctx.printer.output() << CODE_REPEATED_FIELD;
-    ctx.printer(CODE_PARENT_CLASS);
-    ctx.printer.output() << (CODE_STRING_REVEAL);
-    ctx.printer.output() << CODE_BLOCK_4;
+    ctx.printer.print(CODE_BLOCK_3);
+    ctx.printer.print(CODE_REPEATED_FIELD);
+    ctx.printer(CODE_PARENT_CLASS, "Message", "");
+    ctx.printer.print(CODE_STRING_REVEAL);
+    ctx.printer.print(CODE_BLOCK_4);
     ctx.printer("#endif // PROTOGEN_BASE_$1$\n", version);
 
     sort(ctx);
@@ -703,14 +696,6 @@ void CppGenerator::generate( Proto3 &root, std::ostream &out )
         ctx.number_names = opt.value == "true";
     }
 
-    if (ctx.root.options.count(PROTOGEN_O_CPP_ENABLE_PARENT))
-    {
-        OptionEntry opt = ctx.root.options.at(PROTOGEN_O_CPP_ENABLE_PARENT);
-        if (opt.type != OptionType::BOOLEAN)
-            throw exception("The value for 'cpp_enable_parent' must be a boolean", opt.line, 1);
-        ctx.cpp_enable_parent = opt.value == "true";
-    }
-
     if (ctx.root.options.count(PROTOGEN_O_CPP_ENABLE_ERRORS))
     {
         OptionEntry opt = ctx.root.options.at(PROTOGEN_O_CPP_ENABLE_ERRORS);
@@ -721,8 +706,6 @@ void CppGenerator::generate( Proto3 &root, std::ostream &out )
 
     if (ctx.root.options.count(PROTOGEN_O_CUSTOM_PARENT))
     {
-        if (ctx.cpp_enable_parent)
-            throw exception("The options 'custom_parent' and 'cpp_enable_parent' can't be used together");
         OptionEntry opt = ctx.root.options.at(PROTOGEN_O_CUSTOM_PARENT);
         if (opt.type != OptionType::STRING && opt.type != OptionType::IDENTIFIER)
             throw exception("The value for 'custom_parent' must be a string or an identifier", opt.line, 1);

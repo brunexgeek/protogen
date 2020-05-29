@@ -32,12 +32,6 @@ namespace protogen {
 // The default value value is false.
 #define PROTOGEN_O_NUMBER_NAMES            "number_names"
 
-// Enable (true) or disable (false) the use of a parent class. When enabled, every
-// message will specialize the 'Message' class which contains a virtual destructor and
-// a couple of pure virtual functions. If you do not need a common ancestor for your
-// message classes, you can disable this option.
-#define PROTOGEN_O_CPP_ENABLE_PARENT       "cpp_enable_parent"
-
 // Enable (true) or disable (false) information about parsing errors. The default value is false.
 // If enabled, 'deserializer' functions will populate the 'ErrorInfo' object given as argument.
 #define PROTOGEN_O_CPP_ENABLE_ERRORS       "cpp_enable_errors"

@@ -309,6 +309,34 @@ class tokenizer
         }
 };
 
+template<class T>
+class mem_iterator
+{
+    static_assert(std::is_arithmetic<T>::value, "Invalid template parameters");
+    public:
+        mem_iterator( const T *begin, size_t count ) : cursor(begin), end(begin + count), empty(0)
+        {
+        }
+        mem_iterator &operator++(int)
+        {
+            if (cursor < end) cursor++;
+            return *this;
+        }
+        const T &operator*() const
+        {
+            if (cursor >= end) return empty;
+            return *cursor;
+        }
+        bool operator==( const mem_iterator<T> &that ) const
+        {
+            return cursor == that.cursor;
+        }
+    protected:
+        const T *cursor;
+        const T *end;
+        T empty;
+};
+
 } // PROTOGEN_NS
 ------
 
@@ -748,18 +776,59 @@ template< class T, class CT > class RepeatedField
 
 --- CODE_PARENT_CLASS
 // messages parent class
-class Message
+class $1$ $2$
 {
     public:
-        virtual void serialize( std::string &out ) const = 0;
-        virtual void serialize( std::vector<char> &out ) const = 0;
-        virtual void serialize( std::ostream &out ) const = 0;
+        virtual ~$1$() = default;
+        virtual void serialize( std::string &out ) const {
+            typedef std::back_insert_iterator<std::string> ittype;
+            ittype begin(out);
+            PROTOGEN_NS::iterator_ostream<ittype> os(begin);
+            serialize(os);
+        }
+        virtual void serialize( std::vector<char> &out ) const {
+            typedef std::back_insert_iterator<std::vector<char>> ittype;
+            ittype begin(out);
+            PROTOGEN_NS::iterator_ostream<ittype> os(begin);
+            serialize(os);
+        }
+        virtual void serialize( std::ostream &out ) const {
+            typedef std::ostream_iterator<char> ittype;
+            ittype begin(out);
+            PROTOGEN_NS::iterator_ostream<ittype> os(begin);
+            serialize(os);
+        }
         virtual void serialize( PROTOGEN_NS::ostream &out ) const = 0;
-        virtual bool deserialize( std::istream &in, bool required = false, PROTOGEN_NS::ErrorInfo *err = NULL  ) = 0;
-        virtual bool deserialize( const std::string &in, bool required = false, PROTOGEN_NS::ErrorInfo *err = NULL  ) = 0;
-        virtual bool deserialize( std::vector<char> &in, bool required = false, PROTOGEN_NS::ErrorInfo *err = NULL  ) = 0;
-        virtual bool deserialize( const char *in, size_t len, bool required = false, PROTOGEN_NS::ErrorInfo *err = NULL ) = 0;
-        virtual bool deserialize( PROTOGEN_NS::istream &in, bool required = false, PROTOGEN_NS::ErrorInfo *err = NULL ) = 0;
+        virtual bool deserialize( PROTOGEN_NS::istream &in, bool required = false, PROTOGEN_NS::ErrorInfo *err = NULL ) {
+            PROTOGEN_NS::tokenizer tok(in);
+            int result = this->deserialize(tok, required, err) != PROTOGEN_NS::parse_result::ERROR;
+            return result;
+        }
+        virtual bool deserialize( std::istream &in, bool required = false, PROTOGEN_NS::ErrorInfo *err = NULL ) {
+            bool skip = in.flags() & std::ios_base::skipws;
+            std::noskipws(in);
+            std::istream_iterator<char> end;
+            std::istream_iterator<char> begin(in);
+            PROTOGEN_NS::iterator_istream<std::istream_iterator<char>> ss(begin, end);
+            bool result = this->deserialize(ss, required, err);
+            if (skip) std::skipws(in);
+            return result;
+        }
+        virtual bool deserialize( const std::string &in, bool required = false, PROTOGEN_NS::ErrorInfo *err = NULL ) {
+            PROTOGEN_NS::iterator_istream<std::string::const_iterator> ss(in.begin(), in.end());
+            return this->deserialize(ss, required, err);
+        }
+        virtual bool deserialize( std::vector<char> &in, bool required = false, PROTOGEN_NS::ErrorInfo *err = NULL ) {
+            PROTOGEN_NS::iterator_istream<std::vector<char>::iterator> ss(in.begin(), in.end());
+            return this->deserialize(ss, required, err);
+        }
+        virtual bool deserialize( const char *in, size_t len, bool required = false, PROTOGEN_NS::ErrorInfo *err = NULL ) {
+            auto begin = PROTOGEN_NS::mem_iterator<char>(in, len);
+            auto end = PROTOGEN_NS::mem_iterator<char>(in + len, 0);
+            PROTOGEN_NS::iterator_istream<PROTOGEN_NS::mem_iterator<char>> is(begin, end);
+            return this->deserialize(is, required, err);
+        }
+        virtual PROTOGEN_NS::parse_result deserialize( PROTOGEN_NS::tokenizer &in, bool required = false, PROTOGEN_NS::ErrorInfo *err = NULL ) = 0;
         virtual void clear() = 0;
         virtual bool undefined() const = 0;
 };
@@ -865,88 +934,6 @@ static parse_result ignore_value( tokenizer &tok )
 }
 
 } // namespace json
-
-template<class T>
-class mem_iterator
-{
-    static_assert(std::is_arithmetic<T>::value, "Invalid template parameters");
-    public:
-        mem_iterator( const T *begin, size_t count ) : cursor(begin), end(begin + count), empty(0)
-        {
-        }
-        mem_iterator &operator++(int)
-        {
-            if (cursor < end) cursor++;
-            return *this;
-        }
-        const T &operator*() const
-        {
-            if (cursor >= end) return empty;
-            return *cursor;
-        }
-        bool operator==( const mem_iterator<T> &that ) const
-        {
-            return cursor == that.cursor;
-        }
-    protected:
-        const T *cursor;
-        const T *end;
-        T empty;
-};
-
 } // namespace PROTOGEN_NS
 
-------
-
---- CODE_SERIALIZER
-    void serialize( std::string &out ) const {
-        typedef std::back_insert_iterator<std::string> ittype;
-        ittype begin(out);
-        PROTOGEN_NS::iterator_ostream<ittype> os(begin);
-        serialize(os);
-    }
-    void serialize( std::vector<char> &out ) const {
-        typedef std::back_insert_iterator<std::vector<char>> ittype;
-        ittype begin(out);
-        PROTOGEN_NS::iterator_ostream<ittype> os(begin);
-        serialize(os);
-    }
-    void serialize( std::ostream &out ) const {
-        typedef std::ostream_iterator<char> ittype;
-        ittype begin(out);
-        PROTOGEN_NS::iterator_ostream<ittype> os(begin);
-        serialize(os);
-    }
-------
-
---- CODE_DESERIALIZER
-    bool deserialize( PROTOGEN_NS::istream &in, bool required = false, PROTOGEN_NS::ErrorInfo *err = NULL ) {
-        PROTOGEN_NS::tokenizer tok(in);
-		int result = this->deserialize(tok, required, err) != PROTOGEN_NS::parse_result::ERROR;
-        return result;
-	}
-    bool deserialize( std::istream &in, bool required = false, PROTOGEN_NS::ErrorInfo *err = NULL ) {
-		bool skip = in.flags() & std::ios_base::skipws;
-		std::noskipws(in);
-        std::istream_iterator<char> end;
-        std::istream_iterator<char> begin(in);
-        PROTOGEN_NS::iterator_istream<std::istream_iterator<char>> ss(begin, end);
-		bool result = this->deserialize(ss, required, err);
-		if (skip) std::skipws(in);
-		return result;
-	}
-	bool deserialize( const std::string &in, bool required = false, PROTOGEN_NS::ErrorInfo *err = NULL ) {
-        PROTOGEN_NS::iterator_istream<std::string::const_iterator> ss(in.begin(), in.end());
-		return this->deserialize(ss, required, err);
-	}
-	bool deserialize( std::vector<char> &in, bool required = false, PROTOGEN_NS::ErrorInfo *err = NULL ) {
-        PROTOGEN_NS::iterator_istream<std::vector<char>::iterator> ss(in.begin(), in.end());
-		return this->deserialize(ss, required, err);
-	}
-	bool deserialize( const char *in, size_t len, bool required = false, PROTOGEN_NS::ErrorInfo *err = NULL ) {
-        auto begin = PROTOGEN_NS::mem_iterator<char>(in, len);
-        auto end = PROTOGEN_NS::mem_iterator<char>(in + len, 0);
-        PROTOGEN_NS::iterator_istream<PROTOGEN_NS::mem_iterator<char>> is(begin, end);
-		return this->deserialize(is, required, err);
-	}
 ------

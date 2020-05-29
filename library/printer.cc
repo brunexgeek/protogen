@@ -26,12 +26,10 @@ Printer::Printer( std::ostream &out, bool pretty ) : out_(out), pretty_(pretty),
 {
 }
 
-
 void Printer::print( const char *format )
 {
     out_ << format;
 }
-
 
 static void indent( std::ostream &out, int level )
 {
@@ -49,7 +47,6 @@ static void indent( std::ostream &out, int level )
             for (int i = 0; i < level; ++i) out << '\t';
     }
 }
-
 
 void Printer::print( const char *format, const std::vector<std::string> &vars )
 {
