@@ -22,12 +22,12 @@ bool RUN_TEST1( int argc, char **argv)
     phonebook::PhoneNumber number;
     number.number = "+55 33 995-3636-1111";
     number.type(true);
-    person.phones->push_back(number);
+    person.phones.push_back(number);
 
     number.clear();
     number.number = "+38 10 105-9482-3057";
     number.type(false);
-    person.phones->push_back(number);
+    person.phones.push_back(number);
 
     std::string json1;
     std::string json2;
@@ -53,9 +53,9 @@ bool RUN_TEST2( int argc, char **argv)
     person.age(29);
     person.name("Margot");
     person.gender("female");
-    person.friends->push_back("Kelly");
-    person.friends->push_back("Zoe");
-    person.friends->push_back("Beth");
+    person.friends.push_back("Kelly");
+    person.friends.push_back("Zoe");
+    person.friends.push_back("Beth");
 
     std::string json1;
     std::string json2;
@@ -81,9 +81,9 @@ bool RUN_TEST3( int argc, char **argv)
     person.age(29);
     person.name("Margot");
     person.gender("female");
-    person.friends->push_back("Kelly");
-    person.friends->push_back("Zoe");
-    person.friends->push_back("Beth");
+    person.friends.push_back("Kelly");
+    person.friends.push_back("Zoe");
+    person.friends.push_back("Beth");
 
     std::string json1;
     std::string json2;
@@ -205,12 +205,12 @@ bool RUN_TEST6( int argc, char **argv)
     phonebook::PhoneNumber number;
     number.number("+55 33 995-3636-1111");
     number.type(true);
-    person.phones->push_back(number);
+    person.phones.push_back(number);
 
     number.clear();
     number.number("+38 10 105-9482-3057");
     number.type(false);
-    person.phones->push_back(number);
+    person.phones.push_back(number);
 
     std::string json1;
     person.serialize(json1);

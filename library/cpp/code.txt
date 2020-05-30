@@ -747,24 +747,16 @@ template<> class Field<std::string>
 ------
 
 --- CODE_REPEATED_FIELD
-template< class T, class CT > class RepeatedField
+template<class T> class ListField : public std::list<T>
 {
-     protected:
-        CT value_;
-     public:
-        RepeatedField() {}
-        RepeatedField( const RepeatedField<T, CT> &that ) { this->value_ = that.value_; }
-        RepeatedField( RepeatedField<T, CT> &&that ) { this->value_.swap(that.value_); }
-        void swap( RepeatedField<T, CT> &that ) { traits< CT >::swap(this->value_, that.value_); }
-        const CT &operator()() const { return value_; }
-        CT &operator()() { return value_; }
-        const CT *operator->() const { return &value_; }
-        CT *operator->() { return &value_; }
-        bool undefined() const { return value_.size() == 0; }
-        void clear() { value_.clear(); }
-        RepeatedField<T, CT> &operator=( const RepeatedField<T, CT> &that ) { this->value_ = that.value_; return *this; }
-        bool operator==( const RepeatedField<T, CT> &that ) const { return this->value_ == that.value_; }
- };
+    public:
+        bool undefined() const { return this->empty(); }
+};
+template<class T> class VectorField : public std::vector<T>
+{
+    public:
+        bool undefined() const { return this->empty(); }
+};
 ------
 
 
