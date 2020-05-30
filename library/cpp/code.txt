@@ -485,29 +485,14 @@ template<> struct traits<bool>
     static void swap( bool &a, bool &b ) { bool temp = a; a = b; b = temp; }
 };
 
-class string : public std::string
-{
-    public:
-        string() {}
-        string( const std::string &that ) : std::string(that) {}
-        string( std::string &&that ) : std::string(that) {}
-        string( const string &that ) : std::string(that) {}
-        string( string &&that ) : std::string(that) {}
-        string( const char *that ) : std::string(that) {}
-        string &operator=( const char *value ) { std::string::operator=(value); return *this; }
-        string &operator=( const string &value ) { std::string::operator=(value); return *this; }
-        string &operator=( const std::string &value ) { std::string::operator=(value); return *this; }
-        bool undefined() const { return this->empty(); }
-};
-
 // proto3 'string'
-template<> struct traits<PROTOGEN_NS::string>
+template<> struct traits<std::string>
 {
-    static void clear( PROTOGEN_NS::string &value ) { value.clear(); }
-    static void write( PROTOGEN_NS::ostream &out, const PROTOGEN_NS::string &value )
+    static void clear( std::string &value ) { value.clear(); }
+    static void write( PROTOGEN_NS::ostream &out, const std::string &value )
     {
         out << '"';
-        for (PROTOGEN_NS::string::const_iterator it = value.begin(); it != value.end(); ++it)
+        for (std::string::const_iterator it = value.begin(); it != value.end(); ++it)
         {
             switch (*it)
             {
@@ -524,7 +509,7 @@ template<> struct traits<PROTOGEN_NS::string>
         }
         out << '"';
     }
-    static parse_result read( tokenizer &tok, PROTOGEN_NS::string &value, bool required = false, PROTOGEN_NS::ErrorInfo *err = NULL )
+    static parse_result read( tokenizer &tok, std::string &value, bool required = false, PROTOGEN_NS::ErrorInfo *err = NULL )
     {
         (void) required;
         (void) err;
@@ -534,7 +519,7 @@ template<> struct traits<PROTOGEN_NS::string>
         value = tt.value;
         return parse_result::OK;
     }
-    static void swap( PROTOGEN_NS::string &a, PROTOGEN_NS::string &b ) { a.swap(b); }
+    static void swap( std::string &a, std::string &b ) { a.swap(b); }
 };
 ------
 
@@ -682,43 +667,31 @@ template<typename T> class Field
     static_assert(std::is_arithmetic<T>::value, "Invalid arithmetic type");
     protected:
         T value_;
-        bool undefined_;
+        bool empty_;
     public:
         Field() { clear(); }
-        Field( const Field<T> &that ) { this->undefined_ = that.undefined_; if (!undefined_) this->value_ = that.value_; }
-        Field( Field<T> &&that ) { this->undefined_ = that.undefined_; if (!undefined_) this->value_.swap(that.value_); }
-        void swap( Field<T> &that ) { traits<T>::swap(this->value_, that.value_); traits<bool>::swap(this->undefined_, that.undefined_); }
-        void swap( T &that ) { traits<T>::swap(this->value_, that); undefined_ = false; }
+        Field( const Field<T> &that ) { this->empty_ = that.empty_; if (!empty_) this->value_ = that.value_; }
+        Field( Field<T> &&that ) { this->empty_ = that.empty_; if (!empty_) this->value_.swap(that.value_); }
+        void swap( Field<T> &that ) { traits<T>::swap(this->value_, that.value_); traits<bool>::swap(this->empty_, that.empty_); }
+        void swap( T &that ) { traits<T>::swap(this->value_, that); empty_ = false; }
         const T &operator()() const { return value_; }
-        void operator()(const T &value ) { this->value_ = value; this->undefined_ = false; }
-        bool undefined() const { return undefined_; }
-        void clear() { traits<T>::clear(value_); undefined_ = true; }
-        Field<T> &operator=( const Field<T> &that ) { this->undefined_ = that.undefined_; if (!undefined_) this->value_ = that.value_; return *this; }
-        Field<T> &operator=( const T &that ) { this->undefined_ = false; this->value_ = that; return *this; }
-        bool operator==( const T &that ) const { return !this->undefined_ && this->value_ == that; }
-        bool operator!=( const T &that ) const { return !this->undefined_ && this->value_ != that; }
-        bool operator==( const Field<T> &that ) const { return this->undefined_ == that.undefined_ && this->value_ == that.value_;  }
-        bool operator!=( const Field<T> &that ) const { return this->undefined_ != that.undefined_ || this->value_ != that.value_;  }
+        void operator()(const T &value ) { this->value_ = value; this->empty_ = false; }
+        bool empty() const { return empty_; }
+        void clear() { traits<T>::clear(value_); empty_ = true; }
+        Field<T> &operator=( const Field<T> &that ) { this->empty_ = that.empty_; if (!empty_) this->value_ = that.value_; return *this; }
+        Field<T> &operator=( const T &that ) { this->empty_ = false; this->value_ = that; return *this; }
+        bool operator==( const T &that ) const { return !this->empty_ && this->value_ == that; }
+        bool operator!=( const T &that ) const { return !this->empty_ && this->value_ != that; }
+        bool operator==( const Field<T> &that ) const { return this->empty_ == that.empty_ && this->value_ == that.value_;  }
+        bool operator!=( const Field<T> &that ) const { return this->empty_ != that.empty_ || this->value_ != that.value_;  }
         explicit operator T() const { return this->value_; }
 };
-------
 
---- CODE_REPEATED_FIELD
-template<class T> class ListField : public std::list<T>
-{
-    public:
-        bool undefined() const { return this->empty(); }
-};
-template<class T> class VectorField : public std::vector<T>
-{
-    public:
-        bool undefined() const { return this->empty(); }
-};
 ------
 
 
 --- CODE_PARENT_CLASS
-// messages parent class
+// parent class for messages
 class $1$ $2$
 {
     public:
@@ -773,7 +746,7 @@ class $1$ $2$
         }
         virtual PROTOGEN_NS::parse_result deserialize( PROTOGEN_NS::tokenizer &in, bool required = false, PROTOGEN_NS::ErrorInfo *err = NULL ) = 0;
         virtual void clear() = 0;
-        virtual bool undefined() const = 0;
+        virtual bool empty() const = 0;
 };
 ------
 

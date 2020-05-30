@@ -72,7 +72,7 @@ static struct {
     { protogen::TYPE_SFIXED32, "sfixed32",  "int32_t"     , "0" },
     { protogen::TYPE_SFIXED64, "sfixed64",  "int64_t"     , "0" },
     { protogen::TYPE_BOOL,     "bool",      "bool"        , "false" },
-    { protogen::TYPE_STRING,   "string",    "PROTOGEN_NS::string" , "\"\"" },
+    { protogen::TYPE_STRING,   "string",    "std::string" , "\"\"" },
     { protogen::TYPE_BYTES,    "bytes",     "uint8_t"     , nullptr },
     { protogen::TYPE_MESSAGE,  nullptr,     nullptr       , nullptr }
 };
@@ -177,7 +177,6 @@ static std::string nativeType( const Field &field )
   */
 static std::string fieldNativeType( const Field &field, bool useLists )
 {
-    std::string output = "PROTOGEN_NS::";
     std::string valueType;
 
     // value type
@@ -196,11 +195,11 @@ static std::string fieldNativeType( const Field &field, bool useLists )
 
     if (field.type.repeated || field.type.id == protogen::TYPE_BYTES)
     {
-        std::string output = "PROTOGEN_NS::";
+        std::string output = "std::";
         if (field.type.id == protogen::TYPE_BYTES || !useLists)
-            output += "VectorField<";
+            output += "vector<";
         else
-            output += "ListField<";
+            output += "list<";
         output += valueType;
         output += '>';
         return output;
@@ -304,9 +303,9 @@ static void generateDeserializer( GeneratorContext &ctx, const Message &message 
         // 'repeated' and 'bytes'
         if (fi->type.repeated || fi->type.id == protogen::TYPE_BYTES)
         {
-             const char *arrayType = "PROTOGEN_NS::VectorField";
+             const char *arrayType = "std::vector";
              if (ctx.cpp_use_lists && fi->type.id != protogen::TYPE_BYTES)
-                 arrayType = "PROTOGEN_NS::ListField";
+                 arrayType = "std::list";
              ctx.printer(
                  "if (PROTOGEN_NS::traits< $4$<$1$> >::read(tok, this->$2$, required, err) == PROTOGEN_NS::parse_result::ERROR) "
                  "PROTOGEN_REV(err, tok, name, \"$3$\");\n",
@@ -377,12 +376,12 @@ static void generateSerializer( GeneratorContext &ctx, const Message &message )
         if (fi->type.repeated || fi->type.id == protogen::TYPE_MESSAGE || fi->type.id == protogen::TYPE_STRING)
             ctx.printer(
                 "// $1$\n"
-                "if (!this->$1$.undefined()) "
+                "if (!this->$1$.empty()) "
                 "PROTOGEN_NS::json::write(out, first, PROTOGEN_FN_$1$, this->$1$);\n", storage);
         else
             ctx.printer(
                 "// $1$\n"
-                "if (!this->$1$.undefined()) "
+                "if (!this->$1$.empty()) "
                 "PROTOGEN_NS::json::write(out, first, PROTOGEN_FN_$1$, this->$1$());\n", storage);
     }
     ctx.printer("out << '}';\n\b}\n");
@@ -441,11 +440,11 @@ static void generateNamespace( GeneratorContext &ctx, const Message &message, bo
 static void generateUndefined( GeneratorContext &ctx, const Message &message )
 {
     ctx.printer(
-        "bool undefined() const {\n"
+        "bool empty() const {\n"
         "\treturn\n\t", message.name);
     for (auto fi = message.fields.begin(); fi != message.fields.end(); ++fi)
     {
-        ctx.printer("this->$1$.undefined()", fieldStorage(*fi));
+        ctx.printer("this->$1$.empty()", fieldStorage(*fi));
         if (fi + 1 != message.fields.end())
             ctx.printer(" &&\n");
         else
@@ -625,9 +624,8 @@ static void generateModel( GeneratorContext &ctx )
 
     ctx.printer.print(CODE_TOKENIZER);
     ctx.printer.print(CODE_BLOCK_2);
-    ctx.printer.print(CODE_REPEATED_FIELD);
-    ctx.printer(CODE_REPEATED_TRAIT, "VectorField");
-    ctx.printer(CODE_REPEATED_TRAIT, "ListField");
+    ctx.printer(CODE_REPEATED_TRAIT, "std::vector");
+    ctx.printer(CODE_REPEATED_TRAIT, "std::list");
     ctx.printer.print(CODE_BLOCK_3);
     ctx.printer(CODE_PARENT_CLASS, "Message", "");
     ctx.printer.print(CODE_STRING_REVEAL);
