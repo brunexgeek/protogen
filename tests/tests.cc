@@ -49,10 +49,10 @@ bool RUN_TEST2( int argc, char **argv)
     (void) argv;
 
     compact::Person person;
-    person.email("margot@example.com");
+    person.email = "margot@example.com";
     person.age(29);
-    person.name("Margot");
-    person.gender("female");
+    person.name = "Margot";
+    person.gender = "female";
     person.friends.push_back("Kelly");
     person.friends.push_back("Zoe");
     person.friends.push_back("Beth");
@@ -77,10 +77,10 @@ bool RUN_TEST3( int argc, char **argv)
     (void) argv;
 
     options::Person person;
-    person.email("margot@example.com");
+    person.email = "margot@example.com";
     person.age(29);
-    person.name("Margot");
-    person.gender("female");
+    person.name = "Margot";
+    person.gender = "female";
     person.friends.push_back("Kelly");
     person.friends.push_back("Zoe");
     person.friends.push_back("Beth");
@@ -154,9 +154,9 @@ bool RUN_TEST5( int argc, char **argv)
 
     bool result = false;
     phonebook::Person person;
-    person.email("test@example.com");
+    person.email = "test@example.com";
     person.id(1234);
-    person.name("Michelle");
+    person.name = "Michelle";
 
     std::string json1;
     person.serialize(json1);
@@ -198,17 +198,17 @@ bool RUN_TEST6( int argc, char **argv)
     (void) argv;
 
     phonebook::Person person;
-    person.email("test@example.com");
+    person.email = "test@example.com";
     person.id(1234);
-    person.name("Michelle");
+    person.name = "Michelle";
 
     phonebook::PhoneNumber number;
-    number.number("+55 33 995-3636-1111");
+    number.number = "+55 33 995-3636-1111";
     number.type(true);
     person.phones.push_back(number);
 
     number.clear();
-    number.number("+38 10 105-9482-3057");
+    number.number = "+38 10 105-9482-3057";
     number.type(false);
     person.phones.push_back(number);
 

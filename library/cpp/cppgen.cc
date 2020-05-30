@@ -72,7 +72,7 @@ static struct {
     { protogen::TYPE_SFIXED32, "sfixed32",  "int32_t"     , "0" },
     { protogen::TYPE_SFIXED64, "sfixed64",  "int64_t"     , "0" },
     { protogen::TYPE_BOOL,     "bool",      "bool"        , "false" },
-    { protogen::TYPE_STRING,   "string",    "std::string" , "\"\"" },
+    { protogen::TYPE_STRING,   "string",    "PROTOGEN_NS::string" , "\"\"" },
     { protogen::TYPE_BYTES,    "bytes",     "uint8_t"     , nullptr },
     { protogen::TYPE_MESSAGE,  nullptr,     nullptr       , nullptr }
 };
@@ -205,7 +205,7 @@ static std::string fieldNativeType( const Field &field, bool useLists )
         output += '>';
         return output;
     }
-    if (field.type.id == protogen::TYPE_MESSAGE)
+    if (field.type.id == protogen::TYPE_MESSAGE || field.type.id == protogen::TYPE_STRING)
         return valueType;
     else
     {
@@ -313,7 +313,7 @@ static void generateDeserializer( GeneratorContext &ctx, const Message &message 
                  type, storage, proto3Type(*fi), arrayType);
         }
         else
-        if (fi->type.id == protogen::TYPE_MESSAGE)
+        if (fi->type.id == protogen::TYPE_MESSAGE || fi->type.id == protogen::TYPE_STRING)
         {
             ctx.printer("this->$2$.clear();\n"
                 "if (PROTOGEN_NS::traits<$1$>::read(tok, this->$2$, required, err) == PROTOGEN_NS::parse_result::ERROR) "
@@ -374,7 +374,7 @@ static void generateSerializer( GeneratorContext &ctx, const Message &message )
             if (opt.type == OptionType::BOOLEAN && opt.value == "true") continue;
         }
 
-        if (fi->type.repeated || fi->type.id == protogen::TYPE_MESSAGE)
+        if (fi->type.repeated || fi->type.id == protogen::TYPE_MESSAGE || fi->type.id == protogen::TYPE_STRING)
             ctx.printer(
                 "// $1$\n"
                 "if (!this->$1$.undefined()) "
@@ -642,8 +642,6 @@ static void generateModel( GeneratorContext &ctx )
 
     ctx.printer(
         "#undef PROTOGEN_CPP_ENABLE_ERRORS\n"
-        "#undef PROTOGEN_FIELD_MOVECTOR\n"
-        "#undef PROTOGEN_FIELD\n"
         "#undef PROTOGEN_TRAIT\n"
         "#undef PROTOGEN_REI\n"
         "#undef PROTOGEN_REM\n"
@@ -652,7 +650,6 @@ static void generateModel( GeneratorContext &ctx )
         "#undef PROTOGEN_REO\n"
         "#undef PROTOGEN_REN\n"
         "#undef PROTOGEN_NS\n"
-        "#undef PROTOGEN_EXPLICIT\n"
         "#endif // $1$\n", guard);
 }
 

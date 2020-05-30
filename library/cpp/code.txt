@@ -420,40 +420,9 @@ class mem_iterator
 			static void swap( M &a, M &b ) { a.swap(b); } \
 		}; \
 	}
-
-#undef PROTOGEN_FIELD
-#define PROTOGEN_FIELD(M) \
-	namespace PROTOGEN_NS { \
-        static_assert(std::is_object<M>::value, "Invalid object type"); \
-        template<> class Field<M> { \
-		protected: \
-			M value_; \
-		public: \
-			Field() { clear(); } \
-			Field( Field<M> &&that ) { this->value_.swap(that.value_); } \
-            void swap( Field<M> &that ) { traits<M>::swap(this->value_, that.value_); } \
-            void swap( M &that ) { traits<M>::swap(this->value_, that); } \
-			const M &operator()() const { return value_; } \
-			M &operator()() { return value_; } \
-			void operator ()(const M &value ) { this->value_ = value; } \
-            const M *operator->() const { return &value_; } \
-            M *operator->() { return &value_; } \
-			bool undefined() const { return value_.undefined(); } \
-			void clear() { traits<M>::clear(value_); } \
-			Field<M> &operator=( const Field<M> &that ) { this->value_ = that.value_; return *this; } \
-			Field<M> &operator=( const M &that ) { this->value_ = that; return *this; } \
-			bool operator==( const Field<M> &that ) const { return this->value_ == that.value_; } \
-			bool operator!=( const Field<M> &that ) const { return this->value_ != that.value_; } \
-			bool operator==( const M &that ) const { return this->value_ == that; } \
-			bool operator!=( const M &that ) const { return this->value_ != that; } \
-			explicit operator M() { return this->value_; } \
-			explicit operator M() const { return this->value_; } \
-	    }; \
-    }
 ------
 
 --- CODE_BLOCK_2
-
 namespace PROTOGEN_NS {
 
 enum class parse_result { OK, ERROR, UNDEFINED };
@@ -516,14 +485,29 @@ template<> struct traits<bool>
     static void swap( bool &a, bool &b ) { bool temp = a; a = b; b = temp; }
 };
 
-// proto3 'string'
-template<> struct traits<std::string>
+class string : public std::string
 {
-    static void clear( std::string &value ) { value.clear(); }
-    static void write( PROTOGEN_NS::ostream &out, const std::string &value )
+    public:
+        string() {}
+        string( const std::string &that ) : std::string(that) {}
+        string( std::string &&that ) : std::string(that) {}
+        string( const string &that ) : std::string(that) {}
+        string( string &&that ) : std::string(that) {}
+        string( const char *that ) : std::string(that) {}
+        string &operator=( const char *value ) { std::string::operator=(value); return *this; }
+        string &operator=( const string &value ) { std::string::operator=(value); return *this; }
+        string &operator=( const std::string &value ) { std::string::operator=(value); return *this; }
+        bool undefined() const { return this->empty(); }
+};
+
+// proto3 'string'
+template<> struct traits<PROTOGEN_NS::string>
+{
+    static void clear( PROTOGEN_NS::string &value ) { value.clear(); }
+    static void write( PROTOGEN_NS::ostream &out, const PROTOGEN_NS::string &value )
     {
         out << '"';
-        for (std::string::const_iterator it = value.begin(); it != value.end(); ++it)
+        for (PROTOGEN_NS::string::const_iterator it = value.begin(); it != value.end(); ++it)
         {
             switch (*it)
             {
@@ -540,7 +524,7 @@ template<> struct traits<std::string>
         }
         out << '"';
     }
-    static parse_result read( tokenizer &tok, std::string &value, bool required = false, PROTOGEN_NS::ErrorInfo *err = NULL )
+    static parse_result read( tokenizer &tok, PROTOGEN_NS::string &value, bool required = false, PROTOGEN_NS::ErrorInfo *err = NULL )
     {
         (void) required;
         (void) err;
@@ -550,7 +534,7 @@ template<> struct traits<std::string>
         value = tt.value;
         return parse_result::OK;
     }
-    static void swap( std::string &a, std::string &b ) { a.swap(b); }
+    static void swap( PROTOGEN_NS::string &a, PROTOGEN_NS::string &b ) { a.swap(b); }
 };
 ------
 
@@ -716,33 +700,6 @@ template<typename T> class Field
         bool operator==( const Field<T> &that ) const { return this->undefined_ == that.undefined_ && this->value_ == that.value_;  }
         bool operator!=( const Field<T> &that ) const { return this->undefined_ != that.undefined_ || this->value_ != that.value_;  }
         explicit operator T() const { return this->value_; }
-};
-
-template<> class Field<std::string>
-{
-    protected:
-        std::string value_;
-        bool undefined_;
-    public:
-        Field() { clear(); }
-        Field( const Field<std::string> &that ) { this->undefined_ = that.undefined_; if (!undefined_) this->value_ = that.value_; }
-        Field( Field<std::string> &&that ) { this->undefined_ = that.undefined_; if (!undefined_) this->value_.swap(that.value_); }
-        void swap( Field<std::string> &that ) { traits<std::string>::swap(this->value_, that.value_); traits<bool>::swap(this->undefined_, that.undefined_); }
-        void swap( std::string &that ) { traits<std::string>::swap(this->value_, that); undefined_ = false; }
-        const std::string &operator()() const { return value_; }
-        std::string &operator()() { return value_; }
-        void operator()(const std::string &value ) { this->value_ = value; this->undefined_ = false; }
-        const std::string *operator->() const { return &value_; }
-        std::string *operator->() { return &value_; }
-        bool undefined() const { return undefined_; }
-        void clear() { traits<std::string>::clear(value_); undefined_ = true; }
-        Field<std::string> &operator=( const Field<std::string> &that ) { this->undefined_ = that.undefined_; if (!undefined_) this->value_ = that.value_; return *this; }
-        Field<std::string> &operator=( const std::string &that ) { this->undefined_ = false; this->value_ = that; return *this; }
-        bool operator==( const std::string &that ) const { return !this->undefined_ && this->value_ == that; }
-        bool operator!=( const std::string &that ) const { return !this->undefined_ && this->value_ != that; }
-        bool operator==( const Field<std::string> &that ) const { return this->undefined_ == that.undefined_ && this->value_ == that.value_;  }
-        bool operator!=( const Field<std::string> &that ) const { return this->undefined_ != that.undefined_ || this->value_ != that.value_;  }
-        explicit operator std::string() const { return this->value_; }
 };
 ------
 
