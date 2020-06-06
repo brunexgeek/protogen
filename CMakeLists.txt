@@ -25,10 +25,10 @@ endif()
 message("Build type: ${CMAKE_BUILD_TYPE}")
 
 add_library(libprotogen_static STATIC
-    "library/proto3.cc"
-    "library/printer.cc"
-    "library/exception.cc"
-    "library/cpp/cppgen.cc" )
+    "compiler/proto3.cc"
+    "compiler/printer.cc"
+    "compiler/exception.cc"
+    "compiler/cpp/cppgen.cc" )
 target_include_directories(libprotogen_static
     PUBLIC "include/"
     PRIVATE "${CMAKE_BINARY_DIR}/__include/")
@@ -51,10 +51,10 @@ set_target_properties(protogen PROPERTIES
 
 file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/__include/")
 add_custom_target(process_template
-    "${CMAKE_BINARY_DIR}/template" "${CMAKE_CURRENT_LIST_DIR}/library/cpp/code.txt" "${CMAKE_BINARY_DIR}/__include/auto-code.hh"
+    "${CMAKE_BINARY_DIR}/template" "${CMAKE_CURRENT_LIST_DIR}/compiler/cpp/code.txt" "${CMAKE_BINARY_DIR}/__include/auto-code.hh"
     DEPENDS template)
 
-add_executable(template "library/template.cc")
+add_executable(template "compiler/template.cc")
 set_target_properties(template PROPERTIES
     OUTPUT_NAME "template"
     ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
@@ -74,11 +74,16 @@ add_custom_target(generate_test3
     "${CMAKE_BINARY_DIR}/protogen" "${CMAKE_CURRENT_LIST_DIR}/tests/test3.proto" "${CMAKE_BINARY_DIR}/__include/test3.pg.hh"
     DEPENDS protogen)
 
+add_custom_target(generate_test7
+    "${CMAKE_BINARY_DIR}/protogen" "${CMAKE_CURRENT_LIST_DIR}/tests/test7.proto" "${CMAKE_BINARY_DIR}/__include/test7.pg.hh"
+    DEPENDS protogen)
+
+
 add_executable(tests "tests/tests.cc")
 target_include_directories(tests
     PUBLIC "include/"
     PRIVATE "${CMAKE_BINARY_DIR}/__include/")
-add_dependencies(tests generate_test1 generate_test2 generate_test3)
+add_dependencies(tests generate_test1 generate_test7 generate_test3)
 set_target_properties(tests PROPERTIES
     OUTPUT_NAME "run-tests"
     ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"

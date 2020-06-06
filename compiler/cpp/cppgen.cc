@@ -173,7 +173,7 @@ static std::string nativeType( const Field &field )
 }
 
  /**
-  * Translates protobuf3 types to protogen types.
+  * Translates protobuf3 types to C++ types.
   */
 static std::string fieldNativeType( const Field &field, bool useLists )
 {
@@ -208,7 +208,7 @@ static std::string fieldNativeType( const Field &field, bool useLists )
         return valueType;
     else
     {
-        std::string output = "PROTOGEN_NS::Field<";
+        std::string output = "PROTOGEN_NS::field<";
         output += valueType;
         output += '>';
         return output;
@@ -236,7 +236,7 @@ static void generateMoveCtor( GeneratorContext &ctx, const Message &message )
         else
             ctx.printer("this->$1$.swap(that.$1$);\n", fieldStorage(*fi));
     }
-    ctx.printer("}\n");
+    ctx.printer("}\n\b");
 }
 
 
@@ -415,7 +415,6 @@ static void generateSwap( GeneratorContext &ctx, const Message &message )
     ctx.printer("\b}\n");
 }
 
-
 static void generateNamespace( GeneratorContext &ctx, const Message &message, bool start )
 {
     if (message.package.empty()) return;
@@ -461,14 +460,13 @@ static void generateMessage( GeneratorContext &ctx, const Message &message, bool
     // begin namespace
     generateNamespace(ctx, message, true);
 
-    std::string parent = "PROTOGEN_NS::Message";
+    std::string parent = "PROTOGEN_NS::message";
     if (!ctx.custom_parent.empty()) parent = nativePackage(ctx.custom_parent);
 
-    ctx.printer("\nclass $1$ : public $2$", message.name, parent);
+    ctx.printer("\nstruct $1$ : public $2$", message.name, parent);
     ctx.printer(
-        " {\npublic:\n"
-        "\ttypedef PROTOGEN_NS::ErrorInfo ErrorInfo;\n"
-        "static const uint32_t PROTOGEN_VERSION = 0x$1$;\n", ctx.versionNo);
+        " {\n"
+        "\tstatic const uint32_t protogen_version = 0x$1$;\n", ctx.versionNo);
 
     // create the macro containing the field name
     for (auto fi = message.fields.begin(); fi != message.fields.end(); ++fi)
@@ -486,7 +484,7 @@ static void generateMessage( GeneratorContext &ctx, const Message &message, bool
         {
             ctx.printer(
                 "#undef PROTOGEN_FN_$1$\n"
-                "#define PROTOGEN_FN_$1$ PROTOGEN_NS::json::reveal(\"$2$\", $3$)\n",
+                "#define PROTOGEN_FN_$1$ PROTOGEN_NS::reveal(\"$2$\", $3$)\n",
                 storage, obfuscate(name), name.length());
         }
         else
@@ -515,23 +513,41 @@ static void generateMessage( GeneratorContext &ctx, const Message &message, bool
     generateSwap(ctx, message);
     // equality operator
     generateEqualityOperator(ctx, message);
-    // undefined function
-    generateUndefined(ctx, message);
     // use parent versions of 'serialize' and 'deserialize'
-    ctx.printer("using $1$::serialize;\nusing $1$::deserialize;\n", parent);
+    //ctx.printer("using $1$::serialize;\nusing $1$::deserialize;\n", parent);
     // message serializer
-    generateSerializer(ctx, message);
+    //generateSerializer(ctx, message);
     // message deserializer
-    generateDeserializer(ctx, message);
+    //generateDeserializer(ctx, message);
     // clear function
-    generateClear(ctx, message);
+    //generateClear(ctx, message);
     // close class declaration
     ctx.printer("\b};\n");
     // end namespace
     generateNamespace(ctx, message, false);
 
+    // JSON structure
+    ctx.printer("PG_JSON($1$::$2$", nativePackage(message.package), message.name);
+    for (auto fi = message.fields.begin(); fi != message.fields.end(); ++fi)
+    {
+        if (fi->options.count(PROTOGEN_O_TRANSIENT))
+        {
+            OptionEntry opt = fi->options.at(PROTOGEN_O_TRANSIENT);
+            if (opt.type == OptionType::BOOLEAN && opt.value == "true") continue;
+        }
+        ctx.printer(", $1$", fi->name);
+    }
+    ctx.printer(");\n");
+
+    // 'std::swap' specialization
+    ctx.printer("namespace std { \n"
+        "   template <typename T, typename std::enable_if<std::is_same<T,$1$::$2$>::value,int>::type = 0>\n"
+        "   void swap( $1$::$2$& a, $1$::$2$& b ) noexcept { a.swap(b); }\n"
+        "}\n",
+        nativePackage(message.package), message.name);
+
     // message trait
-    generateTrait(ctx, message);
+    //generateTrait(ctx, message);
 
     for (auto fi = message.fields.begin(); fi != message.fields.end(); ++fi)
     {
@@ -613,25 +629,6 @@ static void generateModel( GeneratorContext &ctx )
     std::string guard = makeGuard(ctx.root.fileName);
     ctx.printer(CODE_HEADER, PROTOGEN_VERSION, ctx.root.fileName, guard, ctx.version);
 
-    if (ctx.cpp_enable_errors)
-        ctx.printer("#define PROTOGEN_CPP_ENABLE_ERRORS // enable parsing error information\n");
-
-    // base template
-    ctx.printer.print(CODE_MACROS);
-    ctx.printer(
-        "\n#ifndef PROTOGEN_BASE_$1$\n"
-        "#define PROTOGEN_BASE_$1$\n", ctx.version);
-
-    ctx.printer.print(CODE_TOKENIZER);
-    ctx.printer.print(CODE_BLOCK_2);
-    ctx.printer(CODE_REPEATED_TRAIT, "std::vector");
-    ctx.printer(CODE_REPEATED_TRAIT, "std::list");
-    ctx.printer.print(CODE_BLOCK_3);
-    ctx.printer(CODE_PARENT_CLASS, "Message", "");
-    ctx.printer.print(CODE_STRING_REVEAL);
-    ctx.printer.print(CODE_BLOCK_4);
-    ctx.printer("#endif // PROTOGEN_BASE_$1$\n", version);
-
     sort(ctx);
 
     // message declarations
@@ -639,14 +636,6 @@ static void generateModel( GeneratorContext &ctx )
         generateMessage(ctx, **mi, ctx.obfuscate_strings);
 
     ctx.printer(
-        "#undef PROTOGEN_CPP_ENABLE_ERRORS\n"
-        "#undef PROTOGEN_TRAIT\n"
-        "#undef PROTOGEN_REI\n"
-        "#undef PROTOGEN_REM\n"
-        "#undef PROTOGEN_RES\n"
-        "#undef PROTOGEN_REV\n"
-        "#undef PROTOGEN_REO\n"
-        "#undef PROTOGEN_REN\n"
         "#undef PROTOGEN_NS\n"
         "#endif // $1$\n", guard);
 }

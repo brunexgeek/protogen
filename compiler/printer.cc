@@ -34,18 +34,7 @@ void Printer::print( const char *format )
 static void indent( std::ostream &out, int level )
 {
     if (level < 1 || level > 20) return;
-    switch (level)
-    {
-        case 1:  out << '\t'; break;
-        case 2:  out << "\t\t"; break;
-        case 3:  out << "\t\t\t"; break;
-        case 4:  out << "\t\t\t\t"; break;
-        case 5:  out << "\t\t\t\t\t"; break;
-        case 6:  out << "\t\t\t\t\t\t"; break;
-        case 7:  out << "\t\t\t\t\t\t\t"; break;
-        default:
-            for (int i = 0; i < level; ++i) out << '\t';
-    }
+    for (int i = 0; i < level; ++i) out << '\t';
 }
 
 void Printer::print( const char *format, const std::vector<std::string> &vars )
