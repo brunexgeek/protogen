@@ -787,7 +787,7 @@ inline std::vector<std::string> split( char const *text )
     return fields;
 }
 
-template<typename T>
+template<typename T, typename J = json<T> >
 static void read_object(protogen_2_0_0::tokenizer& tok, T &object)
 {
     if (!tok.expect(protogen_2_0_0::token_id::OBJS))
@@ -801,73 +801,137 @@ static void read_object(protogen_2_0_0::tokenizer& tok, T &object)
         tok.next();
         if (!tok.expect(protogen_2_0_0::token_id::COLON))
             tok.error(error_code::PGERR_INVALID_SEPARATOR, "field name and value must be separated by ':'");
-        if (!object.read_value(tok, tt.value))
+        if (!J::read_field(tok, tt.value, object))
             tok.ignore();
         if (tok.expect(protogen_2_0_0::token_id::OBJE))
             return;
         else
         if (tok.expect(protogen_2_0_0::token_id::COMMA))
             continue;
-        tok.error(error_code::PGERR_INVALID_OBJECT, "invalid json document!");
+        tok.error(error_code::PGERR_INVALID_OBJECT, "invalid json object");
     } while (true);
 }
 
-#define PG_JSON(TYPE,...) \
-    template<> \
-    struct protogen_2_0_0::json<TYPE> \
-    {\
-        struct model_helper : public TYPE\
-        {\
-            bool read_value( protogen_2_0_0::tokenizer& tok__, const std::string &name__ ) \
-            { \
-                auto& fields__ = fields(); \
-                return read_members(tok__, fields__.data(), name__, 0,__VA_ARGS__); \
-            } \
-            inline bool write(ostream& os__) const\
-            {\
-                auto& fields__ = fields();\
-                bool first__ = true; \
-                os__ << '{';\
-                bool result__ = write_members(os__, fields__.data(), 0, first__, __VA_ARGS__); \
-                os__ << '}';\
-                return result__; \
-            }\
-            inline void clear() { clear_members(0, __VA_ARGS__); } \
-            inline bool empty() const { \
-                bool result = true; \
-                empty_members(result, 0, __VA_ARGS__); \
-                return result; \
-            } \
-        };\
-        static bool empty( const TYPE& v ) \
-        {\
-            return reinterpret_cast<model_helper const &>(v).empty();\
-        }\
-        static inline const std::vector<std::string>& fields()\
-        {\
-            static std::vector<std::string> fields = protogen_2_0_0::split(MAKE_STRING(__VA_ARGS__));\
-            return fields;\
-        }\
-        static inline void read(protogen_2_0_0::tokenizer& tok, TYPE& v)\
-        {\
-            protogen_2_0_0::read_object(tok, reinterpret_cast<model_helper &>(v));\
-        }\
-        static inline void write(ostream& os, TYPE const& v)\
-        {\
-            reinterpret_cast<model_helper const &>(v).write(os);\
-        }\
-        static inline void clear(TYPE & v)\
-        {\
-            reinterpret_cast<model_helper &>(v).clear();\
-        }\
-        static inline void write(std::string &json, TYPE const &v )\
-        { \
-            typedef std::back_insert_iterator<std::string> ittype; \
-            ittype begin(json); \
-            iterator_ostream<ittype> os(begin); \
-            write(os, v); \
-        } \
+#define PG_CONCAT(arg1, arg2)   PG_CONCAT1(arg1, arg2)
+#define PG_CONCAT1(arg1, arg2)  arg1##arg2
+
+#define PG_FOR_EACH_1(what, x, ...) what(x)
+#define PG_FOR_EACH_2(what, x, ...) what(x) PG_FOR_EACH_1(what, __VA_ARGS__)
+#define PG_FOR_EACH_3(what, x, ...) what(x) PG_FOR_EACH_2(what, __VA_ARGS__)
+#define PG_FOR_EACH_4(what, x, ...) what(x) PG_FOR_EACH_3(what, __VA_ARGS__)
+#define PG_FOR_EACH_5(what, x, ...) what(x) PG_FOR_EACH_4(what, __VA_ARGS__)
+#define PG_FOR_EACH_6(what, x, ...) what(x) PG_FOR_EACH_5(what, __VA_ARGS__)
+#define PG_FOR_EACH_7(what, x, ...) what(x) PG_FOR_EACH_6(what, __VA_ARGS__)
+#define PG_FOR_EACH_8(what, x, ...) what(x) PG_FOR_EACH_7(what, __VA_ARGS__)
+#define PG_FOR_EACH_9(what, x, ...) what(x) PG_FOR_EACH_8(what, __VA_ARGS__)
+#define PG_FOR_EACH_10(what, x, ...) what(x) PG_FOR_EACH_9(what, __VA_ARGS__)
+#define PG_FOR_EACH_11(what, x, ...) what(x) PG_FOR_EACH_10(what, __VA_ARGS__)
+#define PG_FOR_EACH_12(what, x, ...) what(x) PG_FOR_EACH_11(what, __VA_ARGS__)
+#define PG_FOR_EACH_13(what, x, ...) what(x) PG_FOR_EACH_12(what, __VA_ARGS__)
+#define PG_FOR_EACH_14(what, x, ...) what(x) PG_FOR_EACH_13(what, __VA_ARGS__)
+#define PG_FOR_EACH_15(what, x, ...) what(x) PG_FOR_EACH_14(what, __VA_ARGS__)
+#define PG_FOR_EACH_16(what, x, ...) what(x) PG_FOR_EACH_15(what, __VA_ARGS__)
+#define PG_FOR_EACH_17(what, x, ...) what(x) PG_FOR_EACH_16(what, __VA_ARGS__)
+#define PG_FOR_EACH_18(what, x, ...) what(x) PG_FOR_EACH_17(what, __VA_ARGS__)
+#define PG_FOR_EACH_19(what, x, ...) what(x) PG_FOR_EACH_18(what, __VA_ARGS__)
+#define PG_FOR_EACH_20(what, x, ...) what(x) PG_FOR_EACH_19(what, __VA_ARGS__)
+#define PG_FOR_EACH_21(what, x, ...) what(x) PG_FOR_EACH_20(what, __VA_ARGS__)
+#define PG_FOR_EACH_22(what, x, ...) what(x) PG_FOR_EACH_21(what, __VA_ARGS__)
+#define PG_FOR_EACH_23(what, x, ...) what(x) PG_FOR_EACH_22(what, __VA_ARGS__)
+#define PG_FOR_EACH_24(what, x, ...) what(x) PG_FOR_EACH_23(what, __VA_ARGS__)
+
+#define PG_FOR_EACH_NARG(...) PG_FOR_EACH_NARG_(__VA_ARGS__, PG_FOR_EACH_RSEQ_N())
+#define PG_FOR_EACH_NARG_(...) PG_FOR_EACH_ARG_N(__VA_ARGS__)
+#define PG_FOR_EACH_ARG_N(_1,_2,_3,_4,_5,_6,_7,_8,_9,_10,_11,_12,_13,_14,_15,_16,_17,_18,_19,_20,_21,_22,_23,_24,N,...) N
+#define PG_FOR_EACH_RSEQ_N() 24,23,22,21,20,19,18,17,16,15,14,13,12,11,10,9,8,7,6,5,4,3,2,1,0
+#define PG_FOR_EACH_(N, what, x, ...) PG_CONCAT(PG_FOR_EACH_, N)(what, x, __VA_ARGS__)
+#define PG_FOR_EACH(what, x, ...) PG_FOR_EACH_(PG_FOR_EACH_NARG(x, __VA_ARGS__), what, x, __VA_ARGS__)
+
+#define MAKE_DESERIALIZE_IF(field_name) \
+    if (name == MAKE_STRING(field_name)) \
+    { protogen_2_0_0::json<decltype(value.field_name)>::read(tok, value.field_name); return true; } else
+
+#define MAKE_SERIALIZE_IF(field_name) \
+    if (!protogen_2_0_0::json<decltype(value.field_name)>::empty(value.field_name)) \
+    { \
+        if (!first) os << ','; \
+        first = false; \
+        os << "\"" MAKE_STRING(field_name) "\":"; \
+        protogen_2_0_0::json<decltype(value.field_name)>::write(os, value.field_name); \
     }
+
+#define MAKE_EMPTY_IF(field_name) \
+    if (!protogen_2_0_0::json<decltype(value.field_name)>::empty(value.field_name)) return false;
+
+#define MAKE_CLEAR_CALL(field_name) \
+    protogen_2_0_0::json<decltype(value.field_name)>::clear(value.field_name);
+
+#define PG_JSON(type, ...) \
+    template<> \
+    struct protogen_2_0_0::json<type> \
+    { \
+        static void read( tokenizer &tok, type &value ) \
+        { \
+            read_object(tok, value); \
+        } \
+        static bool read_field( tokenizer &tok, const std::string &name, type &value ) \
+        { \
+            PG_FOR_EACH(MAKE_DESERIALIZE_IF, __VA_ARGS__); \
+            return false; \
+        } \
+        static void write( ostream &os, const type &value ) \
+        { \
+            bool first = true; \
+            os << '{'; \
+            PG_FOR_EACH(MAKE_SERIALIZE_IF, __VA_ARGS__); \
+            os << '}'; \
+        } \
+        static bool empty( const type &value ) \
+        { \
+            PG_FOR_EACH(MAKE_EMPTY_IF, __VA_ARGS__); \
+            return true; \
+        } \
+        static void clear( type &value ) \
+        { \
+            PG_FOR_EACH(MAKE_CLEAR_CALL, __VA_ARGS__); \
+        } \
+    }; \
+
+#define PG_JSON_ENTITY(new_type, original_type) \
+    struct new_type : public original_type, \
+        public protogen_2_0_0::message<original_type, protogen_2_0_0::json<original_type>> \
+    { \
+        using protogen_2_0_0::message<original_type, protogen_2_0_0::json<original_type>>::serialize; \
+        using protogen_2_0_0::message<original_type, protogen_2_0_0::json<original_type>>::deserialize; \
+        void deserialize( tokenizer& tok ) override { json<original_type>::read(tok, *this); } \
+        void serialize( ostream &out ) override { json<original_type>::write(out, *this); } \
+        void clear() override { json<original_type>::clear(*this); } \
+        bool empty() const override { return json<original_type>::empty(*this); } \
+    }; \
+    template<> \
+    struct protogen_2_0_0::json<new_type> \
+    { \
+        static void read( tokenizer &tok, new_type &value ) \
+        { \
+            protogen_2_0_0::json<original_type>::read(tok, value); \
+        } \
+        static bool read_field( tokenizer &tok, const std::string &name, original_type &value ) \
+        { \
+            return protogen_2_0_0::json<original_type>::read_field(tok, name, value); \
+        } \
+        static void write( ostream &os, const original_type &value ) \
+        { \
+            protogen_2_0_0::json<original_type>::write(os, value); \
+        } \
+        static bool empty( const original_type &value ) \
+        { \
+            return protogen_2_0_0::json<original_type>::empty(value); \
+        } \
+        static void clear( original_type &value ) \
+        { \
+            protogen_2_0_0::json<original_type>::clear(value); \
+        } \
+    };
 
 template<typename T>
 void deserialize( protogen_2_0_0::tokenizer& tok, T &value )
@@ -965,9 +1029,76 @@ template<typename T, typename J = protogen_2_0_0::json<T>>
 bool empty( const T &value ) { return json<T>::empty(value); }
 
 // parent class for messages
+template<typename T, typename J>
 struct message
 {
+    typedef T underlying_type;
+    typedef J serializer_type;
     virtual ~message() = default;
+    virtual void deserialize( tokenizer& tok ) = 0;
+    virtual void deserialize( istream &in )
+    {
+        tokenizer tok(in);
+        deserialize(tok);
+    }
+    virtual void deserialize( const std::string &in )
+    {
+        iterator_istream<std::string::const_iterator> is(in.begin(), in.end());
+        deserialize(is);
+    }
+    virtual void deserialize( const std::vector<char> &in )
+    {
+        iterator_istream<std::vector<char>::const_iterator> is(in.begin(), in.end());
+        deserialize(is);
+    }
+    virtual void deserialize( std::istream &in )
+    {
+        bool skip = in.flags() & std::ios_base::skipws;
+        std::noskipws(in);
+        std::istream_iterator<char> end;
+        std::istream_iterator<char> begin(in);
+        iterator_istream<std::istream_iterator<char>> is(begin, end);
+        try
+        {
+            deserialize(is);
+            if (skip) std::skipws(in);
+        } catch (exception &ex)
+        {
+            if (skip) std::skipws(in);
+            throw;
+        }
+    }
+    virtual void deserialize( const char *in, size_t len )
+    {
+        auto begin = mem_iterator<char>(in, len);
+        auto end = mem_iterator<char>(in + len, 0);
+        iterator_istream<mem_iterator<char>> is(begin, end);
+        deserialize(is);
+    }
+    virtual void serialize( ostream &out ) = 0;
+    virtual void serialize( std::string &out )
+    {
+        typedef std::back_insert_iterator<std::string> ittype;
+        ittype begin(out);
+        iterator_ostream<ittype> os(begin);
+        serialize(os);
+    }
+    virtual void serialize( std::vector<char> &out )
+    {
+        typedef std::back_insert_iterator<std::vector<char>> ittype;
+        ittype begin(out);
+        iterator_ostream<ittype> os(begin);
+        serialize(os);
+    }
+    virtual void serialize( std::ostream &out )
+    {
+        typedef std::ostream_iterator<char> ittype;
+        ittype begin(out);
+        iterator_ostream<ittype> os(begin);
+        serialize(os);
+    }
+    virtual void clear() = 0;
+    virtual bool empty() const  = 0;
 };
 
 } // namespace protogen_2_0_0
