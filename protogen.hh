@@ -903,10 +903,22 @@ static void read_object(protogen_2_0_0::tokenizer& tok, T &object)
     { \
         using protogen_2_0_0::message<original_type, protogen_2_0_0::json<original_type>>::serialize; \
         using protogen_2_0_0::message<original_type, protogen_2_0_0::json<original_type>>::deserialize; \
-        void deserialize( tokenizer& tok ) override { json<original_type>::read(tok, *this); } \
-        void serialize( ostream &out ) override { json<original_type>::write(out, *this); } \
-        void clear() override { json<original_type>::clear(*this); } \
-        bool empty() const override { return json<original_type>::empty(*this); } \
+        void deserialize( protogen_2_0_0::tokenizer& tok ) override \
+        { \
+            protogen_2_0_0::json<original_type>::read(tok, *this); \
+        } \
+        void serialize( protogen_2_0_0::ostream &out ) override \
+        { \
+            protogen_2_0_0::json<original_type>::write(out, *this); \
+        } \
+        void clear() override \
+        { \
+            protogen_2_0_0::json<original_type>::clear(*this); \
+        } \
+        bool empty() const override \
+        { \
+            return protogen_2_0_0::json<original_type>::empty(*this); \
+        } \
     }; \
     template<> \
     struct protogen_2_0_0::json<new_type> \
