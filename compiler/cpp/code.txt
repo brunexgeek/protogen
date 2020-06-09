@@ -63,8 +63,7 @@ template<> struct protogen_2_0_0::json<$1$>
     }
     static bool read_field( tokenizer &tok, const std::string &name, $1$ &value ) \
     {
-$2$
-        return false;
+$2$        return false;
     }
     static void write( ostream &os, const $1$ &value )
     {
@@ -91,8 +90,7 @@ $7$    }
 ------
 
 --- CODE_DESERIALIZE_IF
-        if (name == "$1$") { protogen_2_0_0::json<decltype(value.$1$)>::read(tok, value.$1$); return true; }
-        else
+        if (name == "$1$") { protogen_2_0_0::json<decltype(value.$1$)>::read(tok, value.$1$); return true; } else
 ------
 
 --- CODE_SERIALIZE_IF
@@ -129,8 +127,18 @@ struct $1$ : public $2$,
     typedef protogen_2_0_0::json<O> J;
     using protogen_2_0_0::message<O, J>::serialize;
     using protogen_2_0_0::message<O, J>::deserialize;
-    void deserialize( protogen_2_0_0::tokenizer& tok ) override { J::read(tok, *this); }
-    void serialize( protogen_2_0_0::ostream &out ) override { J::write(out, *this); }
+    bool deserialize( protogen_2_0_0::tokenizer& tok, bool required = false,
+        protogen_2_0_0::exception *err = nullptr ) override
+    {
+        try { J::read(tok, *this); }
+        catch (protogen_2_0_0::exception &ex)
+        {
+            if (err != nullptr) *err = ex;
+            return false;
+        }
+        return true;
+    }
+    void serialize( protogen_2_0_0::ostream &out ) const override { J::write(out, *this); }
     void clear() override { J::clear(*this); }
     bool empty() const override { return J::empty(*this); }
     bool equal( const O &that ) const override { return J::equal(*this, that); }

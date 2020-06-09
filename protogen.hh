@@ -40,8 +40,7 @@ class exception : public std::exception
             msg_ += ':';
             msg_ += std::to_string(column_);
         }
-        exception( const exception &that ) : empty_(that.empty_), code_(that.code_), msg_(that.msg_),
-            line_(that.line_), column_(that.column_) { }
+        exception( const exception &that ) = default;
         exception( exception &&that )
         {
             msg_.swap(that.msg_);
@@ -54,6 +53,7 @@ class exception : public std::exception
         virtual const char *what() const noexcept override { return msg_.c_str(); }
         operator bool() const { return empty_; }
         bool operator ==( error_code value ) const { return code_ == value; }
+        exception &operator=( const exception &ex ) = default;
 };
 
 template<typename T>
@@ -932,11 +932,11 @@ static void read_object(protogen_2_0_0::tokenizer& tok, T &object)
     { \
         using protogen_2_0_0::message<original_type, protogen_2_0_0::json<original_type>>::serialize; \
         using protogen_2_0_0::message<original_type, protogen_2_0_0::json<original_type>>::deserialize; \
-        void deserialize( protogen_2_0_0::tokenizer& tok ) override \
+        bool deserialize( protogen_2_0_0::tokenizer& tok ) override \
         { \
             protogen_2_0_0::json<original_type>::read(tok, *this); \
         } \
-        void serialize( protogen_2_0_0::ostream &out ) override \
+        void serialize( protogen_2_0_0::ostream &out ) const override \
         { \
             protogen_2_0_0::json<original_type>::write(out, *this); \
         } \
@@ -991,58 +991,60 @@ static void read_object(protogen_2_0_0::tokenizer& tok, T &object)
     };
 
 template<typename T>
-void deserialize( protogen_2_0_0::tokenizer& tok, T &value )
+bool deserialize( T &value, protogen_2_0_0::tokenizer& tok, bool required = false, exception *err = nullptr )
 {
-    json<T>::read(tok, value);
+    try
+    {
+        json<T>::read(tok, value);
+        return true;
+    } catch (exception &ex)
+    {
+        if (err != nullptr) *err = ex;
+        return false;
+    }
 }
 
 template<typename T>
-void deserialize( istream &in, T &value )
+bool deserialize( T &value, istream &in, bool required = false, exception *err = nullptr )
 {
     tokenizer tok(in);
-    deserialize<T>(tok, value);
+    return deserialize<T>(value, tok, required, err);
 }
 
 template<typename T>
-void deserialize( const std::string &in, T &value )
+bool deserialize( T &value, const std::string &in, bool required = false, exception *err = nullptr )
 {
     iterator_istream<std::string::const_iterator> is(in.begin(), in.end());
-    deserialize<T>(is, value);
+    return deserialize<T>(value, is, required, err);
 }
 
 template<typename T>
-void deserialize( const std::vector<char> &in, T &value )
+bool deserialize( T &value, const std::vector<char> &in, bool required = false, exception *err = nullptr )
 {
     iterator_istream<std::vector<char>::const_iterator> is(in.begin(), in.end());
-    deserialize<T>(is, value);
+    return deserialize<T>(value, is, required, err);
 }
 
 template<typename T>
-void deserialize( std::istream &in, T &value )
+bool deserialize( T &value, std::istream &in, bool required = false, exception *err = nullptr )
 {
     bool skip = in.flags() & std::ios_base::skipws;
     std::noskipws(in);
     std::istream_iterator<char> end;
     std::istream_iterator<char> begin(in);
     iterator_istream<std::istream_iterator<char>> is(begin, end);
-    try
-    {
-        deserialize<T>(is, value);
-        if (skip) std::skipws(in);
-    } catch (exception &ex)
-    {
-        if (skip) std::skipws(in);
-        throw;
-    }
+    bool result = deserialize<T>(value, is, required, err);
+    if (skip) std::skipws(in);
+    return result;
 }
 
 template<typename T>
-void deserialize( const char *in, size_t len, T &value )
+bool deserialize( T &value, const char *in, size_t len, bool required = false, exception *err = nullptr )
 {
     auto begin = mem_iterator<char>(in, len);
     auto end = mem_iterator<char>(in + len, 0);
     iterator_istream<mem_iterator<char>> is(begin, end);
-    deserialize<T>(is, value);
+    return deserialize<T>(value, is, required, err);
 }
 
 template<typename T>
@@ -1092,23 +1094,23 @@ struct message
     typedef T underlying_type;
     typedef J serializer_type;
     virtual ~message() = default;
-    virtual void deserialize( tokenizer& tok ) = 0;
-    virtual void deserialize( istream &in )
+    virtual bool deserialize( tokenizer& tok, bool required = false, exception *err = nullptr ) = 0;
+    virtual bool deserialize( istream &in, bool required = false, exception *err = nullptr )
     {
         tokenizer tok(in);
-        deserialize(tok);
+        return deserialize(tok, required, err);
     }
-    virtual void deserialize( const std::string &in )
+    virtual bool deserialize( const std::string &in, bool required = false, exception *err = nullptr )
     {
         iterator_istream<std::string::const_iterator> is(in.begin(), in.end());
-        deserialize(is);
+        return deserialize(is, required, err);
     }
-    virtual void deserialize( const std::vector<char> &in )
+    virtual bool deserialize( const std::vector<char> &in, bool required = false, exception *err = nullptr )
     {
         iterator_istream<std::vector<char>::const_iterator> is(in.begin(), in.end());
-        deserialize(is);
+        return deserialize(is, required, err);
     }
-    virtual void deserialize( std::istream &in )
+    virtual bool deserialize( std::istream &in, bool required = false, exception *err = nullptr )
     {
         bool skip = in.flags() & std::ios_base::skipws;
         std::noskipws(in);
@@ -1117,37 +1119,39 @@ struct message
         iterator_istream<std::istream_iterator<char>> is(begin, end);
         try
         {
-            deserialize(is);
+            bool result = deserialize(is, required, err);
             if (skip) std::skipws(in);
+            return result;
         } catch (exception &ex)
         {
             if (skip) std::skipws(in);
             throw;
         }
+        return false;
     }
-    virtual void deserialize( const char *in, size_t len )
+    virtual bool deserialize( const char *in, size_t len, bool required = false, exception *err = nullptr )
     {
         auto begin = mem_iterator<char>(in, len);
         auto end = mem_iterator<char>(in + len, 0);
         iterator_istream<mem_iterator<char>> is(begin, end);
-        deserialize(is);
+        return deserialize(is, required, err);
     }
-    virtual void serialize( ostream &out ) = 0;
-    virtual void serialize( std::string &out )
+    virtual void serialize( ostream &out ) const = 0;
+    virtual void serialize( std::string &out ) const
     {
         typedef std::back_insert_iterator<std::string> ittype;
         ittype begin(out);
         iterator_ostream<ittype> os(begin);
         serialize(os);
     }
-    virtual void serialize( std::vector<char> &out )
+    virtual void serialize( std::vector<char> &out ) const
     {
         typedef std::back_insert_iterator<std::vector<char>> ittype;
         ittype begin(out);
         iterator_ostream<ittype> os(begin);
         serialize(os);
     }
-    virtual void serialize( std::ostream &out )
+    virtual void serialize( std::ostream &out ) const
     {
         typedef std::ostream_iterator<char> ittype;
         ittype begin(out);

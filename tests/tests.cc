@@ -54,7 +54,7 @@ bool RUN_TEST1( int argc, char **argv)
     std::string json2;
     phonebook::AddressBook temp;
     serialize(book, json1);
-    deserialize(json1, temp);
+    deserialize(temp, json1);
     serialize(temp, json2);
 
     bool result = (json1 == json2) ;//&& (book == temp);
@@ -82,7 +82,7 @@ bool RUN_TEST2( int argc, char **argv)
     std::string json2;
     compact::Person temp;
     serialize(person, json1);
-    deserialize(json1, temp);
+    deserialize(temp, json1);
     serialize(temp, json2);
 
     bool result = (json1 == json2);// && (person == temp);
@@ -110,7 +110,7 @@ bool RUN_TEST3( int argc, char **argv)
     std::string json2;
     options::Person temp;
     serialize(person, json1);
-    deserialize(json1, temp);
+    deserialize(temp, json1);
     serialize(temp, json2);
 
     bool result = (json1 == json2) && (person != temp);
@@ -197,22 +197,22 @@ bool RUN_TEST5( int argc, char **argv)
 
     // std::string
     phonebook::Person retrieved1;
-    deserialize(json1, retrieved1);
+    deserialize(retrieved1, json1);
     result |= (retrieved1 == person);
 
     // std::vector<char>
     phonebook::Person retrieved2;
-    deserialize(json2, retrieved2);
+    deserialize(retrieved2, json2);
     result |= (retrieved2 != person);
 
     // std::istream
     phonebook::Person retrieved3;
-    deserialize(temp, retrieved3);
+    deserialize(retrieved3, temp);
     result |= (retrieved3 != person);
 
     // C string
     phonebook::Person retrieved4;
-    deserialize(json1.c_str(), json1.length(), retrieved4);
+    deserialize(retrieved4, json1.c_str(), json1.length());
     result |= (retrieved4 != person);
 
     std::cerr << "[TEST #5] " << ((result) ? "Passed!" : "Failed!" ) << std::endl;
