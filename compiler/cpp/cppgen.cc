@@ -18,7 +18,7 @@
 #include <auto-code.hh>
 #include <protogen/protogen.hh>
 #include "../printer.hh"
-
+#include <sstream>
 
 namespace protogen {
 
@@ -452,16 +452,82 @@ static void generateUndefined( GeneratorContext &ctx, const Message &message )
     ctx.printer("\b\b}\n");
 }
 
+static void generateModel( GeneratorContext &ctx, const Message &message )
+{
+    // begin namespace
+    generateNamespace(ctx, message, true);
+
+    ctx.printer("struct $1$_type\n{\n", message.name);
+    for (auto field : message.fields)
+    {
+        ctx.printer("\t$1$ $2$;\n", fieldNativeType(field, true), fieldStorage(field) );
+    }
+    ctx.printer("};\n");
+
+    // end namespace
+    generateNamespace(ctx, message, false);
+}
+
+static void generateModelWrapper( GeneratorContext &ctx, const Message &message )
+{
+    std::string typeName = nativePackage(message.package) + "::" + message.name + "_type";
+    std::stringstream temp1;
+    std::stringstream temp2;
+    std::stringstream temp3;
+    std::stringstream temp4;
+    std::stringstream temp5;
+    std::stringstream temp6;
+    for (auto field : message.fields)
+    {
+        std::string name = field.name;
+
+        Printer::format(temp1, CODE_DESERIALIZE_IF, name);
+        Printer::format(temp2, CODE_SERIALIZE_IF, name);
+        Printer::format(temp3, CODE_EMPTY_IF, name);
+        Printer::format(temp4, CODE_CLEAR_CALL, name);
+        Printer::format(temp5, CODE_EQUAL_IF, name);
+        Printer::format(temp6, CODE_SWAP_CALL, name);
+    }
+
+    ctx.printer(CODE_JSON_MODEL, typeName, temp1.str(),
+        temp2.str(), temp3.str(), temp4.str(), temp5.str(), temp6.str());
+}
+
+static void generateEntity( GeneratorContext &ctx, const Message &message )
+{
+    std::string originalType = nativePackage(message.package) + "::" + message.name + "_type";
+    generateNamespace(ctx, message, true);
+    ctx.printer(CODE_ENTITY, message.name , originalType);
+    generateNamespace(ctx, message, false);
+}
+
+static void generateEntityWrapper( GeneratorContext &ctx, const Message &message )
+{
+    std::string typeName = nativePackage(message.package) + "::" + message.name;
+    ctx.printer(CODE_ENTITY_JSON, typeName, typeName + "_type");
+}
+
 
 static void generateMessage( GeneratorContext &ctx, const Message &message, bool obfuscate_strings = false )
 {
     ctx.printer("\n//\n// $1$\n//\n", message.name);
 
+    // create the model structure
+    generateModel(ctx, message);
+    // create JSON wrapper for model structure
+    generateModelWrapper(ctx, message);
+    // create entoty structure and JSON wrapper
+    //ctx.printer("PG_JSON_ENTITY($1$, $2$)", message.name, message.name + "_type");
+    generateEntity(ctx, message);
+    generateEntityWrapper(ctx, message);
+
+/*
     // begin namespace
     generateNamespace(ctx, message, true);
 
     std::string parent = "PROTOGEN_NS::message";
     if (!ctx.custom_parent.empty()) parent = nativePackage(ctx.custom_parent);
+
 
     ctx.printer("\nstruct $1$ : public $2$", message.name, parent);
     ctx.printer(
@@ -522,7 +588,7 @@ static void generateMessage( GeneratorContext &ctx, const Message &message, bool
     // clear function
     //generateClear(ctx, message);
     // close class declaration
-    ctx.printer("\b};\n");
+    ctx.printer("};\n");
     // end namespace
     generateNamespace(ctx, message, false);
 
@@ -548,7 +614,7 @@ static void generateMessage( GeneratorContext &ctx, const Message &message, bool
 
     // message trait
     //generateTrait(ctx, message);
-
+*/
     for (auto fi = message.fields.begin(); fi != message.fields.end(); ++fi)
     {
         std::string storage = fieldStorage(*fi);

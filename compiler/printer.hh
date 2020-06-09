@@ -43,6 +43,12 @@ class Printer
             print(format, {toString(args)...});
         }
 
+        template <typename... T>
+        static void format(std::ostream &out, const char* format, const T&... args)
+        {
+            print(out, format, {toString(args)...});
+        }
+
     protected:
         std::ostream &out_;
         bool pretty_;
@@ -65,6 +71,7 @@ class Printer
         }
 
         void print( const char *format, const std::vector<std::string> &vars );
+        static void print( std::ostream &out, const char *format, const std::vector<std::string> &vars );
 };
 
 

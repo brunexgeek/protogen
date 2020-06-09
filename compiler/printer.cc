@@ -39,7 +39,11 @@ static void indent( std::ostream &out, int level )
 
 void Printer::print( const char *format, const std::vector<std::string> &vars )
 {
-    //std::cerr << "vars has " << vars.size() << std::endl;
+    print(out_, format, vars);
+}
+
+void Printer::print( std::ostream &out, const char *format, const std::vector<std::string> &vars )
+{
     const char *ptr = format;
     while (*ptr != 0)
     {
@@ -55,39 +59,11 @@ void Printer::print( const char *format, const std::vector<std::string> &vars )
             ptr = end + 1;
             //std::cerr << index << "  " << vars[0] << std::endl;;
             if (index < 0 || index >= (int) vars.size()) continue;
-
-            if (newLine_)
-            {
-                indent(out_, tab_);
-                newLine_ = false;
-            }
-            out_ << vars[index];
+            out << vars[index];
             continue;
         }
-        if (*ptr == '\t' && newLine_)
-        {
-            if (tab_ < 7) ++tab_;
-        }
-        else
-        if (*ptr == '\b' && newLine_)
-        {
-            if (tab_ > 0) --tab_ ;
-        }
-        else
-        if (*ptr == '\n')
-        {
-            newLine_ = true;
-            out_ << '\n';
-        }
-        else
-        {
-            if (newLine_)
-            {
-                indent(out_, tab_);
-                newLine_ = false;
-            }
-            out_ << *ptr;
-        }
+        if (*ptr != '\b')
+            out << *ptr;
         ++ptr;
     }
 }

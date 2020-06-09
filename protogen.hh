@@ -467,7 +467,7 @@ template<typename T> class field
         typedef T value_type;
         field() { clear(); }
         field( const field<T> &that ) { this->empty_ = that.empty_; if (!empty_) this->value_ = that.value_; }
-        field( field<T> &&that ) { this->empty_ = that.empty_; if (!empty_) this->value_.swap(that.value_); }
+        field( field<T> &&that ) { this->empty_ = that.empty_; if (!empty_) json<T>::swap(this->value_, that.value_); }
         void swap( field<T> &that ) { std::swap(this->value_, that.value_); std::swap(this->empty_, that.empty_); }
         void swap( T &that ) { std::swap(this->value_, that); empty_ = false; }
         const T operator()() const { return value_; }
@@ -499,6 +499,8 @@ struct json<field<T>, typename std::enable_if<std::is_arithmetic<T>::value>::typ
     }
     static bool empty( const field<T> &value ) { return value.empty(); }
     static void clear( field<T> &value ) { value.clear(); }
+    static bool equal( const field<T> &a, const field<T> &b ) { return a == b; }
+    static void swap( field<T> &a, field<T> &b ) { std::swap(a, b); }
 };
 
 template<typename T>
@@ -532,6 +534,8 @@ struct json<T, typename std::enable_if<std::is_arithmetic<T>::value>::type >
     static void write( ostream &os, const T &value ) { os << value; }
     static bool empty( const T &value ) { (void) value; return false; }
     static void clear( T &value ) { value = (T) 0; }
+    static bool equal( const T &a, const T &b ) { return a == b; }
+    static void swap( T &a, T &b ) { std::swap(a, b); }
 };
 
 template<typename T>
@@ -565,6 +569,8 @@ struct json<T, typename std::enable_if<is_container<T>::value>::type >
     }
     static bool empty( const T &value ) { return value.empty(); }
     static void clear( T &value ) { value.clear(); }
+    static bool equal( const T &a, const T &b ) { return a == b; }
+    static void swap( T &a, T &b ) { std::swap(a, b); }
 };
 
 
@@ -662,6 +668,8 @@ struct json< std::vector<uint8_t> >
     }
     static bool empty( const std::vector<uint8_t> &value ) { return value.empty(); }
     static void clear( std::vector<uint8_t> &value ) { value.clear(); }
+    static bool equal( const std::vector<uint8_t> &a, const std::vector<uint8_t> &b ) { return a == b; }
+    static void swap( std::vector<uint8_t> &a, std::vector<uint8_t> &b ) { std::swap(a, b); }
 };
 
 template<>
@@ -684,6 +692,8 @@ struct json<bool, void>
     }
     static bool empty( const bool &value ) { (void) value; return false; }
     static void clear( bool &value ) { value = false; }
+    static bool equal( const bool &a, const bool &b ) { return a == b; }
+    static void swap( bool &a, bool &b ) { std::swap(a, b); }
 };
 
 template<>
@@ -706,6 +716,8 @@ struct json<std::string, void>
     }
     static bool empty( const std::string &value ) { return value.empty(); }
     static void clear( std::string &value ) { value.clear(); }
+    static bool equal( const std::string &a, const std::string &b ) { return a == b; }
+    static void swap( std::string &a, std::string &b ) { a.swap(b); }
 };
 
 inline bool write_members(ostream&, std::string const*, size_t, bool)
@@ -848,8 +860,7 @@ static void read_object(protogen_2_0_0::tokenizer& tok, T &object)
 #define PG_FOR_EACH(what, x, ...) PG_FOR_EACH_(PG_FOR_EACH_NARG(x, __VA_ARGS__), what, x, __VA_ARGS__)
 
 #define MAKE_DESERIALIZE_IF(field_name) \
-    if (name == MAKE_STRING(field_name)) \
-    { protogen_2_0_0::json<decltype(value.field_name)>::read(tok, value.field_name); return true; } else
+    if (name == MAKE_STRING(field_name)) { protogen_2_0_0::json<decltype(value.field_name)>::read(tok, value.field_name); return true; } else
 
 #define MAKE_SERIALIZE_IF(field_name) \
     if (!protogen_2_0_0::json<decltype(value.field_name)>::empty(value.field_name)) \
@@ -865,6 +876,16 @@ static void read_object(protogen_2_0_0::tokenizer& tok, T &object)
 
 #define MAKE_CLEAR_CALL(field_name) \
     protogen_2_0_0::json<decltype(value.field_name)>::clear(value.field_name);
+
+#define MAKE_EQUAL_IF(field_name) \
+    if (!protogen_2_0_0::json<decltype(a.field_name)>::equal(a.field_name, b.field_name)) return false;
+
+#define MAKE_CLEAR_CALL(field_name) \
+    protogen_2_0_0::json<decltype(value.field_name)>::clear(value.field_name);
+
+#define MAKE_SWAP_CALL(field_name) \
+    protogen_2_0_0::json<decltype(a.field_name)>::swap(a.field_name, b.field_name);
+
 
 #define PG_JSON(type, ...) \
     template<> \
@@ -895,6 +916,14 @@ static void read_object(protogen_2_0_0::tokenizer& tok, T &object)
         { \
             PG_FOR_EACH(MAKE_CLEAR_CALL, __VA_ARGS__); \
         } \
+        static bool equal( const type &a, const type &b ) \
+        { \
+            PG_FOR_EACH(MAKE_EQUAL_IF, __VA_ARGS__); \
+        } \
+        static void swap( type &a, type &b ) \
+        { \
+            PG_FOR_EACH(MAKE_SWAP_CALL, __VA_ARGS__); \
+        } \
     }; \
 
 #define PG_JSON_ENTITY(new_type, original_type) \
@@ -919,6 +948,14 @@ static void read_object(protogen_2_0_0::tokenizer& tok, T &object)
         { \
             return protogen_2_0_0::json<original_type>::empty(*this); \
         } \
+        bool equal( const original_type &that ) const override \
+        { \
+            return protogen_2_0_0::json<original_type>::equal(*this, that); \
+        } \
+        void swap( original_type &that ) \
+        { \
+            protogen_2_0_0::json<original_type>::equal(*this, that); \
+        } \
     }; \
     template<> \
     struct protogen_2_0_0::json<new_type> \
@@ -942,6 +979,14 @@ static void read_object(protogen_2_0_0::tokenizer& tok, T &object)
         static void clear( original_type &value ) \
         { \
             protogen_2_0_0::json<original_type>::clear(value); \
+        } \
+        static bool equal( const original_type &a, const original_type &b ) \
+        { \
+            return protogen_2_0_0::json<original_type>::equal(a, b); \
+        } \
+        static void swap( original_type &a, original_type &b ) \
+        { \
+            protogen_2_0_0::json<original_type>::swap(a, b); \
         } \
     };
 
@@ -1111,6 +1156,9 @@ struct message
     }
     virtual void clear() = 0;
     virtual bool empty() const  = 0;
+    virtual bool equal( const T &that ) const = 0;
+    bool operator==( const T &that ) const { return J::equal((T&)*this, (T&)that); }
+    bool operator!=( const T &that ) const { return !J::equal((T&)*this, (T&)that); }
 };
 
 } // namespace protogen_2_0_0
