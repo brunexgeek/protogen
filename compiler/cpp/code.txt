@@ -57,20 +57,20 @@
 --- CODE_JSON_MODEL
 template<> struct protogen_2_0_0::json<$1$>
 {
-    static void read( tokenizer &tok, $1$ &value, bool required )
+    static int read( json_context &ctx, $1$ &value )
     {
-        read_object(tok, value, required);
+        return read_object(ctx, value);
     }
-    static bool read_field( tokenizer &tok, const std::string &name, $1$ &value, bool required ) \
+    static int read_field( json_context &ctx, const std::string &name, $1$ &value ) \
     {
-$2$        return false;
+$2$        return PGR_NIL;
     }
-    static void write( ostream &os, const $1$ &value )
+    static void write( json_context &ctx, const $1$ &value )
     {
         bool first = true;
-        os << '{';
+        (*ctx.os) << '{';
 $3$
-        os << '}';
+        (*ctx.os) << '}';
     }
     static bool empty( const $1$ &value )
     {
@@ -90,16 +90,16 @@ $7$    }
 ------
 
 --- CODE_DESERIALIZE_IF
-        if (name == "$1$") { protogen_2_0_0::json<decltype(value.$1$)>::read(tok, value.$1$, required); return true; } else
+        if (name == "$1$") { protogen_2_0_0::json<decltype(value.$1$)>::read(ctx, value.$1$); return PGR_OK; } else
 ------
 
 --- CODE_SERIALIZE_IF
         if (!protogen_2_0_0::json<decltype(value.$1$)>::empty(value.$1$))
         {
-            if (!first) os << ',';
+            if (!first) (*ctx.os) << ',';
             first = false;
-            os << "\"$1$\":";
-            protogen_2_0_0::json<decltype(value.$1$)>::write(os, value.$1$);
+            (*ctx.os) << "\"$1$\":";
+            protogen_2_0_0::json<decltype(value.$1$)>::write(ctx, value.$1$);
         }
 ------
 

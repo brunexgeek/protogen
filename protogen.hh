@@ -7,6 +7,7 @@
 #include <forward_list>
 #include <istream>
 #include <iterator>
+#include <memory>
 
 #define MAKE_STRING(...) #__VA_ARGS__
 
@@ -20,6 +21,13 @@ enum class error_code
     PGERR_INVALID_VALUE     = -4,
     PGERR_INVALID_OBJECT    = -5,
     PGERR_INVALID_NAME      = -6,
+};
+
+enum parse_error
+{
+    PGR_OK,
+    PGR_ERROR,
+    PGR_NIL,
 };
 
 struct ErrorInfo : public std::exception
@@ -261,13 +269,22 @@ class tokenizer
             }
             return false;
         }
-        void error( error_code code, const std::string &msg ) const { throw ErrorInfo(code, msg, input_.line(), input_.column()); }
+        int error( error_code code, const std::string &msg )
+        {
+            error_.code = code;
+            error_.message = msg;
+            error_.line = input_.line();
+            error_.column = input_.column();
+            return PGR_ERROR;
+        }
+        const ErrorInfo &error() const { return error_; }
         void ignore( ) { ignore_value(); }
 
     protected:
         token current_;
         istream &input_;
         std::forward_list<token> stack_;
+        ErrorInfo error_;
 
         bool parse_string( token &output )
         {
@@ -328,10 +345,10 @@ class tokenizer
             return true;
         }
 
-        void ignore_array()
+        int ignore_array()
         {
             if (!expect(token_id::ARRS))
-                error(error_code::PGERR_IGNORE_FAILED, "Invalid array");
+                return error(error_code::PGERR_IGNORE_FAILED, "Invalid array");
 
             while (true)
             {
@@ -339,33 +356,35 @@ class tokenizer
                 if (!expect(token_id::COMMA)) break;
             }
             if (!expect(token_id::ARRE))
-                error(error_code::PGERR_IGNORE_FAILED, "Invalid array");
+                return error(error_code::PGERR_IGNORE_FAILED, "Invalid array");
+            return PGR_OK;
         }
 
-        void ignore_object()
+        int ignore_object()
         {
             if (!expect(token_id::OBJS))
-                error(error_code::PGERR_IGNORE_FAILED, "Invalid object");
+                return error(error_code::PGERR_IGNORE_FAILED, "Invalid object");
 
             while (true)
             {
                 if (!expect(token_id::STRING))
                     error(error_code::PGERR_IGNORE_FAILED, "Expected field name");
                 if (!expect(token_id::COLON))
-                    error(error_code::PGERR_IGNORE_FAILED, "Expected colon");
+                    return error(error_code::PGERR_IGNORE_FAILED, "Expected colon");
                 ignore_value();
                 if (!expect(token_id::COMMA)) break;
             }
             if (!expect(token_id::OBJE))
-                error(error_code::PGERR_IGNORE_FAILED, "Invalid object");
+                return error(error_code::PGERR_IGNORE_FAILED, "Invalid object");
+            return PGR_OK;
         }
 
-        void ignore_value()
+        int ignore_value()
         {
             switch (peek().id)
             {
                 case token_id::NONE:
-                    error(error_code::PGERR_IGNORE_FAILED, "Invalid json");
+                    return error(error_code::PGERR_IGNORE_FAILED, "Invalid json");
                     break;
                 case token_id::OBJS:
                     ignore_object();
@@ -381,8 +400,9 @@ class tokenizer
                     next();
                     break;
                 default:
-                    error(error_code::PGERR_IGNORE_FAILED, "Invalid json");
+                    return error(error_code::PGERR_IGNORE_FAILED, "Invalid json");
             }
+            return PGR_OK;
         }
 };
 
@@ -447,6 +467,14 @@ struct is_container<
 
 template<typename T, typename E = void> struct json;
 
+struct json_context
+{
+    tokenizer *tok;
+    ostream *os;
+    bool required;
+    json_context() : tok(nullptr), os(nullptr), required(false) {}
+};
+
 template<typename T> class field
 {
     static_assert(std::is_arithmetic<T>::value, "Invalid arithmetic type");
@@ -476,17 +504,17 @@ template<typename T> class field
 template<typename T>
 struct json<field<T>, typename std::enable_if<std::is_arithmetic<T>::value>::type>
 {
-    static void read( tokenizer &tok, field<T> &value, bool required )
+    static int read( json_context &ctx, field<T> &value )
     {
-        (void) required;
         T temp;
-        json<T>::read(tok, temp, required);
+        int result = json<T>::read(ctx, temp);
         value = temp;
+        return result;
     }
-    static void write( ostream &os, const field<T> &value )
+    static void write( json_context &ctx, const field<T> &value )
     {
         T temp = value();
-        json<T>::write(os, temp);
+        json<T>::write(ctx, temp);
     }
     static bool empty( const field<T> &value ) { return value.empty(); }
     static void clear( field<T> &value ) { value.clear(); }
@@ -497,33 +525,33 @@ struct json<field<T>, typename std::enable_if<std::is_arithmetic<T>::value>::typ
 template<typename T>
 struct json<T, typename std::enable_if<std::is_arithmetic<T>::value>::type >
 {
-    static void read( tokenizer &tok, T &value, bool required )
+    static int read( json_context &ctx, T &value )
     {
-        (void) required;
-        auto &tt = tok.peek();
-        if (tt.id == token_id::NIL) return;
+        auto &tt = ctx.tok->peek();
+        if (ctx.tok->expect(token_id::NIL)) return PGR_NIL;
         if (tt.id != token_id::NUMBER)
-            tok.error(error_code::PGERR_INVALID_VALUE, "Invalid numeric value");
+            return ctx.tok->error(error_code::PGERR_INVALID_VALUE, "Invalid numeric value");
         //std::cerr << "Parsing '" << tt.value << "'\n";
 #if defined(_WIN32) || defined(_WIN64)
         static _locale_t loc = _create_locale(LC_NUMERIC, "C");
-        if (loc == NULL) tok.error(error_code::PGERR_INVALID_VALUE, "Invalid locale");
+        if (loc == NULL) return ctx.tok->error(error_code::PGERR_INVALID_VALUE, "Invalid locale");
         value = static_cast<T>(_strtod_l(tt.value.c_str(), NULL, loc));
 #else
         static locale_t loc = newlocale(LC_NUMERIC_MASK, "C", 0);
-        if (loc == 0) tok.error(error_code::PGERR_INVALID_VALUE, "Invalid locale");
+        if (loc == 0) return ctx.tok->error(error_code::PGERR_INVALID_VALUE, "Invalid locale");
 #ifdef __USE_GNU
         value = static_cast<T>(strtod_l(tt.value.c_str(), NULL, loc));
 #else
         locale_t old = uselocale(loc);
-        if (old == 0) tok.error(error_code::PGERR_INVALID_VALUE, "Unable to set locale");
+        if (old == 0) return ctx.tok->error(error_code::PGERR_INVALID_VALUE, "Unable to set locale");
         value = static_cast<T>(strtod(tt.value.c_str(), NULL));
         uselocale(old);
 #endif
 #endif
-        tok.next();
+        ctx.tok->next();
+        return PGR_OK;
     }
-    static void write( ostream &os, const T &value ) { os << value; }
+    static void write( json_context &ctx, const T &value ) { (*ctx.os) <<  value; }
     static bool empty( const T &value ) { (void) value; return false; }
     static void clear( T &value ) { value = (T) 0; }
     static bool equal( const T &a, const T &b ) { return a == b; }
@@ -533,32 +561,33 @@ struct json<T, typename std::enable_if<std::is_arithmetic<T>::value>::type >
 template<typename T>
 struct json<T, typename std::enable_if<is_container<T>::value>::type >
 {
-    static void read( tokenizer &tok, T &value, bool required )
+    static int read( json_context &ctx, T &value )
     {
-        (void) required;
-        if (tok.expect(token_id::NIL)) return;
-        if (!tok.expect(token_id::ARRS))
-            tok.error(error_code::PGERR_INVALID_OBJECT, "Invalid object");
+        if (ctx.tok->expect(token_id::NIL)) return PGR_NIL;
+        if (!ctx.tok->expect(token_id::ARRS))
+            return ctx.tok->error(error_code::PGERR_INVALID_OBJECT, "Invalid object");
         while (true)
         {
             typename T::value_type temp;
-            json<typename T::value_type>::read(tok, temp, required);
-            value.push_back(temp);
-            if (!tok.expect(token_id::COMMA)) break;
+            int result = json<typename T::value_type>::read(ctx, temp);
+            if (result == PGR_ERROR) return result;
+            if (result == PGR_OK) value.push_back(temp);
+            if (!ctx.tok->expect(token_id::COMMA)) break;
         }
-        if (!tok.expect(token_id::ARRE))
-            tok.error(error_code::PGERR_INVALID_OBJECT, "Invalid object");
+        if (!ctx.tok->expect(token_id::ARRE))
+            return ctx.tok->error(error_code::PGERR_INVALID_OBJECT, "Invalid object");
+        return PGR_OK;
     }
-    static void write( ostream &os, const T &value )
+    static void write( json_context &ctx, const T &value )
     {
-        os << '[';
+        (*ctx.os) <<  '[';
         size_t i = 0, t = value.size();
         for (auto it = value.begin(); it != value.end(); ++it, ++i)
         {
-            json<typename T::value_type>::write(os, *it);
-            if (i + 1 < t) os << ',';
+            json<typename T::value_type>::write(ctx, *it);
+            if (i + 1 < t) (*ctx.os) <<  ',';
         }
-        os << ']';
+        (*ctx.os) <<  ']';
     }
     static bool empty( const T &value ) { return value.empty(); }
     static void clear( T &value ) { value.clear(); }
@@ -582,14 +611,14 @@ struct json< std::vector<uint8_t> >
         if (ch >= 'a' && ch <= 'z') return (ch - 'a') + 26;
         return 0;
     }
-    static void write( ostream &out, const std::vector<uint8_t> &value )
+    static void write( json_context &ctx, const std::vector<uint8_t> &value )
     {
         static const char *B64_SYMBOLS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
         char o[5] = { 0 };
         size_t i = 0;
         size_t size = value.size();
 
-        out << '"';
+        (*ctx.os) <<  '"';
 
         for (i = 0; i + 2 < size; i += 3)
         {
@@ -597,7 +626,7 @@ struct json< std::vector<uint8_t> >
             o[1] = B64_SYMBOLS[ ((value[i] & 0x03) << 4) | ((value[i + 1] & 0xF0) >> 4) ];
             o[2] = B64_SYMBOLS[ ((value[i+1] & 0x0F) << 2) | ((value[i+2] & 0xC0) >> 6) ];
             o[3] = B64_SYMBOLS[ value[i+2] & 0x3F ];
-            out << o;
+            (*ctx.os) <<  o;
         }
 
         if (size - i)
@@ -613,21 +642,20 @@ struct json< std::vector<uint8_t> >
                 o[2] = B64_SYMBOLS[ ((value[i+1] & 0x0F) << 2) ];
             }
 
-            out << o;
+            (*ctx.os) <<  o;
         }
-        out << '"';
+        (*ctx.os) <<  '"';
     }
-    static void read( tokenizer &tok, std::vector<uint8_t> &value, bool required )
+    static int read( json_context &ctx, std::vector<uint8_t> &value )
     {
-        (void) required;
-        if (tok.expect(token_id::NIL)) return;
-        if (tok.peek().id != token_id::STRING)
-            tok.error(error_code::PGERR_INVALID_OBJECT, "Invalid string");
+        if (ctx.tok->expect(token_id::NIL)) return PGR_NIL;
+        if (ctx.tok->peek().id != token_id::STRING)
+            return ctx.tok->error(error_code::PGERR_INVALID_OBJECT, "Invalid string");
 
         size_t k = 0;
         int s[4];
-        std::string text = tok.peek().value;
-        tok.next();
+        std::string text = ctx.tok->peek().value;
+        ctx.tok->next();
         const char *ptr = text.c_str();
 
         while (true)
@@ -638,8 +666,8 @@ struct json< std::vector<uint8_t> >
                 int ch = *ptr++;
                 if (ch == 0)
                 {
-                    if (j != 0) tok.error(error_code::PGERR_INVALID_OBJECT, "Invalid base64 data");
-                    return;
+                    if (j != 0) ctx.tok->error(error_code::PGERR_INVALID_OBJECT, "Invalid base64 data");
+                    return PGR_OK;
                 }
                 s[j] = b64_int(ch);
             }
@@ -669,21 +697,21 @@ struct json< std::vector<uint8_t> >
 template<>
 struct json<bool, void>
 {
-    static void read( tokenizer &tok, bool &value, bool required )
+    static int read( json_context &ctx, bool &value )
     {
-        (void) required;
-        auto &tt = tok.peek();
+        auto &tt = ctx.tok->peek();
         if (tt.id != token_id::NIL)
         {
             if (tt.id != token_id::TRUE && tt.id != token_id::FALSE)
-                tok.error(error_code::PGERR_INVALID_VALUE, "Invalid boolean value");
+                return ctx.tok->error(error_code::PGERR_INVALID_VALUE, "Invalid boolean value");
             value = tt.id == token_id::TRUE;
         }
-        tok.next();
+        ctx.tok->next();
+        return PGR_OK;
     }
-    static void write( ostream &os, const bool &value )
+    static void write( json_context &ctx, const bool &value )
     {
-        os << (value ? "true" : "false");
+        (*ctx.os) <<  (value ? "true" : "false");
     }
     static bool empty( const bool &value ) { (void) value; return false; }
     static void clear( bool &value ) { value = false; }
@@ -694,37 +722,34 @@ struct json<bool, void>
 template<>
 struct json<std::string, void>
 {
-    static void read( tokenizer &tok, std::string &value, bool required )
+    static int read( json_context &ctx, std::string &value )
     {
-        (void) required;
-        auto &tt = tok.peek();
-        if (tt.id != token_id::NIL)
-        {
-            if (tt.id != token_id::STRING)
-                tok.error(error_code::PGERR_INVALID_VALUE, "Invalid string value");
-            value = tt.value;
-        }
-        tok.next();
+        auto tt = ctx.tok->peek();
+        if (ctx.tok->expect(token_id::NIL)) return PGR_NIL;
+        if (!ctx.tok->expect(token_id::STRING))
+            return ctx.tok->error(error_code::PGERR_INVALID_VALUE, "Invalid string value");
+        value = tt.value;
+        return PGR_OK;
     }
-    static void write( ostream &os, const std::string &value )
+    static void write( json_context &ctx, const std::string &value )
     {
-        os << '"';
+        (*ctx.os) <<  '"';
         for (std::string::const_iterator it = value.begin(); it != value.end(); ++it)
         {
             switch (*it)
             {
-                case '"':  os << "\\\""; break;
-                case '\\': os << "\\\\"; break;
-                case '/':  os << "\\/"; break;
-                case '\b': os << "\\b"; break;
-                case '\f': os << "\\f"; break;
-                case '\r': os << "\\r"; break;
-                case '\n': os << "\\n"; break;
-                case '\t': os << "\\t"; break;
-                default:   os << *it;
+                case '"':  (*ctx.os) <<  "\\\""; break;
+                case '\\': (*ctx.os) <<  "\\\\"; break;
+                case '/':  (*ctx.os) <<  "\\/"; break;
+                case '\b': (*ctx.os) <<  "\\b"; break;
+                case '\f': (*ctx.os) <<  "\\f"; break;
+                case '\r': (*ctx.os) <<  "\\r"; break;
+                case '\n': (*ctx.os) <<  "\\n"; break;
+                case '\t': (*ctx.os) <<  "\\t"; break;
+                default:   (*ctx.os) <<  *it;
             }
         }
-        os << '"';
+        (*ctx.os) <<  '"';
     }
     static bool empty( const std::string &value ) { return value.empty(); }
     static void clear( std::string &value ) { value.clear(); }
@@ -732,110 +757,34 @@ struct json<std::string, void>
     static void swap( std::string &a, std::string &b ) { a.swap(b); }
 };
 
-inline bool write_members(ostream&, std::string const*, size_t, bool)
-{
-    return false;
-}
-
-template<typename T, typename head, typename... args>
-inline bool write_members(T& os, std::string const * member_ptr,
-    size_t pos, bool &first, const head& val, args& ... args_)
-{
-    //std::cout << "Writing " << member << " - " << pos << " -> " << member_ptr[pos] << std::endl;
-    if (!json<head>::empty(val))
-    {
-        if (!first) os << ',';
-        os << '"' << member_ptr[pos] << "\":";
-        json<head>::write(os, val);
-        first = false;
-    }
-    if (sizeof...(args))
-        return write_members(os, member_ptr, pos + 1, first, args_...);
-    return true;
-}
-
-inline bool read_members(tokenizer&, std::string const*, std::string const&, size_t)
-{
-    return false;
-}
-
-template<typename T, typename head, typename... args>
-inline bool read_members(T& tok, std::string const * member_ptr,
-    std::string const& member, size_t pos, head& val, args& ... args_)
-{
-    //std::cout << "Reading " << member << " - " << pos << " -> " << member_ptr[pos] << std::endl;
-    if (member_ptr[pos] == member)
-    {
-        json<head>::read(tok, val);
-        return true;
-    }
-    if (sizeof...(args))
-        return read_members(tok, member_ptr, member, pos + 1, args_...);
-    return false;
-}
-
-inline void clear_members(size_t) { }
-
-template<typename head, typename... args>
-inline void clear_members(size_t pos, head& val, args& ... args_)
-{
-    json<head>::clear(val);
-    if (sizeof...(args))
-        clear_members(pos + 1, args_...);
-}
-
-inline void empty_members( bool &result, size_t ) { result &= false; }
-
-template<typename head, typename... args>
-inline void empty_members(bool &result, size_t pos, const head& val, args& ... args_)
-{
-    result &= json<head>::empty(val);
-    if (sizeof...(args))
-        empty_members(result, pos + 1, args_...);
-}
-
-inline std::vector<std::string> split( char const *text )
-{
-    std::vector<std::string> fields;
-    while (*text != 0)
-    {
-        while (*text == ' ' || *text == ',') ++text;
-        const char *s = text;
-        while (*text != ' ' && *text != ',' && *text != 0) ++text;
-        if (s != text)
-        {
-            auto value = std::string(s, (size_t)(text-s));
-            fields.push_back(value);
-        }
-    }
-    return fields;
-}
-
 template<typename T, typename J = json<T> >
-static void read_object(protogen_2_0_0::tokenizer& tok, T &object, bool required)
+static int read_object( json_context &ctx, T &object )
 {
-    if (!tok.expect(protogen_2_0_0::token_id::OBJS))
-        tok.error(error_code::PGERR_INVALID_OBJECT, "objects must start with '{'");
-    if (tok.expect(protogen_2_0_0::token_id::OBJE)) return;
+    if (!ctx.tok->expect(protogen_2_0_0::token_id::OBJS))
+        return ctx.tok->error(error_code::PGERR_INVALID_OBJECT, "objects must start with '{'");
+    if (ctx.tok->expect(protogen_2_0_0::token_id::OBJE)) return PGR_OK;
     do
     {
-        auto tt = tok.peek();
+        auto tt = ctx.tok->peek();
         if (tt.id != protogen_2_0_0::token_id::STRING)
-            tok.error(error_code::PGERR_INVALID_NAME, "object key must be string");
-        tok.next();
-        if (!tok.expect(protogen_2_0_0::token_id::COLON))
-            tok.error(error_code::PGERR_INVALID_SEPARATOR, "field name and value must be separated by ':'");
-        if (!J::read_field(tok, tt.value, object, required))
+            return ctx.tok->error(error_code::PGERR_INVALID_NAME, "object key must be string");
+        ctx.tok->next();
+        if (!ctx.tok->expect(protogen_2_0_0::token_id::COLON))
+            return ctx.tok->error(error_code::PGERR_INVALID_SEPARATOR, "field name and value must be separated by ':'");
+        int result = J::read_field(ctx, tt.value, object);
+        if (result == PGR_ERROR) return result;
+        if (result != PGR_OK)
         {
-            tok.ignore();
-            if (required) tok.error(error_code::PGERR_MISSING_FIELD, std::string("Missing required field '") + tt.value + "\'");
+            ctx.tok->ignore();
+            if (ctx.required)
+                return ctx.tok->error(error_code::PGERR_MISSING_FIELD, std::string("Missing required field '") + tt.value + "\'");
         }
-        if (tok.expect(protogen_2_0_0::token_id::OBJE))
-            return;
+        if (ctx.tok->expect(protogen_2_0_0::token_id::OBJE))
+            return PGR_OK;
         else
-        if (tok.expect(protogen_2_0_0::token_id::COMMA))
+        if (ctx.tok->expect(protogen_2_0_0::token_id::COMMA))
             continue;
-        tok.error(error_code::PGERR_INVALID_OBJECT, "invalid json object");
+        return ctx.tok->error(error_code::PGERR_INVALID_OBJECT, "invalid json object");
     } while (true);
 }
 
@@ -875,15 +824,15 @@ static void read_object(protogen_2_0_0::tokenizer& tok, T &object, bool required
 #define PG_FOR_EACH(what, x, ...) PG_FOR_EACH_(PG_FOR_EACH_NARG(x, __VA_ARGS__), what, x, __VA_ARGS__)
 
 #define MAKE_DESERIALIZE_IF(field_name) \
-    if (name == MAKE_STRING(field_name)) { protogen_2_0_0::json<decltype(value.field_name)>::read(tok, value.field_name, required); return true; } else
+    if (name == MAKE_STRING(field_name)) { protogen_2_0_0::json<decltype(value.field_name)>::read(ctx, value.field_name); return PGR_OK; } else
 
 #define MAKE_SERIALIZE_IF(field_name) \
     if (!protogen_2_0_0::json<decltype(value.field_name)>::empty(value.field_name)) \
     { \
-        if (!first) os << ','; \
+        if (!first) (*ctx.os) <<  ','; \
         first = false; \
-        os << "\"" MAKE_STRING(field_name) "\":"; \
-        protogen_2_0_0::json<decltype(value.field_name)>::write(os, value.field_name); \
+        (*ctx.os) <<  "\"" MAKE_STRING(field_name) "\":"; \
+        protogen_2_0_0::json<decltype(value.field_name)>::write(ctx, value.field_name); \
     }
 
 #define MAKE_EMPTY_IF(field_name) \
@@ -898,26 +847,25 @@ static void read_object(protogen_2_0_0::tokenizer& tok, T &object, bool required
 #define MAKE_SWAP_CALL(field_name) \
     protogen_2_0_0::json<decltype(a.field_name)>::swap(a.field_name, b.field_name);
 
-
 #define PG_JSON(type, ...) \
     template<> \
     struct protogen_2_0_0::json<type> \
     { \
-        static void read( tokenizer &tok, type &value, bool required ) \
+        static int read( json_context &ctx, type &value ) \
         { \
-            read_object(tok, value, required); \
+            return read_object(ctx, value); \
         } \
-        static bool read_field( tokenizer &tok, const std::string &name, type &value, bool required ) \
+        static int read_field( json_context &ctx, const std::string &name, type &value ) \
         { \
             PG_FOR_EACH(MAKE_DESERIALIZE_IF, __VA_ARGS__) \
-            return false; \
+            return PGR_ERROR; \
         } \
-        static void write( ostream &os, const type &value ) \
+        static void write( json_context &ctx, const type &value ) \
         { \
             bool first = true; \
-            os << '{'; \
+            (*ctx.os) <<  '{'; \
             PG_FOR_EACH(MAKE_SERIALIZE_IF, __VA_ARGS__) \
-            os << '}'; \
+            (*ctx.os) <<  '}'; \
         } \
         static bool empty( const type &value ) \
         { \
@@ -941,15 +889,12 @@ static void read_object(protogen_2_0_0::tokenizer& tok, T &object, bool required
 template<typename T>
 bool deserialize( T &value, protogen_2_0_0::tokenizer& tok, bool required = false, ErrorInfo *err = nullptr )
 {
-    try
-    {
-        json<T>::read(tok, value, required);
-        return true;
-    } catch (ErrorInfo &ex)
-    {
-        if (err != nullptr) *err = ex;
-        return false;
-    }
+    json_context ctx;
+    ctx.tok = &tok;
+    ctx.required = required;
+    if (json<T>::read(ctx, value) != PGR_ERROR) return true;
+    if (err != nullptr) *err = tok.error();
+    return false;
 }
 
 template<typename T>
@@ -998,8 +943,9 @@ bool deserialize( T &value, const char *in, size_t len, bool required = false, E
 template<typename T>
 void serialize( const T &value, ostream &out )
 {
-    //static_assert(std::is_base_of<ostream,S>::value, "Not derived");
-    json<T>::write(out, value);
+    json_context ctx;
+    ctx.os = &out;
+    json<T>::write(ctx, value);
 }
 
 template<typename T>
@@ -1065,17 +1011,9 @@ struct message
         std::istream_iterator<char> end;
         std::istream_iterator<char> begin(in);
         iterator_istream<std::istream_iterator<char>> is(begin, end);
-        try
-        {
-            bool result = deserialize(is, required, err);
-            if (skip) std::skipws(in);
-            return result;
-        } catch (ErrorInfo &ex)
-        {
-            if (skip) std::skipws(in);
-            throw;
-        }
-        return false;
+        bool result = deserialize(is, required, err);
+        if (skip) std::skipws(in);
+        return result;
     }
     virtual bool deserialize( const char *in, size_t len, bool required = false, ErrorInfo *err = nullptr )
     {
@@ -1119,20 +1057,28 @@ struct message
         typedef O value_type; \
         typedef S serializer_type; \
         typedef protogen_2_0_0::ErrorInfo ErrorInfo; \
+        N() = default; \
+        N( const N&that ) = default; \
+        N( N &&that ) = default; \
         using protogen_2_0_0::message<O, S>::serialize; \
         using protogen_2_0_0::message<O, S>::deserialize; \
         bool deserialize( protogen_2_0_0::tokenizer& tok, bool required = false, \
             protogen_2_0_0::ErrorInfo *err = nullptr ) override \
         { \
-            try { S::read(tok, *this, required); } \
-            catch (protogen_2_0_0::ErrorInfo &ex) \
-            { \
-                if (err != nullptr) *err = ex; \
-                return false; \
-            } \
-            return true; \
+            protogen_2_0_0::json_context ctx; \
+            ctx.tok = &tok; \
+            ctx.required = required; \
+            int result = S::read(ctx, *this); \
+            if (result == protogen_2_0_0::PGR_OK) return true; \
+            if (err != nullptr) *err = tok.error(); \
+            return false; \
         } \
-        void serialize( protogen_2_0_0::ostream &out ) const override { S::write(out, *this); } \
+        void serialize( protogen_2_0_0::ostream &out ) const override \
+        { \
+            protogen_2_0_0::json_context ctx; \
+            ctx.os = &out; \
+            S::write(ctx, *this); \
+        } \
         void clear() override { S::clear(*this); } \
         bool empty() const override { return S::empty(*this); } \
         bool equal( const O &that ) const override { return S::equal(*this, that); } \
@@ -1143,9 +1089,9 @@ struct message
     template<> \
     struct protogen_2_0_0::json<N> \
     { \
-        static void read( tokenizer &tok, O &value, bool required ) { S::read(tok, value, required); } \
-        static bool read_field( tokenizer &tok, const std::string &name, O &value, bool required ) { return S::read_field(tok, name, value, required); } \
-        static void write( ostream &os, const O &value ) { S::write(os, value); } \
+        static int read( json_context &ctx, O &value ) { return S::read(ctx, value); } \
+        static int read_field( json_context &ctx, const std::string &name, O &value ) { return S::read_field(ctx, name, value); } \
+        static void write( json_context &ctx, const O &value ) { S::write(ctx, value); } \
         static bool empty( const O &value ) { return S::empty(value); } \
         static void clear( O &value ) { S::clear(value); } \
         static bool equal( const O &a, const O &b ) { return S::equal(a, b); } \
