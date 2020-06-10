@@ -22,38 +22,28 @@ enum class error_code
     PGERR_INVALID_NAME      = -6,
 };
 
-class exception : public std::exception
+struct ErrorInfo : public std::exception
 {
-    protected:
-        bool empty_;
-        error_code code_;
-        std::string msg_;
-        int line_, column_;
-    public:
-        exception() : empty_(true) {};
-        exception( error_code code, const std::string &msg ) : empty_(false), code_(code), msg_(msg) { }
-        exception( error_code code, const std::string &msg, int line, int column ) : empty_(false),
-          code_(code), msg_(msg), line_(line), column_(column)
-        {
-            msg_ += " at ";
-            msg_ += std::to_string(line_);
-            msg_ += ':';
-            msg_ += std::to_string(column_);
-        }
-        exception( const exception &that ) = default;
-        exception( exception &&that )
-        {
-            msg_.swap(that.msg_);
-            std::swap(code_, that.code_);
-            std::swap(line_, that.line_);
-            std::swap(column_, that.column_);
-            std::swap(empty_, that.empty_);
-        }
-        error_code code() const { return code_; }
-        virtual const char *what() const noexcept override { return msg_.c_str(); }
-        operator bool() const { return empty_; }
-        bool operator ==( error_code value ) const { return code_ == value; }
-        exception &operator=( const exception &ex ) = default;
+    error_code code;
+    std::string message;
+    int line, column;
+
+    ErrorInfo() : line(0), column(0) {};
+    ErrorInfo( error_code code, const std::string &message ) : code(code),
+        message(message) { }
+    ErrorInfo( error_code code, const std::string &message, int line, int column ) :
+        code(code), message(message), line(line), column(column) { }
+    ErrorInfo( const ErrorInfo &that ) = default;
+    ErrorInfo( ErrorInfo &&that )
+    {
+        message.swap(that.message);
+        std::swap(code, that.code);
+        std::swap(line, that.line);
+        std::swap(column, that.column);
+    }
+    virtual const char *what() const noexcept override { return message.c_str(); }
+    bool operator ==( error_code value ) const { return code == value; }
+    ErrorInfo &operator=( const ErrorInfo &ex ) = default;
 };
 
 template<typename T>
@@ -271,7 +261,7 @@ class tokenizer
             }
             return false;
         }
-        void error( error_code code, const std::string &msg ) const { throw exception(code, msg, input_.line(), input_.column()); }
+        void error( error_code code, const std::string &msg ) const { throw ErrorInfo(code, msg, input_.line(), input_.column()); }
         void ignore( ) { ignore_value(); }
 
     protected:
@@ -486,10 +476,11 @@ template<typename T> class field
 template<typename T>
 struct json<field<T>, typename std::enable_if<std::is_arithmetic<T>::value>::type>
 {
-    static void read( tokenizer &tok, field<T> &value )
+    static void read( tokenizer &tok, field<T> &value, bool required )
     {
+        (void) required;
         T temp;
-        json<T>::read(tok, temp);
+        json<T>::read(tok, temp, required);
         value = temp;
     }
     static void write( ostream &os, const field<T> &value )
@@ -506,8 +497,9 @@ struct json<field<T>, typename std::enable_if<std::is_arithmetic<T>::value>::typ
 template<typename T>
 struct json<T, typename std::enable_if<std::is_arithmetic<T>::value>::type >
 {
-    static void read( tokenizer &tok, T &value )
+    static void read( tokenizer &tok, T &value, bool required )
     {
+        (void) required;
         auto &tt = tok.peek();
         if (tt.id == token_id::NIL) return;
         if (tt.id != token_id::NUMBER)
@@ -541,15 +533,16 @@ struct json<T, typename std::enable_if<std::is_arithmetic<T>::value>::type >
 template<typename T>
 struct json<T, typename std::enable_if<is_container<T>::value>::type >
 {
-    static void read( tokenizer &tok, T &value )
+    static void read( tokenizer &tok, T &value, bool required )
     {
+        (void) required;
         if (tok.expect(token_id::NIL)) return;
         if (!tok.expect(token_id::ARRS))
             tok.error(error_code::PGERR_INVALID_OBJECT, "Invalid object");
         while (true)
         {
             typename T::value_type temp;
-            json<typename T::value_type>::read(tok, temp);
+            json<typename T::value_type>::read(tok, temp, required);
             value.push_back(temp);
             if (!tok.expect(token_id::COMMA)) break;
         }
@@ -624,8 +617,9 @@ struct json< std::vector<uint8_t> >
         }
         out << '"';
     }
-    static void read( tokenizer &tok, std::vector<uint8_t> &value )
+    static void read( tokenizer &tok, std::vector<uint8_t> &value, bool required )
     {
+        (void) required;
         if (tok.expect(token_id::NIL)) return;
         if (tok.peek().id != token_id::STRING)
             tok.error(error_code::PGERR_INVALID_OBJECT, "Invalid string");
@@ -675,8 +669,9 @@ struct json< std::vector<uint8_t> >
 template<>
 struct json<bool, void>
 {
-    static void read( tokenizer &tok, bool &value )
+    static void read( tokenizer &tok, bool &value, bool required )
     {
+        (void) required;
         auto &tt = tok.peek();
         if (tt.id != token_id::NIL)
         {
@@ -699,8 +694,9 @@ struct json<bool, void>
 template<>
 struct json<std::string, void>
 {
-    static void read( tokenizer &tok, std::string &value )
+    static void read( tokenizer &tok, std::string &value, bool required )
     {
+        (void) required;
         auto &tt = tok.peek();
         if (tt.id != token_id::NIL)
         {
@@ -800,7 +796,7 @@ inline std::vector<std::string> split( char const *text )
 }
 
 template<typename T, typename J = json<T> >
-static void read_object(protogen_2_0_0::tokenizer& tok, T &object)
+static void read_object(protogen_2_0_0::tokenizer& tok, T &object, bool required)
 {
     if (!tok.expect(protogen_2_0_0::token_id::OBJS))
         tok.error(error_code::PGERR_INVALID_OBJECT, "objects must start with '{'");
@@ -813,8 +809,11 @@ static void read_object(protogen_2_0_0::tokenizer& tok, T &object)
         tok.next();
         if (!tok.expect(protogen_2_0_0::token_id::COLON))
             tok.error(error_code::PGERR_INVALID_SEPARATOR, "field name and value must be separated by ':'");
-        if (!J::read_field(tok, tt.value, object))
+        if (!J::read_field(tok, tt.value, object, required))
+        {
             tok.ignore();
+            if (required) tok.error(error_code::PGERR_MISSING_FIELD, std::string("Missing required field '") + tt.value + "\'");
+        }
         if (tok.expect(protogen_2_0_0::token_id::OBJE))
             return;
         else
@@ -860,7 +859,7 @@ static void read_object(protogen_2_0_0::tokenizer& tok, T &object)
 #define PG_FOR_EACH(what, x, ...) PG_FOR_EACH_(PG_FOR_EACH_NARG(x, __VA_ARGS__), what, x, __VA_ARGS__)
 
 #define MAKE_DESERIALIZE_IF(field_name) \
-    if (name == MAKE_STRING(field_name)) { protogen_2_0_0::json<decltype(value.field_name)>::read(tok, value.field_name); return true; } else
+    if (name == MAKE_STRING(field_name)) { protogen_2_0_0::json<decltype(value.field_name)>::read(tok, value.field_name, required); return true; } else
 
 #define MAKE_SERIALIZE_IF(field_name) \
     if (!protogen_2_0_0::json<decltype(value.field_name)>::empty(value.field_name)) \
@@ -880,9 +879,6 @@ static void read_object(protogen_2_0_0::tokenizer& tok, T &object)
 #define MAKE_EQUAL_IF(field_name) \
     if (!protogen_2_0_0::json<decltype(a.field_name)>::equal(a.field_name, b.field_name)) return false;
 
-#define MAKE_CLEAR_CALL(field_name) \
-    protogen_2_0_0::json<decltype(value.field_name)>::clear(value.field_name);
-
 #define MAKE_SWAP_CALL(field_name) \
     protogen_2_0_0::json<decltype(a.field_name)>::swap(a.field_name, b.field_name);
 
@@ -891,113 +887,49 @@ static void read_object(protogen_2_0_0::tokenizer& tok, T &object)
     template<> \
     struct protogen_2_0_0::json<type> \
     { \
-        static void read( tokenizer &tok, type &value ) \
+        static void read( tokenizer &tok, type &value, bool required ) \
         { \
-            read_object(tok, value); \
+            read_object(tok, value, required); \
         } \
-        static bool read_field( tokenizer &tok, const std::string &name, type &value ) \
+        static bool read_field( tokenizer &tok, const std::string &name, type &value, bool required ) \
         { \
-            PG_FOR_EACH(MAKE_DESERIALIZE_IF, __VA_ARGS__); \
+            PG_FOR_EACH(MAKE_DESERIALIZE_IF, __VA_ARGS__) \
             return false; \
         } \
         static void write( ostream &os, const type &value ) \
         { \
             bool first = true; \
             os << '{'; \
-            PG_FOR_EACH(MAKE_SERIALIZE_IF, __VA_ARGS__); \
+            PG_FOR_EACH(MAKE_SERIALIZE_IF, __VA_ARGS__) \
             os << '}'; \
         } \
         static bool empty( const type &value ) \
         { \
-            PG_FOR_EACH(MAKE_EMPTY_IF, __VA_ARGS__); \
+            PG_FOR_EACH(MAKE_EMPTY_IF, __VA_ARGS__) \
             return true; \
         } \
         static void clear( type &value ) \
         { \
-            PG_FOR_EACH(MAKE_CLEAR_CALL, __VA_ARGS__); \
+            PG_FOR_EACH(MAKE_CLEAR_CALL, __VA_ARGS__) \
         } \
         static bool equal( const type &a, const type &b ) \
         { \
-            PG_FOR_EACH(MAKE_EQUAL_IF, __VA_ARGS__); \
+            PG_FOR_EACH(MAKE_EQUAL_IF, __VA_ARGS__) \
         } \
         static void swap( type &a, type &b ) \
         { \
-            PG_FOR_EACH(MAKE_SWAP_CALL, __VA_ARGS__); \
+            PG_FOR_EACH(MAKE_SWAP_CALL, __VA_ARGS__) \
         } \
     }; \
-
-#define PG_JSON_ENTITY(new_type, original_type) \
-    struct new_type : public original_type, \
-        public protogen_2_0_0::message<original_type, protogen_2_0_0::json<original_type>> \
-    { \
-        using protogen_2_0_0::message<original_type, protogen_2_0_0::json<original_type>>::serialize; \
-        using protogen_2_0_0::message<original_type, protogen_2_0_0::json<original_type>>::deserialize; \
-        bool deserialize( protogen_2_0_0::tokenizer& tok ) override \
-        { \
-            protogen_2_0_0::json<original_type>::read(tok, *this); \
-        } \
-        void serialize( protogen_2_0_0::ostream &out ) const override \
-        { \
-            protogen_2_0_0::json<original_type>::write(out, *this); \
-        } \
-        void clear() override \
-        { \
-            protogen_2_0_0::json<original_type>::clear(*this); \
-        } \
-        bool empty() const override \
-        { \
-            return protogen_2_0_0::json<original_type>::empty(*this); \
-        } \
-        bool equal( const original_type &that ) const override \
-        { \
-            return protogen_2_0_0::json<original_type>::equal(*this, that); \
-        } \
-        void swap( original_type &that ) \
-        { \
-            protogen_2_0_0::json<original_type>::equal(*this, that); \
-        } \
-    }; \
-    template<> \
-    struct protogen_2_0_0::json<new_type> \
-    { \
-        static void read( tokenizer &tok, new_type &value ) \
-        { \
-            protogen_2_0_0::json<original_type>::read(tok, value); \
-        } \
-        static bool read_field( tokenizer &tok, const std::string &name, original_type &value ) \
-        { \
-            return protogen_2_0_0::json<original_type>::read_field(tok, name, value); \
-        } \
-        static void write( ostream &os, const original_type &value ) \
-        { \
-            protogen_2_0_0::json<original_type>::write(os, value); \
-        } \
-        static bool empty( const original_type &value ) \
-        { \
-            return protogen_2_0_0::json<original_type>::empty(value); \
-        } \
-        static void clear( original_type &value ) \
-        { \
-            protogen_2_0_0::json<original_type>::clear(value); \
-        } \
-        static bool equal( const original_type &a, const original_type &b ) \
-        { \
-            return protogen_2_0_0::json<original_type>::equal(a, b); \
-        } \
-        static void swap( original_type &a, original_type &b ) \
-        { \
-            protogen_2_0_0::json<original_type>::swap(a, b); \
-        } \
-    };
 
 template<typename T>
-bool deserialize( T &value, protogen_2_0_0::tokenizer& tok, bool required = false, exception *err = nullptr )
+bool deserialize( T &value, protogen_2_0_0::tokenizer& tok, bool required = false, ErrorInfo *err = nullptr )
 {
     try
     {
-        json<T>::read(tok, value);
+        json<T>::read(tok, value, required);
         return true;
-    } catch (exception &ex)
+    } catch (ErrorInfo &ex)
     {
         if (err != nullptr) *err = ex;
         return false;
@@ -1005,28 +937,28 @@ bool deserialize( T &value, protogen_2_0_0::tokenizer& tok, bool required = fals
 }
 
 template<typename T>
-bool deserialize( T &value, istream &in, bool required = false, exception *err = nullptr )
+bool deserialize( T &value, istream &in, bool required = false, ErrorInfo *err = nullptr )
 {
     tokenizer tok(in);
     return deserialize<T>(value, tok, required, err);
 }
 
 template<typename T>
-bool deserialize( T &value, const std::string &in, bool required = false, exception *err = nullptr )
+bool deserialize( T &value, const std::string &in, bool required = false, ErrorInfo *err = nullptr )
 {
     iterator_istream<std::string::const_iterator> is(in.begin(), in.end());
     return deserialize<T>(value, is, required, err);
 }
 
 template<typename T>
-bool deserialize( T &value, const std::vector<char> &in, bool required = false, exception *err = nullptr )
+bool deserialize( T &value, const std::vector<char> &in, bool required = false, ErrorInfo *err = nullptr )
 {
     iterator_istream<std::vector<char>::const_iterator> is(in.begin(), in.end());
     return deserialize<T>(value, is, required, err);
 }
 
 template<typename T>
-bool deserialize( T &value, std::istream &in, bool required = false, exception *err = nullptr )
+bool deserialize( T &value, std::istream &in, bool required = false, ErrorInfo *err = nullptr )
 {
     bool skip = in.flags() & std::ios_base::skipws;
     std::noskipws(in);
@@ -1039,7 +971,7 @@ bool deserialize( T &value, std::istream &in, bool required = false, exception *
 }
 
 template<typename T>
-bool deserialize( T &value, const char *in, size_t len, bool required = false, exception *err = nullptr )
+bool deserialize( T &value, const char *in, size_t len, bool required = false, ErrorInfo *err = nullptr )
 {
     auto begin = mem_iterator<char>(in, len);
     auto end = mem_iterator<char>(in + len, 0);
@@ -1094,23 +1026,23 @@ struct message
     typedef T underlying_type;
     typedef J serializer_type;
     virtual ~message() = default;
-    virtual bool deserialize( tokenizer& tok, bool required = false, exception *err = nullptr ) = 0;
-    virtual bool deserialize( istream &in, bool required = false, exception *err = nullptr )
+    virtual bool deserialize( tokenizer& tok, bool required = false, ErrorInfo *err = nullptr ) = 0;
+    virtual bool deserialize( istream &in, bool required = false, ErrorInfo *err = nullptr )
     {
         tokenizer tok(in);
         return deserialize(tok, required, err);
     }
-    virtual bool deserialize( const std::string &in, bool required = false, exception *err = nullptr )
+    virtual bool deserialize( const std::string &in, bool required = false, ErrorInfo *err = nullptr )
     {
         iterator_istream<std::string::const_iterator> is(in.begin(), in.end());
         return deserialize(is, required, err);
     }
-    virtual bool deserialize( const std::vector<char> &in, bool required = false, exception *err = nullptr )
+    virtual bool deserialize( const std::vector<char> &in, bool required = false, ErrorInfo *err = nullptr )
     {
         iterator_istream<std::vector<char>::const_iterator> is(in.begin(), in.end());
         return deserialize(is, required, err);
     }
-    virtual bool deserialize( std::istream &in, bool required = false, exception *err = nullptr )
+    virtual bool deserialize( std::istream &in, bool required = false, ErrorInfo *err = nullptr )
     {
         bool skip = in.flags() & std::ios_base::skipws;
         std::noskipws(in);
@@ -1122,14 +1054,14 @@ struct message
             bool result = deserialize(is, required, err);
             if (skip) std::skipws(in);
             return result;
-        } catch (exception &ex)
+        } catch (ErrorInfo &ex)
         {
             if (skip) std::skipws(in);
             throw;
         }
         return false;
     }
-    virtual bool deserialize( const char *in, size_t len, bool required = false, exception *err = nullptr )
+    virtual bool deserialize( const char *in, size_t len, bool required = false, ErrorInfo *err = nullptr )
     {
         auto begin = mem_iterator<char>(in, len);
         auto end = mem_iterator<char>(in + len, 0);
@@ -1164,6 +1096,45 @@ struct message
     bool operator==( const T &that ) const { return J::equal((T&)*this, (T&)that); }
     bool operator!=( const T &that ) const { return !J::equal((T&)*this, (T&)that); }
 };
+
+#define PG_ENTITY(N,O,S) \
+    struct N : public O, public protogen_2_0_0::message< O, S > \
+    { \
+        typedef O value_type; \
+        typedef S serializer_type; \
+        typedef protogen_2_0_0::ErrorInfo ErrorInfo; \
+        using protogen_2_0_0::message<O, S>::serialize; \
+        using protogen_2_0_0::message<O, S>::deserialize; \
+        bool deserialize( protogen_2_0_0::tokenizer& tok, bool required = false, \
+            protogen_2_0_0::ErrorInfo *err = nullptr ) override \
+        { \
+            try { S::read(tok, *this, required); } \
+            catch (protogen_2_0_0::ErrorInfo &ex) \
+            { \
+                if (err != nullptr) *err = ex; \
+                return false; \
+            } \
+            return true; \
+        } \
+        void serialize( protogen_2_0_0::ostream &out ) const override { S::write(out, *this); } \
+        void clear() override { S::clear(*this); } \
+        bool empty() const override { return S::empty(*this); } \
+        bool equal( const O &that ) const override { return S::equal(*this, that); } \
+        void swap( O &that ) { S::equal(*this, that); } \
+    };
+
+#define PG_ENTITY_SERIALIZER(N,O,S) \
+    template<> \
+    struct protogen_2_0_0::json<N> \
+    { \
+        static void read( tokenizer &tok, O &value, bool required ) { S::read(tok, value, required); } \
+        static bool read_field( tokenizer &tok, const std::string &name, O &value, bool required ) { return S::read_field(tok, name, value, required); } \
+        static void write( ostream &os, const O &value ) { S::write(os, value); } \
+        static bool empty( const O &value ) { return S::empty(value); } \
+        static void clear( O &value ) { S::clear(value); } \
+        static bool equal( const O &a, const O &b ) { return S::equal(a, b); } \
+        static void swap( O &a, O &b ) { S::swap(a, b); } \
+    };
 
 } // namespace protogen_2_0_0
 
