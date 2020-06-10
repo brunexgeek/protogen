@@ -32,7 +32,7 @@ bool RUN_TEST1( int argc, char **argv)
 
     phonebook::AddressBook book;
     book.owner.id = 33;
-    book.owner.name = "Bob";
+    book.owner.name = "Bob \"Blackjack\" O'Neil";
     book.owner.email = "bob@example.com";
     book.owner.last_updated = (uint32_t) std::chrono::system_clock::now().time_since_epoch().count();
 

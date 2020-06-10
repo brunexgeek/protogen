@@ -708,7 +708,23 @@ struct json<std::string, void>
     }
     static void write( ostream &os, const std::string &value )
     {
-        os << '"' << value << '"';
+        os << '"';
+        for (std::string::const_iterator it = value.begin(); it != value.end(); ++it)
+        {
+            switch (*it)
+            {
+                case '"':  os << "\\\""; break;
+                case '\\': os << "\\\\"; break;
+                case '/':  os << "\\/"; break;
+                case '\b': os << "\\b"; break;
+                case '\f': os << "\\f"; break;
+                case '\r': os << "\\r"; break;
+                case '\n': os << "\\n"; break;
+                case '\t': os << "\\t"; break;
+                default:   os << *it;
+            }
+        }
+        os << '"';
     }
     static bool empty( const std::string &value ) { return value.empty(); }
     static void clear( std::string &value ) { value.clear(); }
