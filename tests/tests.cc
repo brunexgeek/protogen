@@ -119,24 +119,35 @@ bool RUN_TEST3( int argc, char **argv)
 
     return result;
 }
-#if 0
+
+const char *ERRORS[] =
+{
+    "PGERR_OK",
+    "PGERR_IGNORE_FAILED",
+    "PGERR_MISSING_FIELD",
+    "PGERR_INVALID_SEPARATOR",
+    "PGERR_INVALID_VALUE",
+    "PGERR_INVALID_OBJECT",
+    "PGERR_INVALID_NAME",
+};
+
 bool RUN_TEST4( int argc, char **argv)
 {
     (void) argc;
     (void) argv;
 
-    struct { std::string json; int line; int col; int code; } CASES[] =
+    struct { std::string json; int line; int col; error_code code; } CASES[] =
     {
-        {"{ \n\n   \"bla\" : 55,,", 3, 15, PGERR_INVALID_NAME},
-        {"{\"bla", 1, 5, PGERR_INVALID_SEPARATOR},
-        {"{\"name\":\"bla\"}", 1, 14, PGERR_MISSING_FIELD},
-        {"", 1, 0, PGERR_INVALID_OBJECT},
-        {"{\"name\":45}", 1, 10, PGERR_INVALID_VALUE},
+        {"{ \n\n   \"bla\" : 55,,", 3, 15, error_code::PGERR_INVALID_NAME},
+        {"{\"bla", 1, 5, error_code::PGERR_INVALID_SEPARATOR},
+        {"{\"name\":\"bla\"}", 1, 14, error_code::PGERR_MISSING_FIELD},
+        {"", 1, 0, error_code::PGERR_INVALID_OBJECT},
+        {"{\"name\":45}", 1, 10, error_code::PGERR_INVALID_VALUE},
         // FIXME: why different column numbers?
-        {"{\"blip1\":{}", 1, 11, PGERR_IGNORE_FAILED},
-        {"{\"blip2\":[}", 1, 10, PGERR_IGNORE_FAILED},
-        {"{\"blip3\":\"}", 1, 11, PGERR_IGNORE_FAILED},
-        {"", 0, 0, 0}
+        {"{\"blip1\":{}", 1, 11, error_code::PGERR_IGNORE_FAILED},
+        {"{\"blip2\":[}", 1, 10, error_code::PGERR_IGNORE_FAILED},
+        {"{\"blip3\":\"}", 1, 11, error_code::PGERR_IGNORE_FAILED},
+        {"", 0, 0, error_code::PGERR_IGNORE_FAILED}
     };
 
     options::Person temp;
@@ -146,10 +157,10 @@ bool RUN_TEST4( int argc, char **argv)
     int i = 0;
     for (; result && CASES[i].line != 0; ++i)
     {
-        err.code = err.column = err.line = 0;
+        err.code = error_code::PGERR_OK;
+        err.column = err.line = 0;
         err.message.clear();
-        err.set = false;
-        result &= !temp.deserialize(CASES[i].json, CASES[i].code == PGERR_MISSING_FIELD, &err);
+        result &= !temp.deserialize(CASES[i].json, CASES[i].code == error_code::PGERR_MISSING_FIELD, &err);
         result &= CASES[i].line == err.line && CASES[i].col == err.column;
         result &= CASES[i].code == err.code;
     }
@@ -159,15 +170,15 @@ bool RUN_TEST4( int argc, char **argv)
     {
         --i;
         std::cerr << "   Failed JSON entry #" << i << ": " << CASES[i].json << std::endl;
-        std::cerr << "   Expected " << i << std::endl;
-        std::cerr << "   " << CASES[i].code << " at " << CASES[i].line << ':' << CASES[i].col << std::endl;
-        std::cerr << "   but got " << i << std::endl;
-        std::cerr << "   " << err.code << '(' << err.message << ") at " << err.line << ':' << err.column << std::endl;
+        std::cerr << "   Expected [";
+        std::cerr << ERRORS[CASES[i].code] << " at " << CASES[i].line << ':' << CASES[i].col << "]";
+        std::cerr << " but got [";
+        std::cerr << ERRORS[err.code] << " at " << err.line << ':' << err.column << ']' << std::endl;
     }
 
     return result;
 }
-#endif
+
 
 bool RUN_TEST5( int argc, char **argv)
 {
@@ -256,14 +267,73 @@ bool RUN_TEST6( int argc, char **argv)
     return true;
 }
 #endif
+
+bool RUN_TEST7( int argc, char **argv)
+{
+    (void) argc;
+    (void) argv;
+
+    types::Object object1;
+    object1.a = std::numeric_limits<decltype(object1.a)::value_type>::max();
+    object1.b = std::numeric_limits<decltype(object1.b)::value_type>::max();
+    object1.c = std::numeric_limits<decltype(object1.c)::value_type>::max();
+    object1.d = std::numeric_limits<decltype(object1.d)::value_type>::max();
+    object1.e = std::numeric_limits<decltype(object1.e)::value_type>::max();
+    object1.f = std::numeric_limits<decltype(object1.f)::value_type>::max();
+    object1.g = std::numeric_limits<decltype(object1.g)::value_type>::max();
+    object1.h = std::numeric_limits<decltype(object1.h)::value_type>::max();
+    object1.i = std::numeric_limits<decltype(object1.i)::value_type>::max();
+    object1.j = std::numeric_limits<decltype(object1.j)::value_type>::max();
+    object1.k = std::numeric_limits<decltype(object1.k)::value_type>::max();
+    object1.l = std::numeric_limits<decltype(object1.l)::value_type>::max();
+    object1.m = 13; // should be true as 13 is non-zero
+
+    std::string json;
+    object1.serialize(json);
+    types::Object object2;
+    object2.deserialize(json);
+
+    #define LITERAL(x) #x
+    #define COMPARING(a, b) \
+        if (a != b) \
+            std::cerr << LITERAL(a) << " == " << a << " and " << LITERAL(b) << " == " << b << std::endl; \
+        else
+
+    bool result = object1 == object2;
+    std::cerr << "[TEST #5] " << ((result) ? "Passed!" : "Failed!" ) << std::endl;
+    if (!result)
+    {
+        std::string ll = std::to_string(object1.d);
+        double value = strtod(ll.c_str(), nullptr);
+        ll = std::to_string(value);
+        std::cerr << ll << " - " << value << " - " << std::to_string(value) << std::endl;
+        COMPARING(object1.a, object2.a)
+        COMPARING(object1.b, object2.b)
+        COMPARING(object1.c, object2.c)
+        COMPARING(object1.d, object2.d)
+        COMPARING(object1.e, object2.e)
+        COMPARING(object1.f, object2.f)
+        COMPARING(object1.g, object2.g)
+        COMPARING(object1.h, object2.h)
+        COMPARING(object1.i, object2.i)
+        COMPARING(object1.j, object2.j)
+        COMPARING(object1.k, object2.k)
+        COMPARING(object1.l, object2.l)
+        std::cerr << "Oops!" << std::endl;
+    }
+
+    return true;
+}
+
 int main( int argc, char **argv)
 {
     bool result;
     result  = RUN_TEST1(argc, argv);
     result &= RUN_TEST2(argc, argv);
     result &= RUN_TEST3(argc, argv);
-    //result &= RUN_TEST4(argc, argv);
+    result &= RUN_TEST4(argc, argv);
     result &= RUN_TEST5(argc, argv);
     //result &= RUN_TEST6(argc, argv);
+    result &= RUN_TEST7(argc, argv);
     return (int) !result;
 }

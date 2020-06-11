@@ -13,14 +13,15 @@
 
 namespace protogen_2_0_0 {
 
-enum class error_code
+enum error_code
 {
-    PGERR_IGNORE_FAILED     = -1,
-    PGERR_MISSING_FIELD     = -2,
-    PGERR_INVALID_SEPARATOR = -3,
-    PGERR_INVALID_VALUE     = -4,
-    PGERR_INVALID_OBJECT    = -5,
-    PGERR_INVALID_NAME      = -6,
+    PGERR_OK                = 0,
+    PGERR_IGNORE_FAILED     = 1,
+    PGERR_MISSING_FIELD     = 2,
+    PGERR_INVALID_SEPARATOR = 3,
+    PGERR_INVALID_VALUE     = 4,
+    PGERR_INVALID_OBJECT    = 5,
+    PGERR_INVALID_NAME      = 6,
 };
 
 enum parse_error
@@ -53,16 +54,6 @@ struct ErrorInfo : public std::exception
     bool operator ==( error_code value ) const { return code == value; }
     ErrorInfo &operator=( const ErrorInfo &ex ) = default;
 };
-
-template<typename T>
-static std::string reveal( const T *value, size_t length )
-{
-    std::string result(length, ' ');
-    for (size_t i = 0; i < length; ++i)
-        result[i] = (T) ((int) value[i] ^ 0x33);
-    return result;
-}
-
 
 namespace internal {
 
@@ -756,6 +747,26 @@ struct json<std::string, void>
     static bool equal( const std::string &a, const std::string &b ) { return a == b; }
     static void swap( std::string &a, std::string &b ) { a.swap(b); }
 };
+
+template <typename T>
+#if !defined(_WIN32)
+constexpr
+#endif
+T rol( T value, size_t count )
+{
+	static_assert(std::is_unsigned<T>::value, "Unsupported signed type");
+	return (value << count) | (value >> (-count & (sizeof(T) * 8 - 1)));
+}
+
+template<typename T>
+static inline std::string reveal( const T *value, size_t length )
+{
+    uint8_t mask = rol(0x93, length % 8);
+	std::string result(length, ' ');
+	for (size_t i = 0; i < length; ++i)
+		result[i] = (char) ((int) value[i] ^ 0x93);
+	return result;
+}
 
 template<typename T, typename J = json<T> >
 static int read_object( json_context &ctx, T &object )

@@ -51,7 +51,6 @@ struct GeneratorContext
     }
 };
 
-
 static struct {
     protogen::FieldType type;
     const char *typeName;
@@ -77,7 +76,6 @@ static struct {
     { protogen::TYPE_MESSAGE,  nullptr,     nullptr       , nullptr }
 };
 
-
 static std::string toUpper( const std::string &value )
 {
     std::string output = value;
@@ -86,7 +84,6 @@ static std::string toUpper( const std::string &value )
 
     return output;
 }
-
 
 static std::string obfuscate( const std::string &value )
 {
@@ -103,7 +100,6 @@ static std::string obfuscate( const std::string &value )
 	return result;
 }
 
-
 static std::string nativePackage( const std::string &package )
 {
     // extra space because the compiler may complain about '<::' (i.e. using in templates)
@@ -118,7 +114,6 @@ static std::string nativePackage( const std::string &package )
     }
     return name;
 }
-
 
 static std::string fieldStorage( const Field &field )
 {
@@ -150,7 +145,6 @@ static std::string proto3Type( const Field &field )
 
     return name;
 }
-
 
 /**
  * Translates protobuf3 types to C++ types.
@@ -215,17 +209,6 @@ static std::string fieldNativeType( const Field &field, bool useLists )
     }
 }
 
-static void generateVariable( GeneratorContext &ctx, const Field &field )
-{
-    std::string storage = fieldStorage(field);
-    ctx.printer("$1$ $2$;\n", fieldNativeType(field, ctx.cpp_use_lists), storage, toUpper(storage), std::to_string(field.index));
-}
-
-static void generateCopyCtor( GeneratorContext &ctx, const Message &message )
-{
-    ctx.printer("$1$(const $1$ &that) { *this = that; }\n", message.name);
-}
-
 static void generateMoveCtor( GeneratorContext &ctx, const Message &message )
 {
     ctx.printer("$1$($1$ &&that) {\n\t", message.name);
@@ -237,182 +220,6 @@ static void generateMoveCtor( GeneratorContext &ctx, const Message &message )
             ctx.printer("this->$1$.swap(that.$1$);\n", fieldStorage(*fi));
     }
     ctx.printer("}\n\b");
-}
-
-
-static void generateAssignOperator( GeneratorContext &ctx, const Message &message )
-{
-    ctx.printer("$1$ &operator=(const $1$ &that) {\n\t", message.name);
-    for (auto fi = message.fields.begin(); fi != message.fields.end(); ++fi)
-        ctx.printer("this->$1$ = that.$1$;\n", fieldStorage(*fi));
-    ctx.printer("return *this;\n\b}\n");
-}
-
-
-static void generateEqualityOperator( GeneratorContext &ctx, const Message &message )
-{
-    ctx.printer(
-        "bool operator!=(const $1$ &that) const { return !(*this == that); }\n"
-        "bool operator==(const $1$ &that) const {\n"
-        "\treturn\n\t", message.name);
-    for (auto fi = message.fields.begin(); fi != message.fields.end(); ++fi)
-    {
-        ctx.printer("this->$1$ == that.$1$", fieldStorage(*fi));
-        if (fi + 1 != message.fields.end())
-            ctx.printer(" &&\n");
-        else
-            ctx.printer(";\n");
-    }
-    ctx.printer("\b\b}\n");
-}
-
-static void generateDeserializer( GeneratorContext &ctx, const Message &message )
-{
-    ctx.printer(
-        "PROTOGEN_NS::parse_result deserialize( PROTOGEN_NS::tokenizer &tok, bool required = false, PROTOGEN_NS::ErrorInfo *err = NULL ) {\n"
-        "bool hfld[$1$] = {false};\n"
-        "if (tok.next().id != PROTOGEN_NS::token_id::OBJS) PROTOGEN_REO(err, tok);\n"
-        "while (true)\n{\n"
-        "\tstd::string name;\nPROTOGEN_NS::token tt;\n"
-        "tt = tok.next();\nif (tt.id == PROTOGEN_NS::token_id::OBJE) break;\n"
-        "if (tt.id != PROTOGEN_NS::token_id::STRING) PROTOGEN_REN(err, tok);\n"
-        "name.swap(tok.current().value);\n"
-        "if (tok.next().id != PROTOGEN_NS::token_id::COLON) PROTOGEN_RES(err, tok);\n", message.fields.size());
-
-    bool first = true;
-    size_t count = 0;
-
-    for (auto fi = message.fields.begin(); fi != message.fields.end(); ++fi, ++count)
-    {
-        if (!IS_VALID_TYPE(fi->type.id)) continue;
-        if (fi->options.count(PROTOGEN_O_TRANSIENT))
-        {
-            OptionEntry opt = fi->options.at(PROTOGEN_O_TRANSIENT);
-            if (opt.type == OptionType::BOOLEAN && opt.value == "true") continue;
-        }
-
-        std::string storage = fieldStorage(*fi);
-        std::string type = nativeType(*fi);
-
-        if (!first) ctx.printer("else\n");
-
-        // start of the new field
-        ctx.printer("// $1$\n", fi->name);
-        ctx.printer("if (name == PROTOGEN_FN_$1$) {\n\t", storage); // open the main 'if'
-
-        // 'repeated' and 'bytes'
-        if (fi->type.repeated || fi->type.id == protogen::TYPE_BYTES)
-        {
-             const char *arrayType = "std::vector";
-             if (ctx.cpp_use_lists && fi->type.id != protogen::TYPE_BYTES)
-                 arrayType = "std::list";
-             ctx.printer(
-                 "if (PROTOGEN_NS::traits< $4$<$1$> >::read(tok, this->$2$, required, err) == PROTOGEN_NS::parse_result::ERROR) "
-                 "PROTOGEN_REV(err, tok, name, \"$3$\");\n",
-                 type, storage, proto3Type(*fi), arrayType);
-        }
-        else
-        if (fi->type.id == protogen::TYPE_MESSAGE || fi->type.id == protogen::TYPE_STRING)
-        {
-            ctx.printer("this->$2$.clear();\n"
-                "if (PROTOGEN_NS::traits<$1$>::read(tok, this->$2$, required, err) == PROTOGEN_NS::parse_result::ERROR) "
-                "PROTOGEN_REV(err, tok, name, \"$3$\");\n", type, storage, proto3Type(*fi));
-        }
-        else
-        {
-            ctx.printer(
-                "$1$ value;\n"
-                "if (PROTOGEN_NS::traits<$1$>::read(tok, value, required, err) == PROTOGEN_NS::parse_result::ERROR) "
-                "PROTOGEN_REV(err, tok, name, \"$3$\");\n"
-                "this->$2$.swap(value);\n", type, storage, proto3Type(*fi));
-        }
-        ctx.printer(
-            "hfld[$1$] = true;\n"
-            "\b}\n", // closes the main 'if'
-            count);
-        first = false;
-    }
-    ctx.printer(
-        "else\n"
-        "// ignore the current field\n"
-        "{\n\tif (PROTOGEN_NS::json::ignore_value(tok) == PROTOGEN_NS::parse_result::ERROR) PROTOGEN_REI(err, tok, name);\n"
-        "\b}\n"
-        "if (PROTOGEN_NS::json::next_field(tok) == PROTOGEN_NS::parse_result::ERROR) PROTOGEN_REI(err, tok, name);\n"
-        "\b}\n");
-
-    // check whether we missed any required field
-    ctx.printer(
-        "if (required) {\n\t");
-    for (size_t i = 0, t = message.fields.size(); i < t; ++i)
-    {
-        if (message.fields[i].options.count(PROTOGEN_O_TRANSIENT))
-        {
-            OptionEntry opt = message.fields[i].options.at(PROTOGEN_O_TRANSIENT);
-            if (opt.type == OptionType::BOOLEAN && opt.value == "true") continue;
-        }
-        ctx.printer("if (!hfld[$1$]) PROTOGEN_REM(err, tok, PROTOGEN_FN_$2$);\n", i, fieldStorage(message.fields[i]));
-    }
-    ctx.printer("\b}\nreturn PROTOGEN_NS::parse_result::OK;\n\b}\n");
-}
-
-
-static void generateSerializer( GeneratorContext &ctx, const Message &message )
-{
-    ctx.printer(
-        // serializer writing to 'ostream'
-        "void serialize( PROTOGEN_NS::ostream &out ) const {\n"
-        "\tout << '{';\n"
-        "bool first = true;\n");
-
-    for (auto fi = message.fields.begin(); fi != message.fields.end(); ++fi)
-    {
-        std::string storage = fieldStorage(*fi);
-        if (fi->options.count(PROTOGEN_O_TRANSIENT))
-        {
-            OptionEntry opt = fi->options.at(PROTOGEN_O_TRANSIENT);
-            if (opt.type == OptionType::BOOLEAN && opt.value == "true") continue;
-        }
-
-        if (fi->type.repeated || fi->type.id == protogen::TYPE_MESSAGE || fi->type.id == protogen::TYPE_STRING)
-            ctx.printer(
-                "// $1$\n"
-                "if (!this->$1$.empty()) "
-                "PROTOGEN_NS::json::write(out, first, PROTOGEN_FN_$1$, this->$1$);\n", storage);
-        else
-            ctx.printer(
-                "// $1$\n"
-                "if (!this->$1$.empty()) "
-                "PROTOGEN_NS::json::write(out, first, PROTOGEN_FN_$1$, this->$1$());\n", storage);
-    }
-    ctx.printer("out << '}';\n\b}\n");
-}
-
-
-static void generateTrait( GeneratorContext &ctx, const Message &message )
-{
-    ctx.printer("PROTOGEN_TRAIT($1$::$2$)\n", nativePackage(message.package), message.name);
-}
-
-
-static void generateClear( GeneratorContext &ctx, const Message &message )
-{
-    ctx.printer("void clear() {\n\t");
-    for (auto fi = message.fields.begin(); fi != message.fields.end(); ++fi)
-    {
-        ctx.printer("this->$1$.clear();\n", fieldStorage(*fi));
-    }
-    ctx.printer("\b}\n");
-}
-
-
-static void generateSwap( GeneratorContext &ctx, const Message &message )
-{
-    ctx.printer("void swap($1$ &that) {\n\t", message.name);
-    for (auto fi = message.fields.begin(); fi != message.fields.end(); ++fi)
-    {
-        ctx.printer("this->$1$.swap(that.$1$);\n", fieldStorage(*fi));
-    }
-    ctx.printer("\b}\n");
 }
 
 static void generateNamespace( GeneratorContext &ctx, const Message &message, bool start )
@@ -434,22 +241,6 @@ static void generateNamespace( GeneratorContext &ctx, const Message &message, bo
         else
             name += *it;
     }
-}
-
-static void generateUndefined( GeneratorContext &ctx, const Message &message )
-{
-    ctx.printer(
-        "bool empty() const {\n"
-        "\treturn\n\t", message.name);
-    for (auto fi = message.fields.begin(); fi != message.fields.end(); ++fi)
-    {
-        ctx.printer("this->$1$.empty()", fieldStorage(*fi));
-        if (fi + 1 != message.fields.end())
-            ctx.printer(" &&\n");
-        else
-            ctx.printer(";\n");
-    }
-    ctx.printer("\b\b}\n");
 }
 
 static void generateModel( GeneratorContext &ctx, const Message &message )
@@ -507,7 +298,6 @@ static void generateEntityWrapper( GeneratorContext &ctx, const Message &message
     ctx.printer(CODE_ENTITY_JSON, typeName, typeName + "_type");
 }
 
-
 static void generateMessage( GeneratorContext &ctx, const Message &message, bool obfuscate_strings = false )
 {
     ctx.printer("\n//\n// $1$\n//\n", message.name);
@@ -521,100 +311,6 @@ static void generateMessage( GeneratorContext &ctx, const Message &message, bool
     generateEntity(ctx, message);
     generateEntityWrapper(ctx, message);
 
-/*
-    // begin namespace
-    generateNamespace(ctx, message, true);
-
-    std::string parent = "PROTOGEN_NS::message";
-    if (!ctx.custom_parent.empty()) parent = nativePackage(ctx.custom_parent);
-
-
-    ctx.printer("\nstruct $1$ : public $2$", message.name, parent);
-    ctx.printer(
-        " {\n"
-        "\tstatic const uint32_t protogen_version = 0x$1$;\n", ctx.versionNo);
-
-    // create the macro containing the field name
-    for (auto fi = message.fields.begin(); fi != message.fields.end(); ++fi)
-    {
-        std::string storage = fieldStorage(*fi);
-        std::string name;
-        if (ctx.number_names)
-        {
-            name = std::to_string(fi->index);
-        }
-        else
-            name = fieldStorage(*fi);
-
-        if (obfuscate_strings)
-        {
-            ctx.printer(
-                "#undef PROTOGEN_FN_$1$\n"
-                "#define PROTOGEN_FN_$1$ PROTOGEN_NS::reveal(\"$2$\", $3$)\n",
-                storage, obfuscate(name), name.length());
-        }
-        else
-        {
-            ctx.printer(
-                "#undef PROTOGEN_FN_$1$\n"
-                "#define PROTOGEN_FN_$1$ \"$2$\"\n", storage, name);
-        }
-    }
-
-    for (auto fi = message.fields.begin(); fi != message.fields.end(); ++fi)
-    {
-        // storage variable
-        generateVariable(ctx, *fi);
-    }
-
-    // default constructor and destructor
-    ctx.printer("$1$() {}\nvirtual ~$1$() {}\n", message.name);
-    // copy constructor
-    generateCopyCtor(ctx, message);
-    // move constructor
-    generateMoveCtor(ctx, message);
-    // assign operator
-    generateAssignOperator(ctx, message);
-    // swap function
-    generateSwap(ctx, message);
-    // equality operator
-    generateEqualityOperator(ctx, message);
-    // use parent versions of 'serialize' and 'deserialize'
-    //ctx.printer("using $1$::serialize;\nusing $1$::deserialize;\n", parent);
-    // message serializer
-    //generateSerializer(ctx, message);
-    // message deserializer
-    //generateDeserializer(ctx, message);
-    // clear function
-    //generateClear(ctx, message);
-    // close class declaration
-    ctx.printer("};\n");
-    // end namespace
-    generateNamespace(ctx, message, false);
-
-    // JSON structure
-    ctx.printer("PG_JSON($1$::$2$", nativePackage(message.package), message.name);
-    for (auto fi = message.fields.begin(); fi != message.fields.end(); ++fi)
-    {
-        if (fi->options.count(PROTOGEN_O_TRANSIENT))
-        {
-            OptionEntry opt = fi->options.at(PROTOGEN_O_TRANSIENT);
-            if (opt.type == OptionType::BOOLEAN && opt.value == "true") continue;
-        }
-        ctx.printer(", $1$", fi->name);
-    }
-    ctx.printer(");\n");
-
-    // 'std::swap' specialization
-    ctx.printer("namespace std { \n"
-        "   template <typename T, typename std::enable_if<std::is_same<T,$1$::$2$>::value,int>::type = 0>\n"
-        "   void swap( $1$::$2$& a, $1$::$2$& b ) noexcept { a.swap(b); }\n"
-        "}\n",
-        nativePackage(message.package), message.name);
-
-    // message trait
-    //generateTrait(ctx, message);
-*/
     for (auto fi = message.fields.begin(); fi != message.fields.end(); ++fi)
     {
         std::string storage = fieldStorage(*fi);
