@@ -268,20 +268,25 @@ static void generateModelWrapper( GeneratorContext &ctx, const Message &message 
     std::stringstream temp4;
     std::stringstream temp5;
     std::stringstream temp6;
+    std::stringstream temp7;
+    int i = 0;
     for (auto field : message.fields)
     {
         std::string name = field.name;
 
-        Printer::format(temp1, CODE_DESERIALIZE_IF, name);
+        Printer::format(temp1, CODE_DESERIALIZE_IF, name, i);
         Printer::format(temp2, CODE_SERIALIZE_IF, name);
         Printer::format(temp3, CODE_EMPTY_IF, name);
         Printer::format(temp4, CODE_CLEAR_CALL, name);
         Printer::format(temp5, CODE_EQUAL_IF, name);
         Printer::format(temp6, CODE_SWAP_CALL, name);
+        Printer::format(temp7, CODE_IS_MISSING_IF, name, 1 << i);
+        ++i;
     }
 
     ctx.printer(CODE_JSON_MODEL, typeName, temp1.str(),
-        temp2.str(), temp3.str(), temp4.str(), temp5.str(), temp6.str());
+        temp2.str(), temp3.str(), temp4.str(), temp5.str(),
+        temp6.str(), temp7.str());
 }
 
 static void generateEntity( GeneratorContext &ctx, const Message &message )
@@ -298,8 +303,11 @@ static void generateEntityWrapper( GeneratorContext &ctx, const Message &message
     ctx.printer(CODE_ENTITY_JSON, typeName, typeName + "_type");
 }
 
-static void generateMessage( GeneratorContext &ctx, const Message &message, bool obfuscate_strings = false )
+static void generateMessage( GeneratorContext &ctx, const Message &message )
 {
+    if (message.fields.size() > 24)
+        throw exception(std::string("Message '") + message.name + "' have more than 24 fields");
+
     ctx.printer("\n//\n// $1$\n//\n", message.name);
 
     // create the model structure
@@ -395,7 +403,7 @@ static void generateModel( GeneratorContext &ctx )
 
     // message declarations
     for (auto mi = ctx.root.messages.begin(); mi != ctx.root.messages.end(); ++mi)
-        generateMessage(ctx, **mi, ctx.obfuscate_strings);
+        generateMessage(ctx, **mi);
 
     ctx.printer(
         "#undef PROTOGEN_NS\n"

@@ -139,15 +139,14 @@ bool RUN_TEST4( int argc, char **argv)
     struct { std::string json; int line; int col; error_code code; } CASES[] =
     {
         {"{ \n\n   \"bla\" : 55,,", 3, 15, error_code::PGERR_INVALID_NAME},
-        {"{\"bla", 1, 5, error_code::PGERR_INVALID_SEPARATOR},
-        {"{\"name\":\"bla\"}", 1, 14, error_code::PGERR_MISSING_FIELD},
-        {"", 1, 0, error_code::PGERR_INVALID_OBJECT},
-        {"{\"name\":45}", 1, 10, error_code::PGERR_INVALID_VALUE},
-        // FIXME: why different column numbers?
-        {"{\"blip1\":{}", 1, 11, error_code::PGERR_IGNORE_FAILED},
-        {"{\"blip2\":[}", 1, 10, error_code::PGERR_IGNORE_FAILED},
-        {"{\"blip3\":\"}", 1, 11, error_code::PGERR_IGNORE_FAILED},
-        {"", 0, 0, error_code::PGERR_IGNORE_FAILED}
+        {"{\"bla", 1, 6, error_code::PGERR_INVALID_SEPARATOR},
+        {"{\"name\":\"bla\"}", 1, 15, error_code::PGERR_MISSING_FIELD},
+        {"", 1, 1, error_code::PGERR_INVALID_OBJECT},
+        {"{\"name\":45}", 1, 11, error_code::PGERR_INVALID_VALUE},
+        {"{\"blip1\":{}", 1, 12, error_code::PGERR_IGNORE_FAILED},
+        {"{\"blip2\":[}", 1, 12, error_code::PGERR_IGNORE_FAILED},
+        {"{\"blip3\":\"}", 1, 12, error_code::PGERR_IGNORE_FAILED},
+        {"", 0, 0, error_code::PGERR_OK}
     };
 
     options::Person temp;
@@ -169,7 +168,7 @@ bool RUN_TEST4( int argc, char **argv)
     if (!result)
     {
         --i;
-        std::cerr << "   Failed JSON entry #" << i << ": " << CASES[i].json << std::endl;
+        std::cerr << "   Failed JSON entry #" << i << ": '" << CASES[i].json << '\'' << std::endl;
         std::cerr << "   Expected [";
         std::cerr << ERRORS[CASES[i].code] << " at " << CASES[i].line << ':' << CASES[i].col << "]";
         std::cerr << " but got [";

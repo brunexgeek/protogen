@@ -1,0 +1,19 @@
+syntax = "proto3";
+package types;
+
+message Object
+{
+    double a = 1;
+    float b = 2;
+    int32 c = 3;
+    int64 d = 4;
+    uint32 e = 5;
+    uint64 f = 6;
+    sint32 g = 7;
+    sint64 h = 8;
+    fixed32 i = 9;
+    fixed64 j = 10;
+    sfixed32 k = 11;
+    sfixed64 l = 12;
+    bool m = 13;
+}

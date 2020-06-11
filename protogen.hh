@@ -145,7 +145,7 @@ class iterator_istream : public istream
 {
     public:
         iterator_istream( const I& first, const I& last ) : beg_(first), end_(last), line_(1),
-            column_(0)
+            column_(1)
         {
         }
         int peek() override
@@ -162,7 +162,7 @@ class iterator_istream : public istream
             if (c == '\n')
             {
                 ++line_;
-                column_ = 0;
+                column_ = 1;
             }
             return c;
         }
@@ -269,7 +269,7 @@ class tokenizer
             return PGR_ERROR;
         }
         const ErrorInfo &error() const { return error_; }
-        void ignore( ) { ignore_value(); }
+        int ignore( ) { return ignore_value(); }
 
     protected:
         token current_;
@@ -343,7 +343,8 @@ class tokenizer
 
             while (true)
             {
-                ignore_value();
+                int result = ignore_value();
+                if (result != PGERR_OK) return result;
                 if (!expect(token_id::COMMA)) break;
             }
             if (!expect(token_id::ARRE))
@@ -359,10 +360,11 @@ class tokenizer
             while (true)
             {
                 if (!expect(token_id::STRING))
-                    error(error_code::PGERR_IGNORE_FAILED, "Expected field name");
+                    return error(error_code::PGERR_IGNORE_FAILED, "Expected field name");
                 if (!expect(token_id::COLON))
                     return error(error_code::PGERR_IGNORE_FAILED, "Expected colon");
-                ignore_value();
+                int result = ignore_value();
+                if (result != PGERR_OK) return result;
                 if (!expect(token_id::COMMA)) break;
             }
             if (!expect(token_id::OBJE))
@@ -375,25 +377,26 @@ class tokenizer
             switch (peek().id)
             {
                 case token_id::NONE:
-                    return error(error_code::PGERR_IGNORE_FAILED, "Invalid json");
-                    break;
+                case token_id::EOS:
+                    return error(error_code::PGERR_IGNORE_FAILED, "End of stream");
                 case token_id::OBJS:
-                    ignore_object();
-                    break;
+                    return ignore_object();
                 case token_id::ARRS:
-                    ignore_array();
-                    break;
+                    return ignore_array();
                 case token_id::STRING:
                 case token_id::NUMBER:
                 case token_id::NIL:
                 case token_id::TRUE:
                 case token_id::FALSE:
-                    next();
-                    break;
+                {
+                    auto tt = next();
+                    if (tt.id == token_id::NONE || tt.id == token_id::EOS)
+                        return error(PGERR_IGNORE_FAILED, "End of stream");
+                    return PGERR_OK;
+                }
                 default:
                     return error(error_code::PGERR_IGNORE_FAILED, "Invalid json");
             }
-            return PGR_OK;
         }
 };
 
@@ -463,7 +466,8 @@ struct json_context
     tokenizer *tok;
     ostream *os;
     bool required;
-    json_context() : tok(nullptr), os(nullptr), required(false) {}
+    uint32_t mask;
+    json_context() : tok(nullptr), os(nullptr), required(false), mask(0) {}
 };
 
 template<typename T> class field
@@ -786,46 +790,49 @@ static int read_object( json_context &ctx, T &object )
         if (result == PGR_ERROR) return result;
         if (result != PGR_OK)
         {
-            ctx.tok->ignore();
-            if (ctx.required)
-                return ctx.tok->error(error_code::PGERR_MISSING_FIELD, std::string("Missing required field '") + tt.value + "\'");
+            result = ctx.tok->ignore();
+            if (result == PGR_ERROR) return result;
+            continue;
         }
         if (ctx.tok->expect(protogen_2_0_0::token_id::OBJE))
-            return PGR_OK;
+            break;
         else
         if (ctx.tok->expect(protogen_2_0_0::token_id::COMMA))
             continue;
         return ctx.tok->error(error_code::PGERR_INVALID_OBJECT, "invalid json object");
     } while (true);
+    if (ctx.required && J::is_missing(ctx))
+        return error_code::PGERR_MISSING_FIELD;
+    return PGR_OK;
 }
 
 #define PG_CONCAT(arg1, arg2)   PG_CONCAT1(arg1, arg2)
 #define PG_CONCAT1(arg1, arg2)  arg1##arg2
 
-#define PG_FOR_EACH_1(what, x, ...) what(x)
-#define PG_FOR_EACH_2(what, x, ...) what(x) PG_FOR_EACH_1(what, __VA_ARGS__)
-#define PG_FOR_EACH_3(what, x, ...) what(x) PG_FOR_EACH_2(what, __VA_ARGS__)
-#define PG_FOR_EACH_4(what, x, ...) what(x) PG_FOR_EACH_3(what, __VA_ARGS__)
-#define PG_FOR_EACH_5(what, x, ...) what(x) PG_FOR_EACH_4(what, __VA_ARGS__)
-#define PG_FOR_EACH_6(what, x, ...) what(x) PG_FOR_EACH_5(what, __VA_ARGS__)
-#define PG_FOR_EACH_7(what, x, ...) what(x) PG_FOR_EACH_6(what, __VA_ARGS__)
-#define PG_FOR_EACH_8(what, x, ...) what(x) PG_FOR_EACH_7(what, __VA_ARGS__)
-#define PG_FOR_EACH_9(what, x, ...) what(x) PG_FOR_EACH_8(what, __VA_ARGS__)
-#define PG_FOR_EACH_10(what, x, ...) what(x) PG_FOR_EACH_9(what, __VA_ARGS__)
-#define PG_FOR_EACH_11(what, x, ...) what(x) PG_FOR_EACH_10(what, __VA_ARGS__)
-#define PG_FOR_EACH_12(what, x, ...) what(x) PG_FOR_EACH_11(what, __VA_ARGS__)
-#define PG_FOR_EACH_13(what, x, ...) what(x) PG_FOR_EACH_12(what, __VA_ARGS__)
-#define PG_FOR_EACH_14(what, x, ...) what(x) PG_FOR_EACH_13(what, __VA_ARGS__)
-#define PG_FOR_EACH_15(what, x, ...) what(x) PG_FOR_EACH_14(what, __VA_ARGS__)
-#define PG_FOR_EACH_16(what, x, ...) what(x) PG_FOR_EACH_15(what, __VA_ARGS__)
-#define PG_FOR_EACH_17(what, x, ...) what(x) PG_FOR_EACH_16(what, __VA_ARGS__)
-#define PG_FOR_EACH_18(what, x, ...) what(x) PG_FOR_EACH_17(what, __VA_ARGS__)
-#define PG_FOR_EACH_19(what, x, ...) what(x) PG_FOR_EACH_18(what, __VA_ARGS__)
-#define PG_FOR_EACH_20(what, x, ...) what(x) PG_FOR_EACH_19(what, __VA_ARGS__)
-#define PG_FOR_EACH_21(what, x, ...) what(x) PG_FOR_EACH_20(what, __VA_ARGS__)
-#define PG_FOR_EACH_22(what, x, ...) what(x) PG_FOR_EACH_21(what, __VA_ARGS__)
-#define PG_FOR_EACH_23(what, x, ...) what(x) PG_FOR_EACH_22(what, __VA_ARGS__)
-#define PG_FOR_EACH_24(what, x, ...) what(x) PG_FOR_EACH_23(what, __VA_ARGS__)
+#define PG_FOR_EACH_1(what, x, ...)  what(1,x)
+#define PG_FOR_EACH_2(what, x, ...)  what(2,x) PG_FOR_EACH_1(what, __VA_ARGS__)
+#define PG_FOR_EACH_3(what, x, ...)  what(3,x) PG_FOR_EACH_2(what, __VA_ARGS__)
+#define PG_FOR_EACH_4(what, x, ...)  what(4,x) PG_FOR_EACH_3(what, __VA_ARGS__)
+#define PG_FOR_EACH_5(what, x, ...)  what(5,x) PG_FOR_EACH_4(what, __VA_ARGS__)
+#define PG_FOR_EACH_6(what, x, ...)  what(6,x) PG_FOR_EACH_5(what, __VA_ARGS__)
+#define PG_FOR_EACH_7(what, x, ...)  what(7,x) PG_FOR_EACH_6(what, __VA_ARGS__)
+#define PG_FOR_EACH_8(what, x, ...)  what(8,x) PG_FOR_EACH_7(what, __VA_ARGS__)
+#define PG_FOR_EACH_9(what, x, ...)  what(9,x) PG_FOR_EACH_8(what, __VA_ARGS__)
+#define PG_FOR_EACH_10(what, x, ...) what(10,x) PG_FOR_EACH_9(what, __VA_ARGS__)
+#define PG_FOR_EACH_11(what, x, ...) what(11,x) PG_FOR_EACH_10(what, __VA_ARGS__)
+#define PG_FOR_EACH_12(what, x, ...) what(12,x) PG_FOR_EACH_11(what, __VA_ARGS__)
+#define PG_FOR_EACH_13(what, x, ...) what(13,x) PG_FOR_EACH_12(what, __VA_ARGS__)
+#define PG_FOR_EACH_14(what, x, ...) what(14,x) PG_FOR_EACH_13(what, __VA_ARGS__)
+#define PG_FOR_EACH_15(what, x, ...) what(15,x) PG_FOR_EACH_14(what, __VA_ARGS__)
+#define PG_FOR_EACH_16(what, x, ...) what(16,x) PG_FOR_EACH_15(what, __VA_ARGS__)
+#define PG_FOR_EACH_17(what, x, ...) what(17,x) PG_FOR_EACH_16(what, __VA_ARGS__)
+#define PG_FOR_EACH_18(what, x, ...) what(18,x) PG_FOR_EACH_17(what, __VA_ARGS__)
+#define PG_FOR_EACH_19(what, x, ...) what(19,x) PG_FOR_EACH_18(what, __VA_ARGS__)
+#define PG_FOR_EACH_20(what, x, ...) what(20,x) PG_FOR_EACH_19(what, __VA_ARGS__)
+#define PG_FOR_EACH_21(what, x, ...) what(21,x) PG_FOR_EACH_20(what, __VA_ARGS__)
+#define PG_FOR_EACH_22(what, x, ...) what(22,x) PG_FOR_EACH_21(what, __VA_ARGS__)
+#define PG_FOR_EACH_23(what, x, ...) what(23,x) PG_FOR_EACH_22(what, __VA_ARGS__)
+#define PG_FOR_EACH_24(what, x, ...) what(24,x) PG_FOR_EACH_23(what, __VA_ARGS__)
 
 #define PG_FOR_EACH_NARG(...) PG_FOR_EACH_NARG_(__VA_ARGS__, PG_FOR_EACH_RSEQ_N())
 #define PG_FOR_EACH_NARG_(...) PG_FOR_EACH_ARG_N(__VA_ARGS__)
@@ -834,10 +841,14 @@ static int read_object( json_context &ctx, T &object )
 #define PG_FOR_EACH_(N, what, x, ...) PG_CONCAT(PG_FOR_EACH_, N)(what, x, __VA_ARGS__)
 #define PG_FOR_EACH(what, x, ...) PG_FOR_EACH_(PG_FOR_EACH_NARG(x, __VA_ARGS__), what, x, __VA_ARGS__)
 
-#define MAKE_DESERIALIZE_IF(field_name) \
-    if (name == MAKE_STRING(field_name)) { protogen_2_0_0::json<decltype(value.field_name)>::read(ctx, value.field_name); return PGR_OK; } else
+#define MAKE_DESERIALIZE_IF(id,field_name) \
+    if (name == MAKE_STRING(field_name)) { \
+        int result = protogen_2_0_0::json<decltype(value.field_name)>::read(ctx, value.field_name); \
+        if (result == PGR_OK) ctx.mask |= (1 << id); \
+        return result; \
+    } else
 
-#define MAKE_SERIALIZE_IF(field_name) \
+#define MAKE_SERIALIZE_IF(id,field_name) \
     if (!protogen_2_0_0::json<decltype(value.field_name)>::empty(value.field_name)) \
     { \
         if (!first) (*ctx.os) <<  ','; \
@@ -846,17 +857,20 @@ static int read_object( json_context &ctx, T &object )
         protogen_2_0_0::json<decltype(value.field_name)>::write(ctx, value.field_name); \
     }
 
-#define MAKE_EMPTY_IF(field_name) \
+#define MAKE_EMPTY_IF(id,field_name) \
     if (!protogen_2_0_0::json<decltype(value.field_name)>::empty(value.field_name)) return false;
 
-#define MAKE_CLEAR_CALL(field_name) \
+#define MAKE_CLEAR_CALL(id,field_name) \
     protogen_2_0_0::json<decltype(value.field_name)>::clear(value.field_name);
 
-#define MAKE_EQUAL_IF(field_name) \
+#define MAKE_EQUAL_IF(id,field_name) \
     if (!protogen_2_0_0::json<decltype(a.field_name)>::equal(a.field_name, b.field_name)) return false;
 
-#define MAKE_SWAP_CALL(field_name) \
+#define MAKE_SWAP_CALL(id,field_name) \
     protogen_2_0_0::json<decltype(a.field_name)>::swap(a.field_name, b.field_name);
+
+#define MAKE_IS_MISSING_IF(id,field_name) \
+    if (!(ctx.mask & (1 << id))) { ctx.tok->error(CODE, "Missing field '" MAKE_STRING(field_name) "'"); return true; }
 
 #define PG_JSON(type, ...) \
     template<> \
@@ -894,6 +908,12 @@ static int read_object( json_context &ctx, T &object )
         static void swap( type &a, type &b ) \
         { \
             PG_FOR_EACH(MAKE_SWAP_CALL, __VA_ARGS__) \
+        } \
+        static bool is_missing( json_context &ctx ) \
+        { \
+            static const auto CODE = PGERR_MISSING_FIELD; \
+            PG_FOR_EACH(MAKE_IS_MISSING_IF, __VA_ARGS__) \
+            return false; \
         } \
     }; \
 
@@ -1107,6 +1127,7 @@ struct message
         static void clear( O &value ) { S::clear(value); } \
         static bool equal( const O &a, const O &b ) { return S::equal(a, b); } \
         static void swap( O &a, O &b ) { S::swap(a, b); } \
+        static bool is_missing( json_context &ctx ) { return S::is_missing(ctx); } \
     };
 
 } // namespace protogen_2_0_0

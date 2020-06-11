@@ -86,11 +86,20 @@ $6$        return true;
     static void swap( $1$ &a, $1$ &b )
     {
 $7$    }
+    static bool is_missing( json_context &ctx )
+    {
+        static const auto CODE = PGERR_MISSING_FIELD;
+$8$        return false;
+    }
 };
 ------
 
 --- CODE_DESERIALIZE_IF
-        if (name == "$1$") { protogen_2_0_0::json<decltype(value.$1$)>::read(ctx, value.$1$); return PGR_OK; } else
+        if (name == "$1$") {
+            int result = protogen_2_0_0::json<decltype(value.$1$)>::read(ctx, value.$1$);
+            if (result == PGR_OK) ctx.mask |= (1 << $2$);
+            return result;
+        } else
 ------
 
 --- CODE_SERIALIZE_IF
@@ -117,6 +126,10 @@ $7$    }
 
 --- CODE_SWAP_CALL
         protogen_2_0_0::json<decltype(a.$1$)>::swap(a.$1$, b.$1$);
+------
+
+--- CODE_IS_MISSING_IF
+        if (!(ctx.mask & $2$)) { ctx.tok->error(CODE, "Missing field '$1$'"); return true; }
 ------
 
 --- CODE_ENTITY

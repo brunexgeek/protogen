@@ -56,18 +56,10 @@ class Printer
         int tab_;
 
         static std::string toString( const std::string& value ) { return value; }
-        static std::string toString( const size_t value )
+        template<typename T, typename std::enable_if<std::is_arithmetic<T>::value, int>::type = 0>
+        static std::string toString( const T value )
         {
-            char temp[24] = { 0 };
-            snprintf(temp, sizeof(temp) - 1, "%lu", value);
-            return std::string(temp);
-        }
-
-        static std::string toString( const ssize_t value )
-        {
-            char temp[24] = { 0 };
-            snprintf(temp, sizeof(temp) - 1, "%ld", value);
-            return std::string(temp);
+            return std::to_string(value);
         }
 
         void print( const char *format, const std::vector<std::string> &vars );
