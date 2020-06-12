@@ -9,7 +9,7 @@
 #include <iterator>
 #include <memory>
 
-#define MAKE_STRING(...) #__VA_ARGS__
+#define PG_MKSTR(...) #__VA_ARGS__
 
 namespace protogen_2_0_0 {
 
@@ -809,7 +809,7 @@ static int read_object( json_context &ctx, T &object )
 #define PG_CONCAT(arg1, arg2)   PG_CONCAT1(arg1, arg2)
 #define PG_CONCAT1(arg1, arg2)  arg1##arg2
 
-#define PG_FOR_EACH_1(what, x, ...)  what(1,x)
+#define PG_FOR_EACH_1(what, x)  what(1,x)
 #define PG_FOR_EACH_2(what, x, ...)  what(2,x) PG_FOR_EACH_1(what, __VA_ARGS__)
 #define PG_FOR_EACH_3(what, x, ...)  what(3,x) PG_FOR_EACH_2(what, __VA_ARGS__)
 #define PG_FOR_EACH_4(what, x, ...)  what(4,x) PG_FOR_EACH_3(what, __VA_ARGS__)
@@ -841,36 +841,42 @@ static int read_object( json_context &ctx, T &object )
 #define PG_FOR_EACH_(N, what, x, ...) PG_CONCAT(PG_FOR_EACH_, N)(what, x, __VA_ARGS__)
 #define PG_FOR_EACH(what, x, ...) PG_FOR_EACH_(PG_FOR_EACH_NARG(x, __VA_ARGS__), what, x, __VA_ARGS__)
 
-#define MAKE_DESERIALIZE_IF(id,field_name) \
-    if (name == MAKE_STRING(field_name)) { \
+#define PG_DIF_EX(field_id, field_name, field_label) \
+    if (name == field_label) { \
         int result = protogen_2_0_0::json<decltype(value.field_name)>::read(ctx, value.field_name); \
-        if (result == PGR_OK) ctx.mask |= (1 << id); \
+        if (result == PGR_OK) ctx.mask |= (1 << field_id); \
         return result; \
     } else
 
-#define MAKE_SERIALIZE_IF(id,field_name) \
+#define PG_DIF(field_id, field_name) \
+    PG_DIF_EX(field_id, field_name, PG_MKSTR(field_name) )
+
+#define PG_SIF_EX(field_name, field_label) \
     if (!protogen_2_0_0::json<decltype(value.field_name)>::empty(value.field_name)) \
     { \
         if (!first) (*ctx.os) <<  ','; \
         first = false; \
-        (*ctx.os) <<  "\"" MAKE_STRING(field_name) "\":"; \
+        (*ctx.os) <<  '\"' << field_label << "\":"; \
         protogen_2_0_0::json<decltype(value.field_name)>::write(ctx, value.field_name); \
     }
 
-#define MAKE_EMPTY_IF(id,field_name) \
+#define PG_SIF(field_id, field_name) \
+    PG_SIF_EX(field_name, PG_MKSTR(field_name) )
+
+#define PG_EIF(field_id,field_name) \
     if (!protogen_2_0_0::json<decltype(value.field_name)>::empty(value.field_name)) return false;
 
-#define MAKE_CLEAR_CALL(id,field_name) \
+#define PG_CLL(field_id,field_name) \
     protogen_2_0_0::json<decltype(value.field_name)>::clear(value.field_name);
 
-#define MAKE_EQUAL_IF(id,field_name) \
+#define PG_QIF(field_id,field_name) \
     if (!protogen_2_0_0::json<decltype(a.field_name)>::equal(a.field_name, b.field_name)) return false;
 
-#define MAKE_SWAP_CALL(id,field_name) \
+#define PG_SLL(field_id,field_name) \
     protogen_2_0_0::json<decltype(a.field_name)>::swap(a.field_name, b.field_name);
 
-#define MAKE_IS_MISSING_IF(id,field_name) \
-    if (!(ctx.mask & (1 << id))) { ctx.tok->error(CODE, "Missing field '" MAKE_STRING(field_name) "'"); return true; }
+#define PG_MIF(field_id,field_name) \
+    if (!(ctx.mask & (1 << field_id))) { name = PG_MKSTR(field_name); } else
 
 #define PG_JSON(type, ...) \
     template<> \
@@ -882,38 +888,40 @@ static int read_object( json_context &ctx, T &object )
         } \
         static int read_field( json_context &ctx, const std::string &name, type &value ) \
         { \
-            PG_FOR_EACH(MAKE_DESERIALIZE_IF, __VA_ARGS__) \
+            PG_FOR_EACH(PG_DIF, __VA_ARGS__) \
             return PGR_ERROR; \
         } \
         static void write( json_context &ctx, const type &value ) \
         { \
             bool first = true; \
             (*ctx.os) <<  '{'; \
-            PG_FOR_EACH(MAKE_SERIALIZE_IF, __VA_ARGS__) \
+            PG_FOR_EACH(PG_SIF, __VA_ARGS__) \
             (*ctx.os) <<  '}'; \
         } \
         static bool empty( const type &value ) \
         { \
-            PG_FOR_EACH(MAKE_EMPTY_IF, __VA_ARGS__) \
+            PG_FOR_EACH(PG_EIF, __VA_ARGS__) \
             return true; \
         } \
         static void clear( type &value ) \
         { \
-            PG_FOR_EACH(MAKE_CLEAR_CALL, __VA_ARGS__) \
+            PG_FOR_EACH(PG_CLL, __VA_ARGS__) \
         } \
         static bool equal( const type &a, const type &b ) \
         { \
-            PG_FOR_EACH(MAKE_EQUAL_IF, __VA_ARGS__) \
+            PG_FOR_EACH(PG_QIF, __VA_ARGS__) \
         } \
         static void swap( type &a, type &b ) \
         { \
-            PG_FOR_EACH(MAKE_SWAP_CALL, __VA_ARGS__) \
+            PG_FOR_EACH(PG_SLL, __VA_ARGS__) \
         } \
         static bool is_missing( json_context &ctx ) \
         { \
-            static const auto CODE = PGERR_MISSING_FIELD; \
-            PG_FOR_EACH(MAKE_IS_MISSING_IF, __VA_ARGS__) \
+            std::string name; \
+            PG_FOR_EACH(PG_MIF, __VA_ARGS__) \
             return false; \
+            ctx.tok->error(PGERR_MISSING_FIELD, std::string("Missing field '") + name + "'"); \
+            return true; \
         } \
     }; \
 

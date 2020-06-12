@@ -299,7 +299,7 @@ bool RUN_TEST7( int argc, char **argv)
         else
 
     bool result = object1 == object2;
-    std::cerr << "[TEST #5] " << ((result) ? "Passed!" : "Failed!" ) << std::endl;
+    std::cerr << "[TEST #7] " << ((result) ? "Passed!" : "Failed!" ) << std::endl;
     if (!result)
     {
         std::string ll = std::to_string(object1.d);

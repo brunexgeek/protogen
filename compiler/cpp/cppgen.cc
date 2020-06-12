@@ -154,7 +154,7 @@ static std::string nativeType( const Field &field )
  /**
   * Translates protobuf3 types to C++ types.
   */
-static std::string fieldNativeType( const Field &field, bool useLists )
+static std::string fieldNativeType( GeneratorContext &ctx, const Field &field, bool useLists )
 {
     std::string valueType;
 
@@ -187,7 +187,9 @@ static std::string fieldNativeType( const Field &field, bool useLists )
         return valueType;
     else
     {
-        std::string output = "PROTOGEN_NS::field<";
+        std::string output = "protogen_";
+        output += ctx.version;
+        output += "::field<";
         output += valueType;
         output += '>';
         return output;
@@ -233,12 +235,12 @@ static void generateModel( GeneratorContext &ctx, const Message &message )
     // begin namespace
     generateNamespace(ctx, message, true);
 
-    ctx.printer("struct $1$_type\n{\n", message.name);
+    ctx.printer("\tstruct $1$_type\n\t{\n", message.name);
     for (auto field : message.fields)
     {
-        ctx.printer("\t$1$ $2$;\n", fieldNativeType(field, true), fieldStorage(field) );
+        ctx.printer("\t\t$1$ $2$;\n", fieldNativeType(ctx, field, true), fieldStorage(field) );
     }
-    ctx.printer("};\n");
+    ctx.printer("\t};\n");
 
     // end namespace
     generateNamespace(ctx, message, false);
@@ -284,14 +286,14 @@ static void generateModelWrapper( GeneratorContext &ctx, const Message &message 
         if (ctx.obfuscate_strings)
         {
             label = obfuscate(field.name);
-            label = Printer::format("protogen_$1$::reveal(\"$2$\",$3$)", ctx.version,
-                label, name.length());
+            //label = Printer::format("protogen_$1$::reveal(\"$2$\",$3$)", ctx.version, label, name.length());
+            label = Printer::format("reveal(\"$1$\",$2$)", label, name.length());
         }
         else
             label = Printer::format("\"$1$\"", field.name);
 
 
-        Printer::format(temp1, CODE_DESERIALIZE_IF, name, label, 1 << i);
+        Printer::format(temp1, CODE_DESERIALIZE_IF, name, label, i);
         Printer::format(temp2, CODE_SERIALIZE_IF, name, label);
         Printer::format(temp3, CODE_EMPTY_IF, name);
         Printer::format(temp4, CODE_CLEAR_CALL, name);
@@ -335,12 +337,6 @@ static void generateMessage( GeneratorContext &ctx, const Message &message )
     //ctx.printer("PG_JSON_ENTITY($1$, $2$)", message.name, message.name + "_type");
     generateEntity(ctx, message);
     generateEntityWrapper(ctx, message);
-
-    for (auto fi = message.fields.begin(); fi != message.fields.end(); ++fi)
-    {
-        std::string storage = fieldStorage(*fi);
-        ctx.printer("#undef PROTOGEN_FN_$1$\n", storage);
-    }
 }
 
 
@@ -422,9 +418,7 @@ static void generateModel( GeneratorContext &ctx )
     for (auto mi = ctx.root.messages.begin(); mi != ctx.root.messages.end(); ++mi)
         generateMessage(ctx, **mi);
 
-    ctx.printer(
-        "#undef PROTOGEN_NS\n"
-        "#endif // $1$\n", guard);
+    ctx.printer("#endif // $1$\n", guard);
 }
 
 

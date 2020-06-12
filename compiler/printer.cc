@@ -62,6 +62,9 @@ void Printer::print( std::ostream &out, const char *format, const std::vector<st
             out << vars[index];
             continue;
         }
+        if (*ptr == '\t')
+            out << "    ";
+        else
         if (*ptr != '\b')
             out << *ptr;
         ++ptr;
