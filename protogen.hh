@@ -1098,7 +1098,7 @@ struct message
         typedef protogen_2_0_0::ErrorInfo ErrorInfo; \
         N() = default; \
         N( const N&that ) = default; \
-        N( N &&that ) = default; \
+        N( N &&that ) { S::swap(*this, that); } \
         N &operator=( const N &that ) = default; \
         using protogen_2_0_0::message<O, S>::serialize; \
         using protogen_2_0_0::message<O, S>::deserialize; \
@@ -1122,7 +1122,7 @@ struct message
         void clear() override { S::clear(*this); } \
         bool empty() const override { return S::empty(*this); } \
         bool equal( const O &that ) const override { return S::equal(*this, that); } \
-        void swap( O &that ) { S::equal(*this, that); } \
+        void swap( O &that ) { S::swap(*this, that); } \
     };
 
 #define PG_ENTITY_SERIALIZER(N,O,S) \
