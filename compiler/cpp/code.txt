@@ -89,15 +89,18 @@ $7$    }
     static bool is_missing( json_context &ctx )
     {
         static const auto CODE = PGERR_MISSING_FIELD;
+        std::string name;
 $8$        return false;
+        ctx.tok->error(CODE, std::string("Missing field '") + name + "'");
+        return true;
     }
 };
 ------
 
 --- CODE_DESERIALIZE_IF
-        if (name == "$1$") {
+        if (name == $2$) {
             int result = protogen_2_0_0::json<decltype(value.$1$)>::read(ctx, value.$1$);
-            if (result == PGR_OK) ctx.mask |= (1 << $2$);
+            if (result == PGR_OK) ctx.mask |= $3$;
             return result;
         } else
 ------
@@ -107,7 +110,7 @@ $8$        return false;
         {
             if (!first) (*ctx.os) << ',';
             first = false;
-            (*ctx.os) << "\"$1$\":";
+            (*ctx.os) << '\"' << $2$ << "\":";
             protogen_2_0_0::json<decltype(value.$1$)>::write(ctx, value.$1$);
         }
 ------
@@ -129,56 +132,13 @@ $8$        return false;
 ------
 
 --- CODE_IS_MISSING_IF
-        if (!(ctx.mask & $2$)) { ctx.tok->error(CODE, "Missing field '$1$'"); return true; }
+        if (!(ctx.mask & $2$)) { name = $1$; } else
 ------
 
 --- CODE_ENTITY
 PG_ENTITY($1$,$2$,protogen_2_0_0::json<$2$>)
 ------
 
---- CODE_ENTITY_OLD
-struct $1$ : public $2$,
-    public protogen_2_0_0::message<$2$, protogen_2_0_0::json<$2$>>
-{
-    typedef $2$ O;
-    typedef protogen_2_0_0::json<O> J;
-    using protogen_2_0_0::message<O, J>::serialize;
-    using protogen_2_0_0::message<O, J>::deserialize;
-    bool deserialize( protogen_2_0_0::tokenizer& tok, bool required = false,
-        protogen_2_0_0::exception *err = nullptr ) override
-    {
-        try { J::read(tok, *this); }
-        catch (protogen_2_0_0::exception &ex)
-        {
-            if (err != nullptr) *err = ex;
-            return false;
-        }
-        return true;
-    }
-    void serialize( protogen_2_0_0::ostream &out ) const override { J::write(out, *this); }
-    void clear() override { J::clear(*this); }
-    bool empty() const override { return J::empty(*this); }
-    bool equal( const O &that ) const override { return J::equal(*this, that); }
-    void swap( O &that ) { J::equal(*this, that); }
-};
-------
-
 --- CODE_ENTITY_JSON
 PG_ENTITY_SERIALIZER($1$,$2$,protogen_2_0_0::json<$2$>)
-------
-
---- CODE_ENTITY_JSON_OLD
-template<>
-struct protogen_2_0_0::json<$1$>
-{
-    typedef protogen_2_0_0::json<$2$> J;
-    typedef $2$ O;
-    static void read( tokenizer &tok, O &value ) { J::read(tok, value); }
-    static bool read_field( tokenizer &tok, const std::string &name, O &value, bool required ) { return J::read_field(tok, name, value, required); }
-    static void write( ostream &os, const O &value ) { J::write(os, value); }
-    static bool empty( const O &value ) { return J::empty(value); }
-    static void clear( O &value ) { J::clear(value); }
-    static bool equal( const O &a, const O &b ) { return J::equal(a, b); }
-    static void swap( O &a, O &b ) { J::swap(a, b); }
-};
 ------

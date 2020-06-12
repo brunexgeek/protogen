@@ -21,6 +21,7 @@
 #include <iostream>
 #include <vector>
 #include <string>
+#include <sstream>
 
 #if defined(_MSC_VER)
 #include <BaseTsd.h>
@@ -47,6 +48,14 @@ class Printer
         static void format(std::ostream &out, const char* format, const T&... args)
         {
             print(out, format, {toString(args)...});
+        }
+
+        template <typename... T>
+        static std::string format(const char* format, const T&... args)
+        {
+            std::stringstream ss;
+            print(ss, format, {toString(args)...});
+            return ss.str();
         }
 
     protected:

@@ -85,21 +85,6 @@ static std::string toUpper( const std::string &value )
     return output;
 }
 
-static std::string obfuscate( const std::string &value )
-{
-    size_t len = value.length();
-	std::string result;
-	for (size_t i = 0; i < len; ++i)
-    {
-        int cur = value[i] ^ 0x33;
-        static const char *ALPHABET = "0123456789ABCDEF";
-        result += "\\x";
-        result += ALPHABET[ (cur & 0xF0) >> 4 ];
-        result += ALPHABET[ cur & 0x0F ];
-    }
-	return result;
-}
-
 static std::string nativePackage( const std::string &package )
 {
     // extra space because the compiler may complain about '<::' (i.e. using in templates)
@@ -259,6 +244,28 @@ static void generateModel( GeneratorContext &ctx, const Message &message )
     generateNamespace(ctx, message, false);
 }
 
+template <typename T>
+#if !defined(_WIN32)
+constexpr
+#endif
+T rol( T value, size_t count )
+{
+	static_assert(std::is_unsigned<T>::value, "Unsupported signed type");
+	return (T) ((value << count) | (value >> (-count & (sizeof(T) * 8 - 1))));
+}
+
+static inline std::string obfuscate( const std::string &value )
+{
+    uint8_t mask = rol<uint8_t>(0x93U, value.length() % 8);
+	std::stringstream result;
+	for (size_t i = 0, t = value.length(); i < t; ++i)
+    {
+		result << "\\x";
+        result << std::hex << ((uint8_t) value[i] ^ mask);
+    }
+	return result.str();
+}
+
 static void generateModelWrapper( GeneratorContext &ctx, const Message &message )
 {
     std::string typeName = nativePackage(message.package) + "::" + message.name + "_type";
@@ -273,14 +280,24 @@ static void generateModelWrapper( GeneratorContext &ctx, const Message &message 
     for (auto field : message.fields)
     {
         std::string name = field.name;
+        std::string label;
+        if (ctx.obfuscate_strings)
+        {
+            label = obfuscate(field.name);
+            label = Printer::format("protogen_$1$::reveal(\"$2$\",$3$)", ctx.version,
+                label, name.length());
+        }
+        else
+            label = Printer::format("\"$1$\"", field.name);
 
-        Printer::format(temp1, CODE_DESERIALIZE_IF, name, i);
-        Printer::format(temp2, CODE_SERIALIZE_IF, name);
+
+        Printer::format(temp1, CODE_DESERIALIZE_IF, name, label, 1 << i);
+        Printer::format(temp2, CODE_SERIALIZE_IF, name, label);
         Printer::format(temp3, CODE_EMPTY_IF, name);
         Printer::format(temp4, CODE_CLEAR_CALL, name);
         Printer::format(temp5, CODE_EQUAL_IF, name);
         Printer::format(temp6, CODE_SWAP_CALL, name);
-        Printer::format(temp7, CODE_IS_MISSING_IF, name, 1 << i);
+        Printer::format(temp7, CODE_IS_MISSING_IF, label, 1 << i);
         ++i;
     }
 

@@ -759,16 +759,16 @@ constexpr
 T rol( T value, size_t count )
 {
 	static_assert(std::is_unsigned<T>::value, "Unsupported signed type");
-	return (value << count) | (value >> (-count & (sizeof(T) * 8 - 1)));
+	return (T) ((value << count) | (value >> (-count & (sizeof(T) * 8 - 1))));
 }
 
 template<typename T>
 static inline std::string reveal( const T *value, size_t length )
 {
-    uint8_t mask = rol(0x93, length % 8);
+    uint8_t mask = rol<uint8_t>(0x93U, length % 8);
 	std::string result(length, ' ');
 	for (size_t i = 0; i < length; ++i)
-		result[i] = (char) ((int) value[i] ^ 0x93);
+		result[i] = (char) ((uint8_t) value[i] ^ mask);
 	return result;
 }
 
@@ -1091,6 +1091,7 @@ struct message
         N() = default; \
         N( const N&that ) = default; \
         N( N &&that ) = default; \
+        N &operator=( const N &that ) = default; \
         using protogen_2_0_0::message<O, S>::serialize; \
         using protogen_2_0_0::message<O, S>::deserialize; \
         bool deserialize( protogen_2_0_0::tokenizer& tok, bool required = false, \

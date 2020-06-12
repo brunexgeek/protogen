@@ -102,9 +102,9 @@ bool RUN_TEST3( int argc, char **argv)
     person.age(29);
     person.name = "Margot";
     person.gender = "female";
-    person.friends.push_back("Kelly");
-    person.friends.push_back("Zoe");
-    person.friends.push_back("Beth");
+    person.pets.push_back("Max");
+    person.pets.push_back("Rufus");
+    person.pets.push_back("Spooky");
 
     std::string json1;
     std::string json2;
