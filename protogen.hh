@@ -775,32 +775,29 @@ static inline std::string reveal( const T *value, size_t length )
 template<typename T, typename J = json<T> >
 static int read_object( json_context &ctx, T &object )
 {
-    if (!ctx.tok->expect(protogen_2_0_0::token_id::OBJS))
+    if (!ctx.tok->expect(token_id::OBJS))
         return ctx.tok->error(error_code::PGERR_INVALID_OBJECT, "objects must start with '{'");
-    if (ctx.tok->expect(protogen_2_0_0::token_id::OBJE)) return PGR_OK;
-    do
+    if (!ctx.tok->expect(token_id::OBJE))
     {
-        auto tt = ctx.tok->peek();
-        if (tt.id != protogen_2_0_0::token_id::STRING)
-            return ctx.tok->error(error_code::PGERR_INVALID_NAME, "object key must be string");
-        ctx.tok->next();
-        if (!ctx.tok->expect(protogen_2_0_0::token_id::COLON))
-            return ctx.tok->error(error_code::PGERR_INVALID_SEPARATOR, "field name and value must be separated by ':'");
-        int result = J::read_field(ctx, tt.value, object);
-        if (result == PGR_ERROR) return result;
-        if (result != PGR_OK)
+        while (true)
         {
-            result = ctx.tok->ignore();
+            std::string name = ctx.tok->peek().value;
+            if (!ctx.tok->expect(token_id::STRING))
+                return ctx.tok->error(error_code::PGERR_INVALID_NAME, "object key must be string");
+            if (!ctx.tok->expect(token_id::COLON))
+                return ctx.tok->error(error_code::PGERR_INVALID_SEPARATOR, "field name and value must be separated by ':'");
+            int result = J::read_field(ctx, name, object);
             if (result == PGR_ERROR) return result;
-            continue;
-        }
-        if (ctx.tok->expect(protogen_2_0_0::token_id::OBJE))
-            break;
-        else
-        if (ctx.tok->expect(protogen_2_0_0::token_id::COMMA))
-            continue;
-        return ctx.tok->error(error_code::PGERR_INVALID_OBJECT, "invalid json object");
-    } while (true);
+            if (result != PGR_OK)
+            {
+                result = ctx.tok->ignore();
+                if (result == PGR_ERROR) return result;
+            }
+            if (ctx.tok->expect(token_id::COMMA)) continue;
+            if (ctx.tok->expect(token_id::OBJE)) break;
+            return ctx.tok->error(error_code::PGERR_INVALID_OBJECT, "invalid JSON object");
+        };
+    }
     if (ctx.required && J::is_missing(ctx))
         return error_code::PGERR_MISSING_FIELD;
     return PGR_OK;
