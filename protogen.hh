@@ -108,7 +108,7 @@ class ostream
         template<class T, typename std::enable_if<std::is_integral<T>::value, int>::type = 0>
         ostream &operator<<( T value )
         {
-            this->operator<<( std::to_string( (T) ((double) value) ) );
+            this->operator<<( std::to_string(value) );
             return *this;
         }
 };
@@ -551,6 +551,28 @@ struct json<field<T>, typename std::enable_if<std::is_arithmetic<T>::value>::typ
     static void swap( field<T> &a, field<T> &b ) { std::swap(a, b); }
 };
 
+static double string_to_double( const std::string &text )
+{
+    double value;
+#if defined(_WIN32) || defined(_WIN64)
+    static _locale_t loc = _create_locale(LC_NUMERIC, "C");
+    if (loc == nullptr) return 0;
+    value = _strtod_l(text.c_str(), nullptr, loc);
+#else
+    static locale_t loc = newlocale(LC_NUMERIC_MASK, "C", 0);
+    if (loc == 0) return 0;
+#ifdef __USE_GNU
+    value = strtod_l(text.c_str(), nullptr, loc);
+#else
+    locale_t old = uselocale(loc);
+    if (old == 0) return 0;
+    value = strtod(text.c_str(), nullptr);
+    uselocale(old);
+#endif
+#endif
+    return value;
+}
+
 template<typename T>
 struct json<T, typename std::enable_if<std::is_arithmetic<T>::value>::type >
 {
@@ -560,27 +582,11 @@ struct json<T, typename std::enable_if<std::is_arithmetic<T>::value>::type >
         if (ctx.tok->expect(token_id::NIL)) return PGR_NIL;
         if (tt.id != token_id::NUMBER)
             return ctx.tok->error(error_code::PGERR_INVALID_VALUE, "Invalid numeric value");
-        //std::cerr << "Parsing '" << tt.value << "'\n";
-#if defined(_WIN32) || defined(_WIN64)
-        static _locale_t loc = _create_locale(LC_NUMERIC, "C");
-        if (loc == NULL) return ctx.tok->error(error_code::PGERR_INVALID_VALUE, "Invalid locale");
-        value = static_cast<T>(_strtod_l(tt.value.c_str(), NULL, loc));
-#else
-        static locale_t loc = newlocale(LC_NUMERIC_MASK, "C", 0);
-        if (loc == 0) return ctx.tok->error(error_code::PGERR_INVALID_VALUE, "Invalid locale");
-#ifdef __USE_GNU
-        value = static_cast<T>(strtod_l(tt.value.c_str(), NULL, loc));
-#else
-        locale_t old = uselocale(loc);
-        if (old == 0) return ctx.tok->error(error_code::PGERR_INVALID_VALUE, "Unable to set locale");
-        value = static_cast<T>(strtod(tt.value.c_str(), NULL));
-        uselocale(old);
-#endif
-#endif
+        value = static_cast<T>(string_to_double(tt.value));
         ctx.tok->next();
         return PGR_OK;
     }
-    static void write( json_context &ctx, const T &value ) { (*ctx.os) <<  value; }
+    static void write( json_context &ctx, const T &value ) { (*ctx.os) << value; }
     static bool empty( const T &value ) { (void) value; return false; }
     static void clear( T &value ) { value = (T) 0; }
     static bool equal( const T &a, const T &b ) { return a == b; }

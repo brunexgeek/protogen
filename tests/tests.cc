@@ -230,7 +230,7 @@ bool RUN_TEST5( int argc, char **argv)
 
     return true;
 }
-#if 0
+
 bool RUN_TEST6( int argc, char **argv)
 {
     (void) argc;
@@ -255,7 +255,7 @@ bool RUN_TEST6( int argc, char **argv)
     person.serialize(json1);
 
     auto t = std::chrono::system_clock::now();
-    for (int i = 0; i < 1000000; ++i)
+    for (int i = 0; i < 100000; ++i)
     {
         person.deserialize(json1);
     }
@@ -266,7 +266,6 @@ bool RUN_TEST6( int argc, char **argv)
 
     return true;
 }
-#endif
 
 bool RUN_TEST7( int argc, char **argv)
 {
@@ -274,18 +273,18 @@ bool RUN_TEST7( int argc, char **argv)
     (void) argv;
 
     types::Object object1;
-    object1.a = std::numeric_limits<decltype(object1.a)::value_type>::max();
-    object1.b = std::numeric_limits<decltype(object1.b)::value_type>::max();
-    object1.c = std::numeric_limits<decltype(object1.c)::value_type>::max();
-    object1.d = std::numeric_limits<decltype(object1.d)::value_type>::max();
-    object1.e = std::numeric_limits<decltype(object1.e)::value_type>::max();
-    object1.f = std::numeric_limits<decltype(object1.f)::value_type>::max();
-    object1.g = std::numeric_limits<decltype(object1.g)::value_type>::max();
-    object1.h = std::numeric_limits<decltype(object1.h)::value_type>::max();
-    object1.i = std::numeric_limits<decltype(object1.i)::value_type>::max();
-    object1.j = std::numeric_limits<decltype(object1.j)::value_type>::max();
-    object1.k = std::numeric_limits<decltype(object1.k)::value_type>::max();
-    object1.l = std::numeric_limits<decltype(object1.l)::value_type>::max();
+    object1.a = std::numeric_limits<int32_t>::max();
+    object1.b = std::numeric_limits<int32_t>::max() / 2;
+    object1.c = std::numeric_limits<int32_t>::max();
+    object1.d = std::numeric_limits<int32_t>::max();
+    object1.e = std::numeric_limits<int32_t>::max();
+    object1.f = std::numeric_limits<int32_t>::max();
+    object1.g = std::numeric_limits<int32_t>::max();
+    object1.h = std::numeric_limits<int32_t>::max();
+    object1.i = std::numeric_limits<int32_t>::max();
+    object1.j = std::numeric_limits<int32_t>::max();
+    object1.k = std::numeric_limits<int32_t>::max();
+    object1.l = std::numeric_limits<int32_t>::max();
     object1.m = 13; // should be true as 13 is non-zero
 
     std::string json;
@@ -295,45 +294,43 @@ bool RUN_TEST7( int argc, char **argv)
 
     #define LITERAL(x) #x
     #define COMPARING(a, b) \
-        if (a != b) \
-            std::cerr << LITERAL(a) << " == " << a << " and " << LITERAL(b) << " == " << b << std::endl; \
+        if (a != b) { \
+            result = false; \
+            output += std::string(LITERAL(a)) + " == " + std::to_string(a) + " and " + LITERAL(b) + " == " + std::to_string(b); } \
         else
 
-    bool result = object1 == object2;
+    bool result = true;
+    std::string output = "   ";
+    COMPARING(object1.a, object2.a) // comparing FP with ==
+    COMPARING(object1.b, object2.b) // comparing FP with ==
+    COMPARING(object1.c, object2.c)
+    COMPARING(object1.d, object2.d)
+    COMPARING(object1.e, object2.e)
+    COMPARING(object1.f, object2.f)
+    COMPARING(object1.g, object2.g)
+    COMPARING(object1.h, object2.h)
+    COMPARING(object1.i, object2.i)
+    COMPARING(object1.j, object2.j)
+    COMPARING(object1.k, object2.k)
+    COMPARING(object1.l, object2.l)
+    output.clear();
+
     std::cerr << "[TEST #7] " << ((result) ? "Passed!" : "Failed!" ) << std::endl;
     if (!result)
-    {
-        std::string ll = std::to_string(object1.d);
-        double value = strtod(ll.c_str(), nullptr);
-        ll = std::to_string(value);
-        std::cerr << ll << " - " << value << " - " << std::to_string(value) << std::endl;
-        COMPARING(object1.a, object2.a)
-        COMPARING(object1.b, object2.b)
-        COMPARING(object1.c, object2.c)
-        COMPARING(object1.d, object2.d)
-        COMPARING(object1.e, object2.e)
-        COMPARING(object1.f, object2.f)
-        COMPARING(object1.g, object2.g)
-        COMPARING(object1.h, object2.h)
-        COMPARING(object1.i, object2.i)
-        COMPARING(object1.j, object2.j)
-        COMPARING(object1.k, object2.k)
-        COMPARING(object1.l, object2.l)
-        std::cerr << "Oops!" << std::endl;
-    }
+        std::cerr << output << std::endl;
 
     return true;
 }
 
 int main( int argc, char **argv)
 {
-    bool result;
-    result  = RUN_TEST1(argc, argv);
+    bool result = true;
+    result &= RUN_TEST1(argc, argv);
     result &= RUN_TEST2(argc, argv);
     result &= RUN_TEST3(argc, argv);
     result &= RUN_TEST4(argc, argv);
     result &= RUN_TEST5(argc, argv);
-    //result &= RUN_TEST6(argc, argv);
+    result &= RUN_TEST6(argc, argv);
     result &= RUN_TEST7(argc, argv);
     return (int) !result;
 }
