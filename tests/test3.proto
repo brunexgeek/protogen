@@ -2,6 +2,7 @@ syntax = "proto3";
 package options;
 
 option obfuscate_strings = true;
+option number_names = true;
 
 message Person
 {

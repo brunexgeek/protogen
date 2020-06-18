@@ -282,19 +282,28 @@ static void generateModelWrapper( GeneratorContext &ctx, const Message &message 
     for (auto field : message.fields)
     {
         std::string name = field.name;
-        std::string label;
+        std::string label = name;
+        if (ctx.number_names) label = std::to_string(field.index);
+
         if (ctx.obfuscate_strings)
         {
-            label = obfuscate(field.name);
-            //label = Printer::format("protogen_$1$::reveal(\"$2$\",$3$)", ctx.version, label, name.length());
-            label = Printer::format("reveal(\"$1$\",$2$)", label, name.length());
+            int len = label.length();
+            label = obfuscate(label);
+            label = Printer::format("reveal(\"$1$\",$2$)", label, len);
         }
         else
-            label = Printer::format("\"$1$\"", field.name);
+            label = Printer::format("\"$1$\"", label);
 
+        bool transient = false;
+        auto it = field.options.find(PROTOGEN_O_TRANSIENT);
+        if (it != field.options.end())
+            transient = it->second.type == OptionType::BOOLEAN && it->second.value == "true";
 
-        Printer::format(temp1, CODE_DESERIALIZE_IF, name, label, i);
-        Printer::format(temp2, CODE_SERIALIZE_IF, name, label);
+        if (!transient)
+        {
+            Printer::format(temp1, CODE_DESERIALIZE_IF, name, label, i);
+            Printer::format(temp2, CODE_SERIALIZE_IF, name, label);
+        }
         Printer::format(temp3, CODE_EMPTY_IF, name);
         Printer::format(temp4, CODE_CLEAR_CALL, name);
         Printer::format(temp5, CODE_EQUAL_IF, name);
@@ -441,14 +450,6 @@ void CppGenerator::generate( Proto3 &root, std::ostream &out )
         if (opt.type != OptionType::BOOLEAN)
             throw exception("The value for 'number_names' must be a boolean", opt.line, 1);
         ctx.number_names = opt.value == "true";
-    }
-
-    if (ctx.root.options.count(PROTOGEN_O_CPP_ENABLE_ERRORS))
-    {
-        OptionEntry opt = ctx.root.options.at(PROTOGEN_O_CPP_ENABLE_ERRORS);
-        if (opt.type != OptionType::BOOLEAN)
-            throw exception("The value for 'cpp_enable_errors' must be a boolean", opt.line, 1);
-        ctx.cpp_enable_errors = opt.value == "true";
     }
 
     if (ctx.root.options.count(PROTOGEN_O_CUSTOM_PARENT))
