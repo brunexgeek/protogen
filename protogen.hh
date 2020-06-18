@@ -37,7 +37,7 @@ struct ErrorInfo : public std::exception
     std::string message;
     int line, column;
 
-    ErrorInfo() : line(0), column(0) {};
+    ErrorInfo() : code(error_code::PGERR_OK), line(0), column(0) {};
     ErrorInfo( error_code code, const std::string &message ) : code(code),
         message(message) { }
     ErrorInfo( error_code code, const std::string &message, int line, int column ) :
@@ -65,15 +65,29 @@ enum class token_id
 
 struct token
 {
-    token_id id = token_id::NONE;
+    token_id id;
     std::string value;
+    int line, column;
 
-    token() {}
-    token( const token &that ) : id(that.id), value(that.value) {}
+    token() : id(token_id::NONE), line(0), column(0) {}
+    token( const token &that ) { *this = that; }
     token( token &&that ) { swap(that); }
-    token( token_id id, const std::string &value = "" ) : id(id), value(value) { }
-    token &operator=( const token &that ) { id = that.id, value = that.value; return *this; }
-    void swap( token &that ) { std::swap(id, that.id); value.swap(that.value); }
+    token( token_id id, const std::string &value = "", int line = 0, int col = 0 ) : id(id), value(value),
+        line(line), column(col) {}
+    token &operator=( const token &that )
+    {
+        id = that.id;
+        value = that.value;
+        line = that.line;
+        column = that.column;
+        return *this; }
+    void swap( token &that )
+    {
+        std::swap(id, that.id);
+        value.swap(that.value);
+        std::swap(line, that.line);
+        std::swap(column, that.column);
+    }
 };
 
 class ostream
@@ -191,11 +205,14 @@ class tokenizer
 
         token &next()
         {
+            #define RETURN_TOKEN(x) do { current_ = token(x, "", line, column); input_.next(); return current_; } while (false)
             current_.id = token_id::NONE;
             current_.value.clear();
             while (!input_.eof())
             {
                 int c = input_.peek();
+                int line = input_.line();
+                int column = input_.column();
                 switch (c)
                 {
                     case ' ':
@@ -205,23 +222,17 @@ class tokenizer
                         input_.next();
                         break;
                     case '{':
-                        input_.next();
-                        return current_ = token(token_id::OBJS);
+                        RETURN_TOKEN(token_id::OBJS);
                     case '}':
-                        input_.next();
-                        return current_ = token(token_id::OBJE);
+                        RETURN_TOKEN(token_id::OBJE);
                     case '[':
-                        input_.next();
-                        return current_ = token(token_id::ARRS);
+                        RETURN_TOKEN(token_id::ARRS);
                     case ']':
-                        input_.next();
-                        return current_ = token(token_id::ARRE);
+                        RETURN_TOKEN(token_id::ARRE);
                     case ':':
-                        input_.next();
-                        return current_ = token(token_id::COLON);
+                        RETURN_TOKEN(token_id::COLON);
                     case ',':
-                        input_.next();
-                        return current_ = token(token_id::COMMA);
+                        RETURN_TOKEN(token_id::COMMA);
                     case '"':
                         return current_ = parse_string();
                     case '-':
@@ -238,14 +249,14 @@ class tokenizer
                         return current_ = parse_number();
                     default:
                         std::string value = parse_identifier();
-                        if (value == "true") return current_ = token(token_id::TRUE);
-                        if (value == "false") return current_ = token(token_id::FALSE);
-                        if (value == "null") return current_ = token(token_id::NIL);
-                        return current_ = token(token_id::NONE);
+                        if (value == "true") return current_ = token(token_id::TRUE, "", line, column);
+                        if (value == "false") return current_ = token(token_id::FALSE, "", line, column);
+                        if (value == "null") return current_ = token(token_id::NIL, "", line, column);
+                        return current_ = token(token_id::NONE, "", line, column);
                 }
             }
-
-            return current_ = token(token_id::EOS);
+            return current_ = token(token_id::EOS, "", input_.line(), input_.column());
+            #undef RETURN_TOKEN
         }
         token &peek() { return current_; }
         bool expect( token_id type )
@@ -259,10 +270,11 @@ class tokenizer
         }
         int error( error_code code, const std::string &msg )
         {
+            if (error_.code != error_code::PGERR_OK) return PGR_ERROR;
             error_.code = code;
             error_.message = msg;
-            error_.line = input_.line();
-            error_.column = input_.column();
+            error_.line = current_.line;//input_.line();
+            error_.column = current_.column;//input_.column();
             return PGR_ERROR;
         }
         const ErrorInfo &error() const { return error_; }
@@ -293,6 +305,8 @@ class tokenizer
         token parse_string()
         {
             std::string value;
+            int line = input_.line();
+            int column = input_.column();
             if (input_.peek() != '"') goto ERROR;
             while (!input_.eof())
             {
@@ -324,7 +338,7 @@ class tokenizer
                 value += (char) c;
             }
             ERROR:
-            return token(token_id::NONE);
+            return token(token_id::NONE, "", line, column);
         }
 
         bool parse_keyword( const std::string &keyword )
@@ -340,6 +354,8 @@ class tokenizer
         token parse_number()
         {
             std::string value;
+            int line = input_.line();
+            int column = input_.column();
             while (!input_.eof())
             {
                 int c = input_.peek();
@@ -351,7 +367,7 @@ class tokenizer
                 else
                     break;
             }
-            return token(token_id::NUMBER, value);
+            return token(token_id::NUMBER, value, line, column);
         }
 
         int ignore_array()
@@ -359,7 +375,7 @@ class tokenizer
             if (!expect(token_id::ARRS))
                 return error(error_code::PGERR_IGNORE_FAILED, "Invalid array");
 
-            while (true)
+            while (peek().id != token_id::ARRE)
             {
                 int result = ignore_value();
                 if (result != PGERR_OK) return result;
@@ -375,7 +391,7 @@ class tokenizer
             if (!expect(token_id::OBJS))
                 return error(error_code::PGERR_IGNORE_FAILED, "Invalid object");
 
-            while (true)
+            while (peek().id != token_id::OBJE)
             {
                 if (!expect(token_id::STRING))
                     return error(error_code::PGERR_IGNORE_FAILED, "Expected field name");
