@@ -134,7 +134,7 @@ class istream
         istream() = default;
         virtual ~istream() = default;
         virtual int peek() = 0;
-        virtual int get() = 0;
+        virtual void next() = 0;
         virtual bool eof() const = 0;
         virtual int line() const = 0;
         virtual int column() const = 0;
@@ -147,24 +147,19 @@ class iterator_istream : public istream
         iterator_istream( const I& first, const I& last ) : beg_(first), end_(last), line_(1),
             column_(1)
         {
+            skip();
         }
         int peek() override
         {
             if (beg_ == end_) return 0;
             return *beg_;
         }
-        int get() override
+        void next() override
         {
-            if (beg_ == end_) return 0;
-            ++column_;
-            int c = *beg_;
+            if (beg_ == end_) return;
             ++beg_;
-            if (c == '\n')
-            {
-                ++line_;
-                column_ = 1;
-            }
-            return c;
+            ++column_;
+            skip();
         }
         bool eof() const override { return beg_ == end_; }
         int line() const override { return line_; }
@@ -172,6 +167,15 @@ class iterator_istream : public istream
     protected:
         I beg_, end_;
         int line_, column_;
+        void skip()
+        {
+            while (!(beg_ == end_) && *beg_ == '\n')
+            {
+                ++line_;
+                column_ = 1;
+                ++beg_;
+            }
+        }
 };
 
 class tokenizer
@@ -187,42 +191,39 @@ class tokenizer
 
         token &next()
         {
-            if (!stack_.empty())
-            {
-                current_ = stack_.front();
-                stack_.pop_front();
-                return current_;
-            }
             current_.id = token_id::NONE;
             current_.value.clear();
             while (!input_.eof())
             {
-                int c = input_.get();
+                int c = input_.peek();
                 switch (c)
                 {
                     case ' ':
                     case '\t':
                     case '\r':
                     case '\n':
+                        input_.next();
                         break;
-                    case '{': return current_ = token(token_id::OBJS);
-                    case '}': return current_ = token(token_id::OBJE);
-                    case '[': return current_ = token(token_id::ARRS);
-                    case ']': return current_ = token(token_id::ARRE);
-                    case ':': return current_ = token(token_id::COLON);
-                    case ',': return current_ = token(token_id::COMMA);
+                    case '{':
+                        input_.next();
+                        return current_ = token(token_id::OBJS);
+                    case '}':
+                        input_.next();
+                        return current_ = token(token_id::OBJE);
+                    case '[':
+                        input_.next();
+                        return current_ = token(token_id::ARRS);
+                    case ']':
+                        input_.next();
+                        return current_ = token(token_id::ARRE);
+                    case ':':
+                        input_.next();
+                        return current_ = token(token_id::COLON);
+                    case ',':
+                        input_.next();
+                        return current_ = token(token_id::COMMA);
                     case '"':
-                        parse_string(current_);
-                        return current_;
-                    case 'n':
-                        if (!parse_keyword("ull")) return current_;
-                        return current_ = token(token_id::NIL);
-                    case 't':
-                        if (!parse_keyword("rue")) return current_;
-                        return current_ = token(token_id::TRUE);
-                    case 'f':
-                        if (!parse_keyword("alse")) return current_;
-                        return current_ = token(token_id::FALSE);
+                        return current_ = parse_string();
                     case '-':
                     case '0':
                     case '1':
@@ -234,21 +235,17 @@ class tokenizer
                     case '7':
                     case '8':
                     case '9':
-                        current_.value += (char) c;
-                        if (!parse_number(current_)) return current_;
-                        return current_;
+                        return current_ = parse_number();
                     default:
+                        std::string value = parse_identifier();
+                        if (value == "true") return current_ = token(token_id::TRUE);
+                        if (value == "false") return current_ = token(token_id::FALSE);
+                        if (value == "null") return current_ = token(token_id::NIL);
                         return current_ = token(token_id::NONE);
                 }
             }
 
             return current_ = token(token_id::EOS);
-        }
-        void unnext()
-        {
-            token temp;
-            temp.swap(current_);
-            stack_.push_front(temp);
         }
         token &peek() { return current_; }
         bool expect( token_id type )
@@ -274,21 +271,42 @@ class tokenizer
     protected:
         token current_;
         istream &input_;
-        std::forward_list<token> stack_;
         ErrorInfo error_;
 
-        bool parse_string( token &output )
+        std::string parse_identifier()
         {
-            output.id = token_id::STRING;
-
+            std::string value;
             while (!input_.eof())
             {
-                int c = input_.get();
-                if (c == '"') return true;
+                int c = input_.peek();
+                if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z'))
+                {
+                    value += (char) c;
+                    input_.next();
+                }
+                else
+                    break;
+            }
+            return value;
+        }
 
+        token parse_string()
+        {
+            std::string value;
+            if (input_.peek() != '"') goto ERROR;
+            while (!input_.eof())
+            {
+                input_.next();
+                int c = input_.peek();
+                if (c == '"')
+                {
+                    input_.next();
+                    return token(token_id::STRING, value);
+                }
                 if (c == '\\')
                 {
-                    c = input_.get();
+                    input_.next();
+                    c = input_.peek();
                     switch (c)
                     {
                         case '"':  c = '"'; break;
@@ -299,41 +317,41 @@ class tokenizer
                         case 'r':  c = '\r'; break;
                         case 'n':  c = '\n'; break;
                         case 't':  c = '\t'; break;
-                        default: return false;
+                        default: goto ERROR;
                     }
                 }
-
-                if (c <= 0) return false;
-                output.value += (char) c;
+                if (c <= 0) goto ERROR;
+                value += (char) c;
             }
-
-            return false;
+            ERROR:
+            return token(token_id::NONE);
         }
 
         bool parse_keyword( const std::string &keyword )
         {
             for (auto c : keyword)
-                if (input_.get() != c) return false;
+            {
+                if (input_.peek() != c) return false;
+                input_.next();
+            }
             return true;
         }
 
-        bool parse_number( token &output )
+        token parse_number()
         {
-            output.id = token_id::NUMBER;
-
+            std::string value;
             while (!input_.eof())
             {
                 int c = input_.peek();
                 if (c == '.' || (c >= '0' && c <= '9') || c == 'e' || c == 'E' || c == '+' || c == '-')
                 {
-                    output.value += (char) c;
-                    input_.get();
+                    value += (char) c;
+                    input_.next();
                 }
                 else
                     break;
             }
-
-            return true;
+            return token(token_id::NUMBER, value);
         }
 
         int ignore_array()
