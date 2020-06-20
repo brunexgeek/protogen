@@ -551,7 +551,8 @@ struct json<field<T>, typename std::enable_if<std::is_arithmetic<T>::value>::typ
     static void swap( field<T> &a, field<T> &b ) { std::swap(a, b); }
 };
 
-static double string_to_double( const std::string &text )
+template<typename T, typename std::enable_if<std::is_floating_point<T>::value, int>::type = 0>
+static T string_to_number( const std::string &text )
 {
     double value;
 #if defined(_WIN32) || defined(_WIN64)
@@ -570,11 +571,31 @@ static double string_to_double( const std::string &text )
     uselocale(old);
 #endif
 #endif
-    return value;
+    return static_cast<T>(value);
+}
+
+template<typename T, typename std::enable_if<std::is_integral<T>::value && std::is_signed<T>::value, int>::type = 0>
+T string_to_number( const std::string &text )
+{
+#if defined(_WIN32) || defined(_WIN64)
+    return static_cast<T>( _strtoi64(text.c_str(), nullptr, 10) );
+#else
+    return static_cast<T>( strtol(text.c_str(), nullptr, 10) );
+#endif
+}
+
+template<typename T, typename std::enable_if<std::is_integral<T>::value && !std::is_signed<T>::value, int>::type = 0>
+T string_to_number( const std::string &text )
+{
+#if defined(_WIN32) || defined(_WIN64)
+    return static_cast<T>( _strtoui64(text.c_str(), nullptr, 10) );
+#else
+    return static_cast<T>( strtoul(text.c_str(), nullptr, 10) );
+#endif
 }
 
 template<typename T>
-struct json<T, typename std::enable_if<std::is_arithmetic<T>::value>::type >
+struct json<T, typename std::enable_if<std::is_arithmetic<T>::value>::type>
 {
     static int read( json_context &ctx, T &value )
     {
@@ -582,7 +603,7 @@ struct json<T, typename std::enable_if<std::is_arithmetic<T>::value>::type >
         if (ctx.tok->expect(token_id::NIL)) return PGR_NIL;
         if (tt.id != token_id::NUMBER)
             return ctx.tok->error(error_code::PGERR_INVALID_VALUE, "Invalid numeric value");
-        value = static_cast<T>(string_to_double(tt.value));
+        value = string_to_number<T>(tt.value);
         ctx.tok->next();
         return PGR_OK;
     }

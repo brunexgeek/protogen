@@ -273,18 +273,18 @@ bool RUN_TEST7( int argc, char **argv)
     (void) argv;
 
     types::Object object1;
-    object1.a = std::numeric_limits<int32_t>::max();
-    object1.b = std::numeric_limits<int32_t>::max() / 2;
-    object1.c = std::numeric_limits<int32_t>::max();
-    object1.d = std::numeric_limits<int32_t>::max();
-    object1.e = std::numeric_limits<int32_t>::max();
-    object1.f = std::numeric_limits<int32_t>::max();
-    object1.g = std::numeric_limits<int32_t>::max();
-    object1.h = std::numeric_limits<int32_t>::max();
-    object1.i = std::numeric_limits<int32_t>::max();
-    object1.j = std::numeric_limits<int32_t>::max();
-    object1.k = std::numeric_limits<int32_t>::max();
-    object1.l = std::numeric_limits<int32_t>::max();
+    object1.a = std::numeric_limits<decltype(object1.a)::value_type>::max();
+    object1.b = std::numeric_limits<decltype(object1.b)::value_type>::max();
+    object1.c = std::numeric_limits<decltype(object1.c)::value_type>::max();
+    object1.d = std::numeric_limits<decltype(object1.d)::value_type>::max();
+    object1.e = std::numeric_limits<decltype(object1.e)::value_type>::max();
+    object1.f = std::numeric_limits<decltype(object1.f)::value_type>::max();
+    object1.g = std::numeric_limits<decltype(object1.g)::value_type>::max();
+    object1.h = std::numeric_limits<decltype(object1.h)::value_type>::max();
+    object1.i = std::numeric_limits<decltype(object1.i)::value_type>::max();
+    object1.j = std::numeric_limits<decltype(object1.j)::value_type>::max();
+    object1.k = std::numeric_limits<decltype(object1.k)::value_type>::max();
+    object1.l = std::numeric_limits<decltype(object1.l)::value_type>::max();
     object1.m = 13; // should be true as 13 is non-zero
 
     std::string json;
