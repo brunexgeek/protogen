@@ -1,7 +1,7 @@
 syntax = "proto3";
 package types;
 
-message Object
+message Basic
 {
     double a = 1;
     float b = 2;
@@ -16,4 +16,24 @@ message Object
     sfixed32 k = 11;
     sfixed64 l = 12;
     bool m = 13;
+    string n = 14;
+}
+
+message Container
+{
+    repeated double a = 1;
+    repeated float b = 2;
+    repeated int32 c = 3;
+    repeated int64 d = 4;
+    repeated uint32 e = 5;
+    repeated uint64 f = 6;
+    repeated sint32 g = 7;
+    repeated sint64 h = 8;
+    repeated fixed32 i = 9;
+    repeated fixed64 j = 10;
+    repeated sfixed32 k = 11;
+    repeated sfixed64 l = 12;
+    repeated bool m = 13;
+    repeated string n = 14;
+    bytes o = 15;
 }

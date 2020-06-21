@@ -267,12 +267,12 @@ bool RUN_TEST6( int argc, char **argv)
     return true;
 }
 
-bool RUN_TEST7( int argc, char **argv)
+bool RUN_TEST7A( int argc, char **argv)
 {
     (void) argc;
     (void) argv;
 
-    types::Object object1;
+    types::Basic object1;
     object1.a = std::numeric_limits<decltype(object1.a)::value_type>::max();
     object1.b = std::numeric_limits<decltype(object1.b)::value_type>::max();
     object1.c = std::numeric_limits<decltype(object1.c)::value_type>::max();
@@ -286,10 +286,11 @@ bool RUN_TEST7( int argc, char **argv)
     object1.k = std::numeric_limits<decltype(object1.k)::value_type>::max();
     object1.l = std::numeric_limits<decltype(object1.l)::value_type>::max();
     object1.m = 13; // should be true as 13 is non-zero
+    object1.n = "test";
 
     std::string json;
     object1.serialize(json);
-    types::Object object2;
+    types::Basic object2;
     object2.deserialize(json);
 
     #define LITERAL(x) #x
@@ -313,11 +314,54 @@ bool RUN_TEST7( int argc, char **argv)
     COMPARING(object1.j, object2.j)
     COMPARING(object1.k, object2.k)
     COMPARING(object1.l, object2.l)
+    COMPARING(object1.m, object2.m)
+    //COMPARING(object1.n, object2.n)
     output.clear();
 
-    std::cerr << "[TEST #7] " << ((result) ? "Passed!" : "Failed!" ) << std::endl;
+    std::cerr << "[TEST #7A] " << ((result) ? "Passed!" : "Failed!" ) << std::endl;
     if (!result)
         std::cerr << output << std::endl;
+
+    return true;
+}
+
+bool RUN_TEST7B( int argc, char **argv)
+{
+    (void) argc;
+    (void) argv;
+
+    types::Container object1;
+    object1.a.push_back(10);
+    object1.b.push_back(10);
+    object1.c.push_back(10);
+    object1.d.push_back(10);
+    object1.e.push_back(10);
+    object1.f.push_back(10);
+    object1.g.push_back(10);
+    object1.h.push_back(10);
+    object1.i.push_back(10);
+    object1.j.push_back(10);
+    object1.k.push_back(10);
+    object1.l.push_back(10);
+    object1.m.push_back(false);
+    object1.n.push_back("test");
+    object1.o.push_back(10);
+
+    std::string json1;
+    object1.serialize(json1);
+    types::Container object2;
+    object2.deserialize(json1);
+    std::string json2;
+    object2.serialize(json2);
+
+    bool result = json1 == json2;
+    result &= object1 == object2;
+    std::cerr << "[TEST #7B] " << ((result) ? "Passed!" : "Failed!" ) << std::endl;
+    if (!result)
+    {
+        std::cerr << "   " << json1 << std::endl;
+        std::cerr << "   " << json2 << std::endl;
+    }
 
     return true;
 }
@@ -331,6 +375,7 @@ int main( int argc, char **argv)
     result &= RUN_TEST4(argc, argv);
     result &= RUN_TEST5(argc, argv);
     result &= RUN_TEST6(argc, argv);
-    result &= RUN_TEST7(argc, argv);
+    result &= RUN_TEST7A(argc, argv);
+    result &= RUN_TEST7B(argc, argv);
     return (int) !result;
 }
