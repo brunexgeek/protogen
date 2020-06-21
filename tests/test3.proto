@@ -4,11 +4,10 @@ package options;
 option obfuscate_strings = true;
 option number_names = true;
 
-message Person
+message Cake
 {
     string name = 1;
-    int32 age = 2;
-    string gender = 4;
-    string email = 3 [transient = true];
-    repeated string pets = 5;
+    int32 weight = 2;
+    string flavor = 3 [transient = true];
+    repeated string ingredients = 4;
 }

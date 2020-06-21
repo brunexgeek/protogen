@@ -97,23 +97,22 @@ bool RUN_TEST3( int argc, char **argv)
     (void) argc;
     (void) argv;
 
-    options::Person person;
-    person.email = "margot@example.com";
-    person.age(29);
-    person.name = "Margot";
-    person.gender = "female";
-    person.pets.push_back("Max");
-    person.pets.push_back("Rufus");
-    person.pets.push_back("Spooky");
+    options::Cake cake;
+    cake.name = "Strawberry Cake";
+    cake.weight(29);
+    cake.flavor = "strawberry";
+    cake.ingredients.push_back("milk");
+    cake.ingredients.push_back("strawberry");
+    cake.ingredients.push_back("flour");
 
     std::string json1;
     std::string json2;
-    options::Person temp;
-    serialize(person, json1);
+    options::Cake temp;
+    serialize(cake, json1);
     deserialize(temp, json1);
     serialize(temp, json2);
 
-    bool result = (json1 == json2) && (person != temp) && temp.email.empty();
+    bool result = (json1 == json2) && (cake != temp) && temp.flavor.empty();
     std::cerr << "[TEST #3] " << ((result) ? "Passed!" : "Failed!" ) << std::endl;
     std::cerr << "   " << json1 << std::endl << "   " << json2 << std::endl;
 
@@ -150,8 +149,8 @@ bool RUN_TEST4( int argc, char **argv)
         {"", 0, 0, error_code::PGERR_OK}
     };
 
-    options::Person temp;
-    options::Person::ErrorInfo err;
+    options::Cake temp;
+    options::Cake::ErrorInfo err;
     bool result = true;
 
     int i = 0;
