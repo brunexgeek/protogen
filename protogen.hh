@@ -42,7 +42,7 @@ struct ErrorInfo : public std::exception
         message(message) { }
     ErrorInfo( error_code code, const std::string &message, int line, int column ) :
         code(code), message(message), line(line), column(column) { }
-    ErrorInfo( const ErrorInfo &that ) = default;
+    ErrorInfo( const ErrorInfo &that ) { *this = that; }
     ErrorInfo( ErrorInfo &&that )
     {
         message.swap(that.message);
@@ -52,7 +52,14 @@ struct ErrorInfo : public std::exception
     }
     virtual const char *what() const noexcept override { return message.c_str(); }
     bool operator ==( error_code value ) const { return code == value; }
-    ErrorInfo &operator=( const ErrorInfo &ex ) = default;
+    ErrorInfo &operator=( const ErrorInfo &that )
+    {
+        message = that.message;
+        code =  that.code;
+        line =  that.line;
+        column =  that.column;
+        return *this;
+    }
 };
 
 namespace internal {
@@ -536,6 +543,7 @@ struct json<field<T>, typename std::enable_if<std::is_arithmetic<T>::value>::typ
     static int read( json_context &ctx, field<T> &value )
     {
         T temp;
+        json<T>::clear(temp);
         int result = json<T>::read(ctx, temp);
         value = temp;
         return result;
@@ -937,8 +945,9 @@ static int read_object( json_context &ctx, T &object )
     if (!(ctx.mask & (1 << field_id))) { name = PG_MKSTR(field_name); } else
 
 #define PG_JSON(type, ...) \
+    namespace protogen_2_0_0 { \
     template<> \
-    struct protogen_2_0_0::json<type> \
+    struct json<type> \
     { \
         static int read( json_context &ctx, type &value ) \
         { \
@@ -981,7 +990,7 @@ static int read_object( json_context &ctx, T &object )
             ctx.tok->error(PGERR_MISSING_FIELD, std::string("Missing field '") + name + "'"); \
             return true; \
         } \
-    }; \
+    };}
 
 template<typename T>
 bool deserialize( T &value, protogen_2_0_0::tokenizer& tok, bool required = false, ErrorInfo *err = nullptr )
@@ -1155,9 +1164,9 @@ struct message
         typedef S serializer_type; \
         typedef protogen_2_0_0::ErrorInfo ErrorInfo; \
         N() = default; \
-        N( const N&that ) = default; \
+        N( const N& ) = default; \
         N( N &&that ) { S::swap(*this, that); } \
-        N &operator=( const N &that ) = default; \
+        N &operator=( const N & ) = default; \
         using protogen_2_0_0::message<O, S>::serialize; \
         using protogen_2_0_0::message<O, S>::deserialize; \
         bool deserialize( protogen_2_0_0::tokenizer& tok, bool required = false, \
@@ -1184,8 +1193,9 @@ struct message
     };
 
 #define PG_ENTITY_SERIALIZER(N,O,S) \
+    namespace protogen_2_0_0 { \
     template<> \
-    struct protogen_2_0_0::json<N> \
+    struct json<N> \
     { \
         static int read( json_context &ctx, O &value ) { return S::read(ctx, value); } \
         static int read_field( json_context &ctx, const std::string &name, O &value ) { return S::read_field(ctx, name, value); } \
@@ -1195,7 +1205,7 @@ struct message
         static bool equal( const O &a, const O &b ) { return S::equal(a, b); } \
         static void swap( O &a, O &b ) { S::swap(a, b); } \
         static bool is_missing( json_context &ctx ) { return S::is_missing(ctx); } \
-    };
+    };}
 
 } // namespace protogen_2_0_0
 

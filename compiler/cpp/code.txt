@@ -51,7 +51,8 @@
 
 
 --- CODE_JSON_MODEL
-template<> struct protogen_2_0_0::json<$1$>
+namespace protogen_2_0_0 {
+template<> struct json<$1$>
 {
     static int read( json_context &ctx, $1$ &value ) { return read_object(ctx, value); }
     static int read_field( json_context &ctx, const std::string &name, $1$ &value ) \
@@ -85,7 +86,7 @@ $8$        return false;
         ctx.tok->error(PGERR_MISSING_FIELD, std::string("Missing field '") + name + "'");
         return true;
     }
-};
+};}
 ------
 
 --- CODE_DESERIALIZE_IF
