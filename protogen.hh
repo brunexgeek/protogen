@@ -608,7 +608,7 @@ struct json<T, typename std::enable_if<std::is_arithmetic<T>::value>::type>
     static int read( json_context &ctx, T &value )
     {
         auto &tt = ctx.tok->peek();
-        if (ctx.tok->expect(token_id::NIL)) return PGR_NIL;
+        if (tt.id == token_id::NIL) return PGR_NIL;
         if (tt.id != token_id::NUMBER)
             return ctx.tok->error(error_code::PGERR_INVALID_VALUE, "Invalid numeric value");
         value = string_to_number<T>(tt.value);
@@ -627,7 +627,7 @@ struct json<T, typename std::enable_if<is_container<T>::value>::type >
 {
     static int read( json_context &ctx, T &value )
     {
-        if (ctx.tok->expect(token_id::NIL)) return PGR_NIL;
+        if (ctx.tok->peek().id == token_id::NIL) return PGR_NIL;
         if (!ctx.tok->expect(token_id::ARRS))
             return ctx.tok->error(error_code::PGERR_INVALID_OBJECT, "Invalid object");
         while (true)
@@ -712,7 +712,7 @@ struct json< std::vector<uint8_t> >
     }
     static int read( json_context &ctx, std::vector<uint8_t> &value )
     {
-        if (ctx.tok->expect(token_id::NIL)) return PGR_NIL;
+        if (ctx.tok->peek().id == token_id::NIL) return PGR_NIL;
         if (ctx.tok->peek().id != token_id::STRING)
             return ctx.tok->error(error_code::PGERR_INVALID_OBJECT, "Invalid string");
 
@@ -764,12 +764,10 @@ struct json<bool, void>
     static int read( json_context &ctx, bool &value )
     {
         auto &tt = ctx.tok->peek();
-        if (tt.id != token_id::NIL)
-        {
-            if (tt.id != token_id::TRUE && tt.id != token_id::FALSE)
-                return ctx.tok->error(error_code::PGERR_INVALID_VALUE, "Invalid boolean value");
-            value = tt.id == token_id::TRUE;
-        }
+        if (tt.id == token_id::NIL) return PGR_NIL;
+        if (tt.id != token_id::TRUE && tt.id != token_id::FALSE)
+            return ctx.tok->error(error_code::PGERR_INVALID_VALUE, "Invalid boolean value");
+        value = tt.id == token_id::TRUE;
         ctx.tok->next();
         return PGR_OK;
     }
@@ -789,7 +787,7 @@ struct json<std::string, void>
     static int read( json_context &ctx, std::string &value )
     {
         auto tt = ctx.tok->peek();
-        if (ctx.tok->expect(token_id::NIL)) return PGR_NIL;
+        if (tt.id == token_id::NIL) return PGR_NIL;
         if (!ctx.tok->expect(token_id::STRING))
             return ctx.tok->error(error_code::PGERR_INVALID_VALUE, "Invalid string value");
         value = tt.value;
@@ -844,6 +842,7 @@ static inline std::string reveal( const T *value, size_t length )
 template<typename T, typename J = json<T> >
 static int read_object( json_context &ctx, T &object )
 {
+    if (ctx.tok->peek().id == token_id::NIL) return PGR_NIL;
     if (!ctx.tok->expect(token_id::OBJS))
         return ctx.tok->error(error_code::PGERR_INVALID_OBJECT, "objects must start with '{'");
     if (!ctx.tok->expect(token_id::OBJE))

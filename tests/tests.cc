@@ -146,6 +146,7 @@ bool RUN_TEST4( int argc, char **argv)
         {"{\"blip1\":{}", 1, 12, error_code::PGERR_INVALID_OBJECT},
         {"{\"blip2\":[}", 1, 11, error_code::PGERR_IGNORE_FAILED},
         {"{\"blip3\":\"}", 1, 10, error_code::PGERR_IGNORE_FAILED},
+        {"{\"name\":null}", 0, 00, error_code::PGERR_OK},
         {"", 0, 0, error_code::PGERR_OK}
     };
 
