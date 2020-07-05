@@ -87,7 +87,8 @@ struct token
         value = that.value;
         line = that.line;
         column = that.column;
-        return *this; }
+        return *this;
+    }
     void swap( token &that )
     {
         std::swap(id, that.id);
@@ -106,13 +107,7 @@ class ostream
         virtual ostream &operator<<( const char *value ) = 0;
         virtual ostream &operator<<( char *value ) = 0;
         virtual ostream &operator<<( char value ) = 0;
-        template<class T, typename std::enable_if<std::is_floating_point<T>::value, int>::type = 0>
-        ostream &operator<<( T value )
-        {
-            this->operator<<( std::to_string((double)value) );
-            return *this;
-        }
-        template<class T, typename std::enable_if<std::is_integral<T>::value, int>::type = 0>
+        template<class T, typename std::enable_if<std::is_arithmetic<T>::value, int>::type = 0>
         ostream &operator<<( T value )
         {
             this->operator<<( std::to_string(value) );

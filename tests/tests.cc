@@ -8,6 +8,8 @@
 #include <test3.pg.hh>
 #include <test7.pg.hh>
 
+using namespace std::chrono;
+
 namespace compact {
 
 struct Person
@@ -34,7 +36,7 @@ bool RUN_TEST1( int argc, char **argv)
     book.owner.id = 33;
     book.owner.name = "Bob \"Blackjack\" O'Neil";
     book.owner.email = "bob@example.com";
-    book.owner.last_updated = (uint32_t) std::chrono::system_clock::now().time_since_epoch().count();
+    book.owner.last_updated = (uint32_t) duration_cast<seconds>(system_clock::now().time_since_epoch()).count();
 
     phonebook::Person person;
     person.email = "test@example.com";
