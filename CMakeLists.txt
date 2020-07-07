@@ -16,6 +16,10 @@ if (UNIX)
 	set(CMAKE_CXX_FLAGS_RELEASE "-O3")
 endif()
 
+if (MSVC)
+	add_definitions(-D_CRT_SECURE_NO_WARNINGS=1)
+endif()
+
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
     add_definitions(-DBUILD_DEBUG)
 else()
@@ -61,21 +65,22 @@ set_target_properties(template PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}" )
 
+set(PROTOGEN_EXEC "${CMAKE_BINARY_DIR}/protogen")
 
 add_custom_target(generate_test1
-    "${CMAKE_BINARY_DIR}/protogen" "${CMAKE_CURRENT_LIST_DIR}/tests/test1.proto" "${CMAKE_BINARY_DIR}/__include/test1.pg.hh"
+    "${PROTOGEN_EXEC}" "${CMAKE_CURRENT_LIST_DIR}/tests/test1.proto" "${CMAKE_BINARY_DIR}/__include/test1.pg.hh"
     DEPENDS protogen)
 
 add_custom_target(generate_test2
-    "${CMAKE_BINARY_DIR}/protogen" "${CMAKE_CURRENT_LIST_DIR}/tests/test2.proto" "${CMAKE_BINARY_DIR}/__include/test2.pg.hh"
+    "${PROTOGEN_EXEC}" "${CMAKE_CURRENT_LIST_DIR}/tests/test2.proto" "${CMAKE_BINARY_DIR}/__include/test2.pg.hh"
     DEPENDS protogen)
 
 add_custom_target(generate_test3
-    "${CMAKE_BINARY_DIR}/protogen" "${CMAKE_CURRENT_LIST_DIR}/tests/test3.proto" "${CMAKE_BINARY_DIR}/__include/test3.pg.hh"
+    "${PROTOGEN_EXEC}" "${CMAKE_CURRENT_LIST_DIR}/tests/test3.proto" "${CMAKE_BINARY_DIR}/__include/test3.pg.hh"
     DEPENDS protogen)
 
 add_custom_target(generate_test7
-    "${CMAKE_BINARY_DIR}/protogen" "${CMAKE_CURRENT_LIST_DIR}/tests/test7.proto" "${CMAKE_BINARY_DIR}/__include/test7.pg.hh"
+    "${PROTOGEN_EXEC}" "${CMAKE_CURRENT_LIST_DIR}/tests/test7.proto" "${CMAKE_BINARY_DIR}/__include/test7.pg.hh"
     DEPENDS protogen)
 
 

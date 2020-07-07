@@ -19,6 +19,7 @@
 #include <protogen/protogen.hh>
 #include "../printer.hh"
 #include <sstream>
+#include <cstdio>
 
 namespace protogen {
 
@@ -27,7 +28,7 @@ namespace protogen {
 #define IS_NUMERIC_TYPE(x)    ( (x) >= protogen::TYPE_DOUBLE && (x) <= protogen::TYPE_SFIXED64 )
 
 #ifdef _WIN32
-#define SNPRINTF snprintf_
+#define SNPRINTF _snprintf
 #else
 #define SNPRINTF snprintf
 #endif
@@ -250,10 +251,10 @@ template <typename T>
 #if !defined(_WIN32)
 constexpr
 #endif
-T rol( T value, size_t count )
+T rol( T value, int count )
 {
 	static_assert(std::is_unsigned<T>::value, "Unsupported signed type");
-	return (T) ((value << count) | (value >> (-count & (sizeof(T) * 8 - 1))));
+	return (T) ((value << count) | (value >> (-count & ((int)sizeof(T) * 8 - 1))));
 }
 
 static inline std::string obfuscate( const std::string &value )
@@ -287,7 +288,7 @@ static void generateModelWrapper( GeneratorContext &ctx, const Message &message 
 
         if (ctx.obfuscate_strings)
         {
-            int len = label.length();
+            auto len = label.length();
             label = obfuscate(label);
             label = Printer::format("reveal(\"$1$\",$2$)", label, len);
         }

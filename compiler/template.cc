@@ -1,5 +1,6 @@
 #include <fstream>
 #include <iostream>
+#include <string>
 
 void process( std::istream &input, std::ostream &output, const std::string &guard )
 {
@@ -12,6 +13,7 @@ void process( std::istream &input, std::ostream &output, const std::string &guar
     while (!input.eof())
     {
         std::getline(input, line);
+		if (!input.good()) break;
 
         if (!content)
         {
@@ -68,7 +70,7 @@ int main( int argc, char **argv )
     auto pos = guard.rfind(DIR_SEPARATOR);
     if (pos != std::string::npos) guard = guard.substr(pos);
     guard = "GENERATED_" + guard;
-    for (auto it = guard.begin(); it++ != guard.end();)
+    for (auto it = guard.begin(); it != guard.end(); ++it)
         if (!isalpha(*it)) *it = '_';
 
     process(input, output, guard);

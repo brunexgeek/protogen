@@ -866,40 +866,80 @@ static int read_object( json_context &ctx, T &object )
     return PGR_OK;
 }
 
-#define PG_CONCAT(arg1, arg2)   PG_CONCAT1(arg1, arg2)
-#define PG_CONCAT1(arg1, arg2)  arg1##arg2
+/*
+ * Copyright (C) 2012 William Swanson
+ *               2018 Niklas Gürtler
+ *
+ * <https://github.com/Erlkoenig90/map-macro>
+ *
+ * Permission is hereby granted, free of charge, to any person
+ * obtaining a copy of this software and associated documentation
+ * files (the "Software"), to deal in the Software without
+ * restriction, including without limitation the rights to use, copy,
+ * modify, merge, publish, distribute, sublicense, and/or sell copies
+ * of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be
+ * included in all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY
+ * CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+ * CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+ * WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+ *
+ * Except as contained in this notice, the names of the authors or
+ * their institutions shall not be used in advertising or otherwise to
+ * promote the sale, use or other dealings in this Software without
+ * prior written authorization from the authors.
+ */
 
-#define PG_FOR_EACH_1(what, x)  what(1,x)
-#define PG_FOR_EACH_2(what, x, ...)  what(2,x) PG_FOR_EACH_1(what, __VA_ARGS__)
-#define PG_FOR_EACH_3(what, x, ...)  what(3,x) PG_FOR_EACH_2(what, __VA_ARGS__)
-#define PG_FOR_EACH_4(what, x, ...)  what(4,x) PG_FOR_EACH_3(what, __VA_ARGS__)
-#define PG_FOR_EACH_5(what, x, ...)  what(5,x) PG_FOR_EACH_4(what, __VA_ARGS__)
-#define PG_FOR_EACH_6(what, x, ...)  what(6,x) PG_FOR_EACH_5(what, __VA_ARGS__)
-#define PG_FOR_EACH_7(what, x, ...)  what(7,x) PG_FOR_EACH_6(what, __VA_ARGS__)
-#define PG_FOR_EACH_8(what, x, ...)  what(8,x) PG_FOR_EACH_7(what, __VA_ARGS__)
-#define PG_FOR_EACH_9(what, x, ...)  what(9,x) PG_FOR_EACH_8(what, __VA_ARGS__)
-#define PG_FOR_EACH_10(what, x, ...) what(10,x) PG_FOR_EACH_9(what, __VA_ARGS__)
-#define PG_FOR_EACH_11(what, x, ...) what(11,x) PG_FOR_EACH_10(what, __VA_ARGS__)
-#define PG_FOR_EACH_12(what, x, ...) what(12,x) PG_FOR_EACH_11(what, __VA_ARGS__)
-#define PG_FOR_EACH_13(what, x, ...) what(13,x) PG_FOR_EACH_12(what, __VA_ARGS__)
-#define PG_FOR_EACH_14(what, x, ...) what(14,x) PG_FOR_EACH_13(what, __VA_ARGS__)
-#define PG_FOR_EACH_15(what, x, ...) what(15,x) PG_FOR_EACH_14(what, __VA_ARGS__)
-#define PG_FOR_EACH_16(what, x, ...) what(16,x) PG_FOR_EACH_15(what, __VA_ARGS__)
-#define PG_FOR_EACH_17(what, x, ...) what(17,x) PG_FOR_EACH_16(what, __VA_ARGS__)
-#define PG_FOR_EACH_18(what, x, ...) what(18,x) PG_FOR_EACH_17(what, __VA_ARGS__)
-#define PG_FOR_EACH_19(what, x, ...) what(19,x) PG_FOR_EACH_18(what, __VA_ARGS__)
-#define PG_FOR_EACH_20(what, x, ...) what(20,x) PG_FOR_EACH_19(what, __VA_ARGS__)
-#define PG_FOR_EACH_21(what, x, ...) what(21,x) PG_FOR_EACH_20(what, __VA_ARGS__)
-#define PG_FOR_EACH_22(what, x, ...) what(22,x) PG_FOR_EACH_21(what, __VA_ARGS__)
-#define PG_FOR_EACH_23(what, x, ...) what(23,x) PG_FOR_EACH_22(what, __VA_ARGS__)
-#define PG_FOR_EACH_24(what, x, ...) what(24,x) PG_FOR_EACH_23(what, __VA_ARGS__)
+#ifndef PG_MAP_H_INCLUDED
+#define PG_MAP_H_INCLUDED
 
-#define PG_FOR_EACH_NARG(...) PG_FOR_EACH_NARG_(__VA_ARGS__, PG_FOR_EACH_RSEQ_N())
-#define PG_FOR_EACH_NARG_(...) PG_FOR_EACH_ARG_N(__VA_ARGS__)
-#define PG_FOR_EACH_ARG_N(_1,_2,_3,_4,_5,_6,_7,_8,_9,_10,_11,_12,_13,_14,_15,_16,_17,_18,_19,_20,_21,_22,_23,_24,N,...) N
-#define PG_FOR_EACH_RSEQ_N() 24,23,22,21,20,19,18,17,16,15,14,13,12,11,10,9,8,7,6,5,4,3,2,1,0
-#define PG_FOR_EACH_(N, what, x, ...) PG_CONCAT(PG_FOR_EACH_, N)(what, x, __VA_ARGS__)
-#define PG_FOR_EACH(what, x, ...) PG_FOR_EACH_(PG_FOR_EACH_NARG(x, __VA_ARGS__), what, x, __VA_ARGS__)
+#define PG_EVAL0(...) __VA_ARGS__
+#define PG_EVAL1(...) PG_EVAL0(PG_EVAL0(PG_EVAL0(__VA_ARGS__)))
+#define PG_EVAL2(...) PG_EVAL1(PG_EVAL1(PG_EVAL1(__VA_ARGS__)))
+#define PG_EVAL3(...) PG_EVAL2(PG_EVAL2(PG_EVAL2(__VA_ARGS__)))
+#define PG_EVAL4(...) PG_EVAL3(PG_EVAL3(PG_EVAL3(__VA_ARGS__)))
+#define PG_EVAL5(...) PG_EVAL4(PG_EVAL4(PG_EVAL4(__VA_ARGS__)))
+
+#ifdef _MSC_VER
+// MSVC needs more evaluations
+#define PG_EVAL6(...) PG_EVAL5(PG_EVAL5(PG_EVAL5(__VA_ARGS__)))
+#define PG_EVAL(...)  PG_EVAL6(PG_EVAL6(__VA_ARGS__))
+#else
+#define PG_EVAL(...)  PG_EVAL5(__VA_ARGS__)
+#endif
+
+#define PG_MAP_END(...)
+#define PG_MAP_OUT
+
+#define PG_EMPTY()
+#define PG_DEFER(id) id PG_EMPTY()
+
+#define PG_MAP_GET_END2() 0, PG_MAP_END
+#define PG_MAP_GET_END1(...) PG_MAP_GET_END2
+#define PG_MAP_GET_END(...) PG_MAP_GET_END1
+#define PG_MAP_NEXT0(test, next, ...) next PG_MAP_OUT
+#define PG_MAP_NEXT1(test, next) PG_DEFER ( PG_MAP_NEXT0 ) ( test, next, 0)
+#define PG_MAP_NEXT(test, next)  PG_MAP_NEXT1(PG_MAP_GET_END test, next)
+#define PG_MAP_INC(X) (X+1)
+
+#define PG_MAP0_UD_I(f, userdata, index, x, peek, ...) f(x,userdata,index) PG_DEFER ( PG_MAP_NEXT(peek, PG_MAP1_UD_I) ) ( f, userdata, PG_MAP_INC(index), peek, __VA_ARGS__ )
+#define PG_MAP1_UD_I(f, userdata, index, x, peek, ...) f(x,userdata,index) PG_DEFER ( PG_MAP_NEXT(peek, PG_MAP0_UD_I) ) ( f, userdata, PG_MAP_INC(index), peek, __VA_ARGS__ )
+
+/**
+ * Applies the function macro `f` to each of the remaining parameters, passes userdata as the second parameter to each invocation,
+ * and the index of the invocation as the third parameter,
+ * e.g. MAP_UD_I(f, x, a, b, c) evaluates to f(a, x, 0) f(b, x, 1) f(c, x, 2)
+ */
+#define PG_MAP_UD_I(f, userdata, ...) PG_EVAL(PG_MAP1_UD_I(f, userdata, 0, __VA_ARGS__, ()()(), ()()(), ()()(), 0))
+
+#endif // PG_MAP_H_INCLUDED
 
 #define PG_DIF_EX(field_id, field_name, field_label) \
     if (name == field_label) { \
@@ -908,7 +948,7 @@ static int read_object( json_context &ctx, T &object )
         return result; \
     } else
 
-#define PG_DIF(field_id, field_name) \
+#define PG_DIF(field_name,user_data,field_id) \
     PG_DIF_EX(field_id, field_name, PG_MKSTR(field_name) )
 
 #define PG_SIF_EX(field_name, field_label) \
@@ -920,22 +960,22 @@ static int read_object( json_context &ctx, T &object )
         protogen_2_0_0::json<decltype(value.field_name)>::write(ctx, value.field_name); \
     }
 
-#define PG_SIF(field_id, field_name) \
+#define PG_SIF(field_name,user_data,field_id) \
     PG_SIF_EX(field_name, PG_MKSTR(field_name) )
 
-#define PG_EIF(field_id,field_name) \
+#define PG_EIF(field_name,user_data,field_id) \
     if (!protogen_2_0_0::json<decltype(value.field_name)>::empty(value.field_name)) return false;
 
-#define PG_CLL(field_id,field_name) \
+#define PG_CLL(field_name,user_data,field_id) \
     protogen_2_0_0::json<decltype(value.field_name)>::clear(value.field_name);
 
-#define PG_QIF(field_id,field_name) \
+#define PG_QIF(field_name,user_data,field_id) \
     if (!protogen_2_0_0::json<decltype(a.field_name)>::equal(a.field_name, b.field_name)) return false;
 
-#define PG_SLL(field_id,field_name) \
+#define PG_SLL(field_name,user_data,field_id) \
     protogen_2_0_0::json<decltype(a.field_name)>::swap(a.field_name, b.field_name);
 
-#define PG_MIF(field_id,field_name) \
+#define PG_MIF(field_name,user_data,field_id) \
     if (!(ctx.mask & (1 << field_id))) { name = PG_MKSTR(field_name); } else
 
 #define PG_JSON(type, ...) \
@@ -949,37 +989,37 @@ static int read_object( json_context &ctx, T &object )
         } \
         static int read_field( json_context &ctx, const std::string &name, type &value ) \
         { \
-            PG_FOR_EACH(PG_DIF, __VA_ARGS__) \
+            PG_EVAL(PG_MAP_UD_I(PG_DIF, 0, __VA_ARGS__)) \
             return PGR_ERROR; \
         } \
         static void write( json_context &ctx, const type &value ) \
         { \
             bool first = true; \
             (*ctx.os) <<  '{'; \
-            PG_FOR_EACH(PG_SIF, __VA_ARGS__) \
+            PG_MAP_UD_I(PG_SIF, 0, __VA_ARGS__) \
             (*ctx.os) <<  '}'; \
         } \
         static bool empty( const type &value ) \
         { \
-            PG_FOR_EACH(PG_EIF, __VA_ARGS__) \
+            PG_MAP_UD_I(PG_EIF, 0, __VA_ARGS__) \
             return true; \
         } \
         static void clear( type &value ) \
         { \
-            PG_FOR_EACH(PG_CLL, __VA_ARGS__) \
+            PG_MAP_UD_I(PG_CLL, 0, __VA_ARGS__) \
         } \
         static bool equal( const type &a, const type &b ) \
         { \
-            PG_FOR_EACH(PG_QIF, __VA_ARGS__) \
+            PG_MAP_UD_I(PG_QIF, 0, __VA_ARGS__) \
         } \
         static void swap( type &a, type &b ) \
         { \
-            PG_FOR_EACH(PG_SLL, __VA_ARGS__) \
+            PG_MAP_UD_I(PG_SLL, 0, __VA_ARGS__) \
         } \
         static bool is_missing( json_context &ctx ) \
         { \
             std::string name; \
-            PG_FOR_EACH(PG_MIF, __VA_ARGS__) \
+            PG_MAP_UD_I(PG_MIF, 0, __VA_ARGS__) \
             return false; \
             ctx.tok->error(PGERR_MISSING_FIELD, std::string("Missing field '") + name + "'"); \
             return true; \
