@@ -336,7 +336,7 @@ class tokenizer
                         default: goto ERROR;
                     }
                 }
-                if (c <= 0) goto ERROR;
+                if (c == 0) goto ERROR;
                 value += (char) c;
             }
             ERROR:

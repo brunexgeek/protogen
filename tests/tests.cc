@@ -35,8 +35,8 @@ bool RUN_TEST1( int argc, char **argv)
 
     phonebook::AddressBook book;
     book.owner.id = 33;
-    book.owner.name = "Bob \"Blackjack\" O'Neil";
-    book.owner.email = "bob@example.com";
+    book.owner.name = "王詩安";
+    book.owner.email = "wang@example.com";
     book.owner.last_updated = (uint32_t) duration_cast<seconds>(system_clock::now().time_since_epoch()).count();
 
     phonebook::Person person;
