@@ -239,7 +239,7 @@ static void generateModel( GeneratorContext &ctx, const Message &message )
     ctx.printer("\tstruct $1$_type\n\t{\n", message.name);
     for (auto field : message.fields)
     {
-        ctx.printer("\t\t$1$ $2$;\n", fieldNativeType(ctx, field, true), fieldStorage(field) );
+        ctx.printer("\t\t$1$ $2$;\n", fieldNativeType(ctx, field, ctx.cpp_use_lists), fieldStorage(field) );
     }
     ctx.printer("\t};\n");
 
