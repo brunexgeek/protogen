@@ -304,12 +304,12 @@ static void generateModelWrapper( GeneratorContext &ctx, const Message &message 
         {
             Printer::format(temp1, CODE_DESERIALIZE_IF, name, label, i);
             Printer::format(temp2, CODE_SERIALIZE_IF, name, label);
+            Printer::format(temp7, CODE_IS_MISSING_IF, label, 1 << i);
         }
         Printer::format(temp3, CODE_EMPTY_IF, name);
         Printer::format(temp4, CODE_CLEAR_CALL, name);
         Printer::format(temp5, CODE_EQUAL_IF, name);
         Printer::format(temp6, CODE_SWAP_CALL, name);
-        Printer::format(temp7, CODE_IS_MISSING_IF, label, 1 << i);
         ++i;
     }
 

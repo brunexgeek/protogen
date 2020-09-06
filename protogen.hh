@@ -309,7 +309,7 @@ class tokenizer
             std::string value;
             int line = input_.line();
             int column = input_.column();
-            if (input_.peek() != '"') goto ERROR;
+            if (input_.peek() != '"') goto ESCAPE;
             while (!input_.eof())
             {
                 input_.next();
@@ -333,13 +333,13 @@ class tokenizer
                         case 'r':  c = '\r'; break;
                         case 'n':  c = '\n'; break;
                         case 't':  c = '\t'; break;
-                        default: goto ERROR;
+                        default: goto ESCAPE;
                     }
                 }
-                if (c == 0) goto ERROR;
+                if (c == 0) goto ESCAPE;
                 value += (char) c;
             }
-            ERROR:
+            ESCAPE:
             return token(token_id::NONE, "", line, column);
         }
 
@@ -818,7 +818,7 @@ template <typename T>
 #if !defined(_WIN32)
 constexpr
 #endif
-T rol( T value, size_t count )
+T rol( T value, int count )
 {
 	static_assert(std::is_unsigned<T>::value, "Unsupported signed type");
 	return (T) ((value << count) | (value >> (-count & (sizeof(T) * 8 - 1))));
