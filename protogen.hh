@@ -803,7 +803,9 @@ struct json<std::string, void>
                 case '\r': (*ctx.os) <<  "\\r"; break;
                 case '\n': (*ctx.os) <<  "\\n"; break;
                 case '\t': (*ctx.os) <<  "\\t"; break;
-                default:   (*ctx.os) <<  *it;
+                default:
+                    // TODO: escape control character instead of removing it
+                    if (*it >= 32) (*ctx.os) << *it;
             }
         }
         (*ctx.os) <<  '"';
