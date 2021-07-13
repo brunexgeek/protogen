@@ -597,6 +597,32 @@ T string_to_number( const std::string &text )
 #endif
 }
 
+template<typename T, typename std::enable_if<std::is_floating_point<T>::value, int>::type = 0>
+std::string number_to_string( const T &value )
+{
+    char tmp[512] = {0};
+#if defined(_WIN32) || defined(_WIN64)
+    static _locale_t loc = _create_locale(LC_NUMERIC, "C");
+    if (loc == nullptr) return "0";
+    _snprintf_l(tmp, sizeof(tmp) - 1, "%f", loc, value);
+#else
+    static locale_t loc = newlocale(LC_NUMERIC_MASK, "C", 0);
+    if (loc == 0) return "0";
+    locale_t old = uselocale(loc);
+    if (old == 0) return "0";
+    snprintf(tmp, sizeof(tmp) - 1, "%f", value);
+    uselocale(old);
+#endif
+    tmp[sizeof(tmp) - 1] = 0;
+    return tmp;
+}
+
+template<typename T, typename std::enable_if<std::is_integral<T>::value, int>::type = 0>
+std::string number_to_string( const T &value )
+{
+    return std::to_string(value);
+}
+
 template<typename T>
 struct json<T, typename std::enable_if<std::is_arithmetic<T>::value>::type>
 {
@@ -610,7 +636,7 @@ struct json<T, typename std::enable_if<std::is_arithmetic<T>::value>::type>
         ctx.tok->next();
         return PGR_OK;
     }
-    static void write( json_context &ctx, const T &value ) { (*ctx.os) << value; }
+    static void write( json_context &ctx, const T &value ) { (*ctx.os) << number_to_string(value); }
     static bool empty( const T &value ) { (void) value; return false; }
     static void clear( T &value ) { value = (T) 0; }
     static bool equal( const T &a, const T &b ) { return a == b; }
