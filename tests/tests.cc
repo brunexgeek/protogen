@@ -35,7 +35,7 @@ bool RUN_TEST1( int argc, char **argv)
 
     phonebook::AddressBook book;
     book.owner.id = 33;
-    book.owner.name = "王詩安";
+    book.owner.name = "\6王詩安";
     book.owner.email = "wang@example.com";
     book.owner.last_updated = (uint32_t) duration_cast<seconds>(system_clock::now().time_since_epoch()).count();
 
@@ -322,8 +322,11 @@ bool RUN_TEST7A( int argc, char **argv)
     output.clear();
 
     std::cerr << "[TEST #7A] " << ((result) ? "Passed!" : "Failed!" ) << std::endl;
+    std::cerr << json << std::endl;
     if (!result)
+    {
         std::cerr << output << std::endl;
+    }
 
     return true;
 }
