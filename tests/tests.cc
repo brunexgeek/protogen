@@ -53,6 +53,8 @@ bool RUN_TEST1( int argc, char **argv)
     number.type = false;
     person.phones.push_back(number);
 
+    book.people.push_back(person);
+
     std::string json1;
     std::string json2;
     phonebook::AddressBook temp;
