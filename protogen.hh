@@ -67,7 +67,7 @@ namespace internal {
 enum class token_id
 {
     NONE, EOS, OBJS, OBJE, COLON, COMMA, STRING, ARRS,
-    ARRE, NIL, TRUE, FALSE, NUMBER,
+    ARRE, NIL, BTRUE, BFALSE, NUMBER,
 };
 
 struct token
@@ -251,8 +251,8 @@ class tokenizer
                         return current_ = parse_number();
                     default:
                         std::string value = parse_identifier();
-                        if (value == "true") return current_ = token(token_id::TRUE, "", line, column);
-                        if (value == "false") return current_ = token(token_id::FALSE, "", line, column);
+                        if (value == "true") return current_ = token(token_id::BTRUE, "", line, column);
+                        if (value == "false") return current_ = token(token_id::BFALSE, "", line, column);
                         if (value == "null") return current_ = token(token_id::NIL, "", line, column);
                         return current_ = token(token_id::NONE, "", line, column);
                 }
@@ -422,8 +422,8 @@ class tokenizer
                 case token_id::STRING:
                 case token_id::NUMBER:
                 case token_id::NIL:
-                case token_id::TRUE:
-                case token_id::FALSE:
+                case token_id::BTRUE:
+                case token_id::BFALSE:
                 {
                     auto tt = next();
                     if (tt.id == token_id::NONE || tt.id == token_id::EOS)
@@ -786,9 +786,9 @@ struct json<bool, void>
     {
         auto &tt = ctx.tok->peek();
         if (tt.id == token_id::NIL) return PGR_NIL;
-        if (tt.id != token_id::TRUE && tt.id != token_id::FALSE)
+        if (tt.id != token_id::BTRUE && tt.id != token_id::BFALSE)
             return ctx.tok->error(error_code::PGERR_INVALID_VALUE, "Invalid boolean value");
-        value = tt.id == token_id::TRUE;
+        value = tt.id == token_id::BTRUE;
         ctx.tok->next();
         return PGR_OK;
     }
