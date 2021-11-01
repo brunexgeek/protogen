@@ -1,5 +1,21 @@
-#ifndef PROTOGEN_2_0_0
-#define PROTOGEN_2_0_0
+/*
+ * Copyright 2020 Bruno Ribeiro <https://github.com/brunexgeek>
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+#ifndef PROTOGEN_2_1_0
+#define PROTOGEN_2_1_0
 
 #include <string>
 #include <vector>
@@ -11,7 +27,7 @@
 
 #define PG_MKSTR(...) #__VA_ARGS__
 
-namespace protogen_2_0_0 {
+namespace protogen_2_1_0 {
 
 enum error_code
 {
@@ -466,7 +482,7 @@ class mem_iterator
 
 } // namespace internal
 
-using namespace protogen_2_0_0::internal;
+using namespace protogen_2_1_0::internal;
 
 template<typename T, typename _ = void>
 struct is_container : std::false_type {};
@@ -971,7 +987,7 @@ static int read_object( json_context &ctx, T &object )
 
 #define PG_DIF_EX(field_id, field_name, field_label) \
     if (name == field_label) { \
-        int result = protogen_2_0_0::json<decltype(value.field_name)>::read(ctx, value.field_name); \
+        int result = protogen_2_1_0::json<decltype(value.field_name)>::read(ctx, value.field_name); \
         if (result == PGR_OK) ctx.mask |= (1 << field_id); \
         return result; \
     } else
@@ -980,34 +996,34 @@ static int read_object( json_context &ctx, T &object )
     PG_DIF_EX(field_id, field_name, PG_MKSTR(field_name) )
 
 #define PG_SIF_EX(field_name, field_label) \
-    if (!protogen_2_0_0::json<decltype(value.field_name)>::empty(value.field_name)) \
+    if (!protogen_2_1_0::json<decltype(value.field_name)>::empty(value.field_name)) \
     { \
         if (!first) (*ctx.os) <<  ','; \
         first = false; \
         (*ctx.os) <<  '\"' << field_label << "\":"; \
-        protogen_2_0_0::json<decltype(value.field_name)>::write(ctx, value.field_name); \
+        protogen_2_1_0::json<decltype(value.field_name)>::write(ctx, value.field_name); \
     }
 
 #define PG_SIF(field_name,user_data,field_id) \
     PG_SIF_EX(field_name, PG_MKSTR(field_name) )
 
 #define PG_EIF(field_name,user_data,field_id) \
-    if (!protogen_2_0_0::json<decltype(value.field_name)>::empty(value.field_name)) return false;
+    if (!protogen_2_1_0::json<decltype(value.field_name)>::empty(value.field_name)) return false;
 
 #define PG_CLL(field_name,user_data,field_id) \
-    protogen_2_0_0::json<decltype(value.field_name)>::clear(value.field_name);
+    protogen_2_1_0::json<decltype(value.field_name)>::clear(value.field_name);
 
 #define PG_QIF(field_name,user_data,field_id) \
-    if (!protogen_2_0_0::json<decltype(a.field_name)>::equal(a.field_name, b.field_name)) return false;
+    if (!protogen_2_1_0::json<decltype(a.field_name)>::equal(a.field_name, b.field_name)) return false;
 
 #define PG_SLL(field_name,user_data,field_id) \
-    protogen_2_0_0::json<decltype(a.field_name)>::swap(a.field_name, b.field_name);
+    protogen_2_1_0::json<decltype(a.field_name)>::swap(a.field_name, b.field_name);
 
 #define PG_MIF(field_name,user_data,field_id) \
     if (!(ctx.mask & (1 << field_id))) { name = PG_MKSTR(field_name); } else
 
 #define PG_JSON(type, ...) \
-    namespace protogen_2_0_0 { \
+    namespace protogen_2_1_0 { \
     template<> \
     struct json<type> \
     { \
@@ -1055,7 +1071,7 @@ static int read_object( json_context &ctx, T &object )
     };}
 
 template<typename T>
-bool deserialize( T &value, protogen_2_0_0::tokenizer& tok, bool required = false, ErrorInfo *err = nullptr )
+bool deserialize( T &value, protogen_2_1_0::tokenizer& tok, bool required = false, ErrorInfo *err = nullptr )
 {
     json_context ctx;
     ctx.tok = &tok;
@@ -1143,10 +1159,10 @@ void serialize( const T &value, std::ostream &out )
     serialize<T>(value, os);
 }
 
-template<typename T, typename J = protogen_2_0_0::json<T>>
+template<typename T, typename J = protogen_2_1_0::json<T>>
 void clear( T &value ) { json<T>::clear(value); }
 
-template<typename T, typename J = protogen_2_0_0::json<T>>
+template<typename T, typename J = protogen_2_1_0::json<T>>
 bool empty( const T &value ) { return json<T>::empty(value); }
 
 // parent class for messages
@@ -1220,31 +1236,31 @@ struct message
 };
 
 #define PG_ENTITY(N,O,S) \
-    struct N : public O, public protogen_2_0_0::message< O, S > \
+    struct N : public O, public protogen_2_1_0::message< O, S > \
     { \
         typedef O value_type; \
         typedef S serializer_type; \
-        typedef protogen_2_0_0::ErrorInfo ErrorInfo; \
+        typedef protogen_2_1_0::ErrorInfo ErrorInfo; \
         N() = default; \
         N( const N& ) = default; \
         N( N &&that ) { S::swap(*this, that); } \
         N &operator=( const N & ) = default; \
-        using protogen_2_0_0::message<O, S>::serialize; \
-        using protogen_2_0_0::message<O, S>::deserialize; \
-        bool deserialize( protogen_2_0_0::tokenizer& tok, bool required = false, \
-            protogen_2_0_0::ErrorInfo *err = nullptr ) override \
+        using protogen_2_1_0::message<O, S>::serialize; \
+        using protogen_2_1_0::message<O, S>::deserialize; \
+        bool deserialize( protogen_2_1_0::tokenizer& tok, bool required = false, \
+            protogen_2_1_0::ErrorInfo *err = nullptr ) override \
         { \
-            protogen_2_0_0::json_context ctx; \
+            protogen_2_1_0::json_context ctx; \
             ctx.tok = &tok; \
             ctx.required = required; \
             int result = S::read(ctx, *this); \
-            if (result == protogen_2_0_0::PGR_OK) return true; \
+            if (result == protogen_2_1_0::PGR_OK) return true; \
             if (err != nullptr) *err = tok.error(); \
             return false; \
         } \
-        void serialize( protogen_2_0_0::ostream &out ) const override \
+        void serialize( protogen_2_1_0::ostream &out ) const override \
         { \
-            protogen_2_0_0::json_context ctx; \
+            protogen_2_1_0::json_context ctx; \
             ctx.os = &out; \
             S::write(ctx, *this); \
         } \
@@ -1255,7 +1271,7 @@ struct message
     };
 
 #define PG_ENTITY_SERIALIZER(N,O,S) \
-    namespace protogen_2_0_0 { \
+    namespace protogen_2_1_0 { \
     template<> \
     struct json<N> \
     { \
@@ -1269,7 +1285,7 @@ struct message
         static bool is_missing( json_context &ctx ) { return S::is_missing(ctx); } \
     };}
 
-} // namespace protogen_2_0_0
+} // namespace protogen_2_1_0
 
 
-#endif // PROTOGEN_2_0_0
+#endif // PROTOGEN_2_1_0
