@@ -51,7 +51,7 @@
 
 
 --- CODE_JSON_MODEL
-namespace protogen_2_0_1 {
+namespace protogen_2_0_2 {
 template<> struct json<$1$>
 {
     static int read( json_context &ctx, $1$ &value ) { return read_object(ctx, value); }
@@ -125,9 +125,9 @@ $8$        return false;
 ------
 
 --- CODE_ENTITY
-PG_ENTITY($1$,$2$,protogen_2_0_1::json<$2$>)
+PG_ENTITY($1$,$2$,protogen_2_0_2::json<$2$>)
 ------
 
 --- CODE_ENTITY_JSON
-PG_ENTITY_SERIALIZER($1$,$2$,protogen_2_0_1::json<$2$>)
+PG_ENTITY_SERIALIZER($1$,$2$,protogen_2_0_2::json<$2$>)
 ------

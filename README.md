@@ -35,7 +35,7 @@ PG_JSON(MyData, name, age, pets)
 Now it's possible to serialize and deserialize the type using the functions ``serialize`` and ``deserialize``.
 
 ```c++
-using protogen_2_0_1;
+using protogen_2_0_2;
 
 MyData obj;
 obj.name = "Margot";
