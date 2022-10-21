@@ -57,27 +57,34 @@ template<> struct json<$1$>
     static int read( json_context &ctx, $1$ &value ) { return read_object(ctx, value); }
     static int read_field( json_context &ctx, const std::string &name, $1$ &value ) \
     {
+        (void)ctx; (void)name; (void)value;
 $2$        return PGR_NIL;
     }
     static void write( json_context &ctx, const $1$ &value )
     {
+        (void)value;
         bool first = true;
         (*ctx.os) << '{';
 $3$        (*ctx.os) << '}';
+        (void)first;
     }
     static bool empty( const $1$ &value )
     {
+        (void)value;
 $4$        return true;
     }
     static void clear( $1$ &value )
     {
+        (void)value;
 $5$    }
     static bool equal( const $1$ &a, const $1$ &b )
     {
+        (void)a; (void)b;
 $6$        return true;
     }
     static void swap( $1$ &a, $1$ &b )
     {
+        (void)a; (void)b;
 $7$    }
     static bool is_missing( json_context &ctx )
     {

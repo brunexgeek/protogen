@@ -77,15 +77,6 @@ static struct {
     { protogen::TYPE_MESSAGE,  nullptr,     nullptr       , nullptr }
 };
 
-static std::string toUpper( const std::string &value )
-{
-    std::string output = value;
-    for (size_t i = 0, t = output.length(); i < t; ++i)
-        if (output[i] >= 'a' && output[i] <= 'z') output[i] = (char)(output[i] - 32);
-
-    return output;
-}
-
 static std::string nativePackage( const std::string &package )
 {
     // extra space because the compiler may complain about '<::' (i.e. using in templates)
@@ -104,32 +95,6 @@ static std::string nativePackage( const std::string &package )
 static std::string fieldStorage( const Field &field )
 {
     return field.name;
-}
-
-/**
- * Translates protobuf3 types to C++ types.
- */
-static std::string proto3Type( const Field &field )
-{
-    std::string name;
-
-    if (field.type.repeated) name += "repeated ";
-
-    if (field.type.id >= protogen::TYPE_DOUBLE && field.type.id <= protogen::TYPE_STRING)
-    {
-        int index = (int)field.type.id - (int)protogen::TYPE_DOUBLE;
-        name += TYPE_MAPPING[index].typeName;
-    }
-    else
-    if (field.type.id == protogen::TYPE_BYTES)
-        name += "bytes";
-    else
-    if (field.type.id == protogen::TYPE_MESSAGE)
-        name += field.type.ref->name;
-    else
-        throw protogen::exception("Invalid field type");
-
-    return name;
 }
 
 /**
@@ -195,19 +160,6 @@ static std::string fieldNativeType( GeneratorContext &ctx, const Field &field, b
         output += '>';
         return output;
     }
-}
-
-static void generateMoveCtor( GeneratorContext &ctx, const Message &message )
-{
-    ctx.printer("$1$($1$ &&that) {\n\t", message.name);
-    for (auto fi = message.fields.begin(); fi != message.fields.end(); ++fi)
-    {
-        if (fi->type.id == TYPE_MESSAGE || fi->type.repeated || fi->type.id == protogen::TYPE_BYTES || fi->type.id == TYPE_STRING)
-            ctx.printer("this->$1$.swap(that.$1$);\n", fieldStorage(*fi));
-        else
-            ctx.printer("this->$1$.swap(that.$1$);\n", fieldStorage(*fi));
-    }
-    ctx.printer("}\n\b");
 }
 
 static void generateNamespace( GeneratorContext &ctx, const Message &message, bool start )
