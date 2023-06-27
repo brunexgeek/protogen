@@ -71,7 +71,8 @@ $3$        (*ctx.os) << '}';
     static bool empty( const $1$ &value )
     {
         (void)value;
-$4$        return true;
+        return
+$4$        true;
     }
     static void clear( $1$ &value )
     {
@@ -80,7 +81,8 @@ $5$    }
     static bool equal( const $1$ &a, const $1$ &b )
     {
         (void)a; (void)b;
-$6$        return true;
+        return
+$6$        true;
     }
     static void swap( $1$ &a, $1$ &b )
     {
@@ -105,7 +107,7 @@ $8$        return false;
 ------
 
 --- CODE_EMPTY_IF
-        if (!json<decltype(value.$1$)>::empty(value.$1$)) return false;
+        json<decltype(value.$1$)>::empty(value.$1$) &&
 ------
 
 --- CODE_CLEAR_CALL
@@ -113,7 +115,7 @@ $8$        return false;
 ------
 
 --- CODE_EQUAL_IF
-        if (!json<decltype(a.$1$)>::equal(a.$1$, b.$1$)) return false;
+        json<decltype(a.$1$)>::equal(a.$1$, b.$1$) &&
 ------
 
 --- CODE_SWAP_CALL

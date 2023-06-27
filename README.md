@@ -12,45 +12,6 @@ Protogen enables you to serialize data as JSON in C++ programs. To use the libra
 
 ## Usage
 
-Protogen can be used in two ways:
-* As a serialization mechanism for existing types;
-* To compile 'proto3' files and generate serializable types.
-
-### Serialization of existing types
-
-Use the macro ``PG_JSON`` to create the internal types used to serialize data. The macro parameters are the type name and the public fields you want to be able to serialize. The type can have up to 24 serializable fields. Make sure the ``PG_JSON`` call is in the global scope (i.e. outside any namespace).
-
-```c++
-struct MyData
-{
-    std::string name;
-    int age;
-    std::list<std::string> pets;
-};
-
-PG_JSON(MyData, name, age, pets)
-
-```
-
-Now it's possible to serialize and deserialize the type using the functions ``serialize`` and ``deserialize``.
-
-```c++
-using protogen_2_0_0;
-
-MyData obj;
-obj.name = "Margot";
-obj.age = 30;
-obj.pets.push_back("Rufus");
-// serialize
-std::string json;
-serialize(book, json);
-// deserialize
-MyData tmp;
-deserialize(tmp, json);
-```
-
-### Compiling 'proto3' files
-
 Create a ``.proto`` file:
 
 ```

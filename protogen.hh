@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 Bruno Ribeiro <https://github.com/brunexgeek>
+ * Copyright 2023 Bruno Costa <https://github.com/brunexgeek>
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -47,7 +47,7 @@ enum parse_error
     PGR_NIL,
 };
 
-struct ErrorInfo : public std::exception
+struct ErrorInfo
 {
     error_code code;
     std::string message;
@@ -58,24 +58,10 @@ struct ErrorInfo : public std::exception
         message(message) { }
     ErrorInfo( error_code code, const std::string &message, int line, int column ) :
         code(code), message(message), line(line), column(column) { }
-    ErrorInfo( const ErrorInfo &that ) { *this = that; }
-    ErrorInfo( ErrorInfo &&that )
-    {
-        message.swap(that.message);
-        std::swap(code, that.code);
-        std::swap(line, that.line);
-        std::swap(column, that.column);
-    }
-    virtual const char *what() const noexcept override { return message.c_str(); }
+    ErrorInfo( const ErrorInfo &that ) = default;
+    ErrorInfo( ErrorInfo &&that ) = default;
     bool operator ==( error_code value ) const { return code == value; }
-    ErrorInfo &operator=( const ErrorInfo &that )
-    {
-        message = that.message;
-        code =  that.code;
-        line =  that.line;
-        column =  that.column;
-        return *this;
-    }
+    ErrorInfo &operator=( const ErrorInfo &that ) = default;
 };
 
 namespace internal {
@@ -349,6 +335,7 @@ class tokenizer
                         case 'r':  c = '\r'; break;
                         case 'n':  c = '\n'; break;
                         case 't':  c = '\t'; break;
+                        // TODO: handle escaped unicode (\uXXXX)
                         default: goto ESCAPE;
                     }
                 }
@@ -515,28 +502,25 @@ template<typename T, typename E = void> struct json;
 
 struct json_context
 {
-    tokenizer *tok;
-    ostream *os;
-    bool required;
-    uint32_t mask;
-    json_context() : tok(nullptr), os(nullptr), required(false), mask(0) {}
+    tokenizer *tok = nullptr;
+    ostream *os = nullptr;
+    uint32_t mask = 0;
+    bool required = false;
 };
 
 template<typename T> class field
 {
     static_assert(std::is_arithmetic<T>::value, "Invalid arithmetic type");
     protected:
-        T value_;
-        bool empty_;
+        T value_ = (T) 0;
+        bool empty_ = true;
     public:
         typedef T value_type;
-        field() { clear(); }
-        field( const field<T> &that ) { this->empty_ = that.empty_; if (!empty_) this->value_ = that.value_; }
-        field( field<T> &&that ) { this->empty_ = that.empty_; if (!empty_) json<T>::swap(this->value_, that.value_); }
+        field() = default;
+        field( const field<T> &that ) = default;
+        field( field<T> &&that )  = default;
         void swap( field<T> &that ) { std::swap(this->value_, that.value_); std::swap(this->empty_, that.empty_); }
         void swap( T &that ) { std::swap(this->value_, that); empty_ = false; }
-        const T operator()() const { return value_; }
-        void operator()(const T &value ) { this->value_ = value; this->empty_ = false; }
         bool empty() const { return empty_; }
         void clear() { value_ = (T) 0; empty_ = true; }
         field<T> &operator=( const field<T> &that ) { this->empty_ = that.empty_; if (!empty_) this->value_ = that.value_; return *this; }
@@ -561,7 +545,7 @@ struct json<field<T>, typename std::enable_if<std::is_arithmetic<T>::value>::typ
     }
     static void write( json_context &ctx, const field<T> &value )
     {
-        T temp = value();
+        T temp = (T) value;
         json<T>::write(ctx, temp);
     }
     static bool empty( const field<T> &value ) { return value.empty(); }
@@ -655,7 +639,7 @@ struct json<T, typename std::enable_if<std::is_arithmetic<T>::value>::type>
     static void write( json_context &ctx, const T &value ) { (*ctx.os) << number_to_string(value); }
     static bool empty( const T &value ) { (void) value; return false; }
     static void clear( T &value ) { value = (T) 0; }
-    static bool equal( const T &a, const T &b ) { return a == b; }
+    static bool equal( const T &a, const T &b ) { return a == b; } // TODO: create float comparison using epsilon
     static void swap( T &a, T &b ) { std::swap(a, b); }
 };
 
@@ -908,81 +892,6 @@ static int read_object( json_context &ctx, T &object )
     return PGR_OK;
 }
 
-/*
- * Copyright (C) 2012 William Swanson
- *               2018 Niklas Gürtler
- *
- * <https://github.com/Erlkoenig90/map-macro>
- *
- * Permission is hereby granted, free of charge, to any person
- * obtaining a copy of this software and associated documentation
- * files (the "Software"), to deal in the Software without
- * restriction, including without limitation the rights to use, copy,
- * modify, merge, publish, distribute, sublicense, and/or sell copies
- * of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be
- * included in all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
- * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
- * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
- * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY
- * CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
- * CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
- * WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
- *
- * Except as contained in this notice, the names of the authors or
- * their institutions shall not be used in advertising or otherwise to
- * promote the sale, use or other dealings in this Software without
- * prior written authorization from the authors.
- */
-
-#ifndef PG_MAP_H_INCLUDED
-#define PG_MAP_H_INCLUDED
-
-#define PG_EVAL0(...) __VA_ARGS__
-#define PG_EVAL1(...) PG_EVAL0(PG_EVAL0(PG_EVAL0(__VA_ARGS__)))
-#define PG_EVAL2(...) PG_EVAL1(PG_EVAL1(PG_EVAL1(__VA_ARGS__)))
-#define PG_EVAL3(...) PG_EVAL2(PG_EVAL2(PG_EVAL2(__VA_ARGS__)))
-#define PG_EVAL4(...) PG_EVAL3(PG_EVAL3(PG_EVAL3(__VA_ARGS__)))
-#define PG_EVAL5(...) PG_EVAL4(PG_EVAL4(PG_EVAL4(__VA_ARGS__)))
-
-#ifdef _MSC_VER
-// MSVC needs more evaluations
-#define PG_EVAL6(...) PG_EVAL5(PG_EVAL5(PG_EVAL5(__VA_ARGS__)))
-#define PG_EVAL(...)  PG_EVAL6(PG_EVAL6(__VA_ARGS__))
-#else
-#define PG_EVAL(...)  PG_EVAL5(__VA_ARGS__)
-#endif
-
-#define PG_MAP_END(...)
-#define PG_MAP_OUT
-
-#define PG_EMPTY()
-#define PG_DEFER(id) id PG_EMPTY()
-
-#define PG_MAP_GET_END2() 0, PG_MAP_END
-#define PG_MAP_GET_END1(...) PG_MAP_GET_END2
-#define PG_MAP_GET_END(...) PG_MAP_GET_END1
-#define PG_MAP_NEXT0(test, next, ...) next PG_MAP_OUT
-#define PG_MAP_NEXT1(test, next) PG_DEFER ( PG_MAP_NEXT0 ) ( test, next, 0)
-#define PG_MAP_NEXT(test, next)  PG_MAP_NEXT1(PG_MAP_GET_END test, next)
-#define PG_MAP_INC(X) (X+1)
-
-#define PG_MAP0_UD_I(f, userdata, index, x, peek, ...) f(x,userdata,index) PG_DEFER ( PG_MAP_NEXT(peek, PG_MAP1_UD_I) ) ( f, userdata, PG_MAP_INC(index), peek, __VA_ARGS__ )
-#define PG_MAP1_UD_I(f, userdata, index, x, peek, ...) f(x,userdata,index) PG_DEFER ( PG_MAP_NEXT(peek, PG_MAP0_UD_I) ) ( f, userdata, PG_MAP_INC(index), peek, __VA_ARGS__ )
-
-/**
- * Applies the function macro `f` to each of the remaining parameters, passes userdata as the second parameter to each invocation,
- * and the index of the invocation as the third parameter,
- * e.g. MAP_UD_I(f, x, a, b, c) evaluates to f(a, x, 0) f(b, x, 1) f(c, x, 2)
- */
-#define PG_MAP_UD_I(f, userdata, ...) PG_EVAL(PG_MAP1_UD_I(f, userdata, 0, __VA_ARGS__, ()()(), ()()(), ()()(), 0))
-
-#endif // PG_MAP_H_INCLUDED
-
 #define PG_DIF_EX(field_id, field_name, field_label) \
     if (name == field_label) { \
         int result = protogen_2_1_0::json<decltype(value.field_name)>::read(ctx, value.field_name); \
@@ -1019,54 +928,6 @@ static int read_object( json_context &ctx, T &object )
 
 #define PG_MIF(field_name,user_data,field_id) \
     if (!(ctx.mask & (1 << field_id))) { name = PG_MKSTR(field_name); } else
-
-#define PG_JSON(type, ...) \
-    namespace protogen_2_1_0 { \
-    template<> \
-    struct json<type> \
-    { \
-        static int read( json_context &ctx, type &value ) \
-        { \
-            return read_object(ctx, value); \
-        } \
-        static int read_field( json_context &ctx, const std::string &name, type &value ) \
-        { \
-            PG_EVAL(PG_MAP_UD_I(PG_DIF, 0, __VA_ARGS__)) \
-            return PGR_ERROR; \
-        } \
-        static void write( json_context &ctx, const type &value ) \
-        { \
-            bool first = true; \
-            (*ctx.os) <<  '{'; \
-            PG_MAP_UD_I(PG_SIF, 0, __VA_ARGS__) \
-            (*ctx.os) <<  '}'; \
-        } \
-        static bool empty( const type &value ) \
-        { \
-            PG_MAP_UD_I(PG_EIF, 0, __VA_ARGS__) \
-            return true; \
-        } \
-        static void clear( type &value ) \
-        { \
-            PG_MAP_UD_I(PG_CLL, 0, __VA_ARGS__) \
-        } \
-        static bool equal( const type &a, const type &b ) \
-        { \
-            PG_MAP_UD_I(PG_QIF, 0, __VA_ARGS__) \
-        } \
-        static void swap( type &a, type &b ) \
-        { \
-            PG_MAP_UD_I(PG_SLL, 0, __VA_ARGS__) \
-        } \
-        static bool is_missing( json_context &ctx ) \
-        { \
-            std::string name; \
-            PG_MAP_UD_I(PG_MIF, 0, __VA_ARGS__) \
-            return false; \
-            ctx.tok->error(PGERR_MISSING_FIELD, std::string("Missing field '") + name + "'"); \
-            return true; \
-        } \
-    };}
 
 template<typename T>
 bool deserialize( T &value, protogen_2_1_0::tokenizer& tok, bool required = false, ErrorInfo *err = nullptr )
@@ -1241,7 +1102,7 @@ struct message
         typedef protogen_2_1_0::ErrorInfo ErrorInfo; \
         N() = default; \
         N( const N& ) = default; \
-        N( N &&that ) { S::swap(*this, that); } \
+        N( N &&that ) = default; \
         N &operator=( const N & ) = default; \
         using protogen_2_1_0::message<O, S>::serialize; \
         using protogen_2_1_0::message<O, S>::deserialize; \

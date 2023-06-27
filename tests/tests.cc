@@ -11,21 +11,6 @@
 
 using namespace std::chrono;
 
-namespace compact {
-
-struct Person
-{
-    std::string name;
-    int32_t age;
-    std::string gender;
-    std::string email;
-    std::vector<std::string> friends;
-};
-
-}
-
-PG_JSON(compact::Person, name, age, gender, email, friends)
-
 using namespace protogen_2_1_0;
 
 bool RUN_TEST1( int argc, char **argv)
@@ -69,34 +54,6 @@ bool RUN_TEST1( int argc, char **argv)
     return result;
 }
 
-bool RUN_TEST2( int argc, char **argv)
-{
-    (void) argc;
-    (void) argv;
-
-    compact::Person person;
-    person.email = "margot@example.com";
-    person.age = 29;
-    person.name = "Margot";
-    person.gender = "female";
-    person.friends.push_back("Kelly");
-    person.friends.push_back("Zoe");
-    person.friends.push_back("Beth");
-
-    std::string json1;
-    std::string json2;
-    compact::Person temp;
-    serialize(person, json1);
-    deserialize(temp, json1);
-    serialize(temp, json2);
-
-    bool result = (json1 == json2);// && (person == temp);
-    std::cerr << "[TEST #2] " << ((result) ? "Passed!" : "Failed!" ) << std::endl;
-    std::cerr << "   " << json1 << std::endl << "   " << json2 << std::endl;
-
-    return result;
-}
-
 bool RUN_TEST3( int argc, char **argv)
 {
     (void) argc;
@@ -104,7 +61,7 @@ bool RUN_TEST3( int argc, char **argv)
 
     options::Cake cake;
     cake.name = "Strawberry Cake";
-    cake.weight(29);
+    cake.weight = 29;
     cake.flavor = "strawberry";
     cake.ingredients.push_back("milk");
     cake.ingredients.push_back("strawberry");
@@ -375,7 +332,6 @@ int main( int argc, char **argv)
 {
     bool result = true;
     result &= RUN_TEST1(argc, argv);
-    result &= RUN_TEST2(argc, argv);
     result &= RUN_TEST3(argc, argv);
     result &= RUN_TEST4(argc, argv);
     result &= RUN_TEST5(argc, argv);
