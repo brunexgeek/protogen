@@ -20,6 +20,10 @@
 namespace protogen {
 
 
+exception::exception( const std::string &message ) : message(message)
+{
+}
+
 exception::exception( const std::string &message, int line, int column ) :
     line(line), column(column), message(message)
 {

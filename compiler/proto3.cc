@@ -639,7 +639,8 @@ static void parseField( ProtoContext &ctx, Message &message )
         throw exception("Missing field type", TOKEN_POSITION(ctx.tokens.current));
 
     // name
-    if (ctx.tokens.next().code != TOKEN_NAME)
+    auto code = ctx.tokens.next().code;
+    if (code != TOKEN_NAME && code != TOKEN_MESSAGE && code != TOKEN_PACKAGE)
         throw exception("Missing field name", TOKEN_POSITION(ctx.tokens.current));
     field.name = ctx.tokens.current.value;
     // equal symbol
@@ -676,66 +677,44 @@ static void parseField( ProtoContext &ctx, Message &message )
     message.fields.push_back(field);
 }
 
-
-void Message::splitPackage(
-    std::vector<std::string> &out )
-{
-    std::string current;
-
-    const char *ptr = package.c_str();
-    while (true)
-    {
-        if (*ptr == '.' || *ptr == 0)
-        {
-            if (!current.empty())
-            {
-                out.push_back(current);
-                current.clear();
-            }
-            if (*ptr == 0) break;
-        }
-        else
-            current += *ptr;
-        ++ptr;
-    }
-}
-
-
 static void parseMessage( ProtoContext &ctx )
 {
-    if (ctx.tokens.current.code == TOKEN_MESSAGE && ctx.tokens.next().code == TOKEN_NAME)
+    if (ctx.tokens.current.code == TOKEN_MESSAGE)
     {
-        auto message = std::make_shared<Message>();
-        message->package = ctx.package;
-        message->name = ctx.tokens.current.value;
-        if (ctx.tokens.next().code != TOKEN_BEGIN)
-            throw exception("Missing message body", CURRENT_TOKEN_POSITION);
-
-        while (ctx.tokens.next().code != TOKEN_END)
+        auto code = ctx.tokens.next().code;
+        if (code == TOKEN_NAME || code == TOKEN_MESSAGE || code == TOKEN_PACKAGE)
         {
-            if (ctx.tokens.current.code == TOKEN_OPTION)
-                parseStandardOption(ctx, message->options);
-            else
-                parseField(ctx, *message);
-        }
-        ctx.tree.messages.push_back(message);
-    }
-    else
-        throw exception("Invalid message", CURRENT_TOKEN_POSITION);
-}
+            auto message = std::make_shared<Message>();
+            message->package = ctx.package;
+            message->name = ctx.tokens.current.value;
+            if (ctx.tokens.next().code != TOKEN_BEGIN)
+                throw exception("Missing message body", CURRENT_TOKEN_POSITION);
 
+            while (ctx.tokens.next().code != TOKEN_EOF)
+            {
+                if (ctx.tokens.current.code == TOKEN_END)
+                    break;
+                if (ctx.tokens.current.code == TOKEN_OPTION)
+                    parseStandardOption(ctx, message->options);
+                else
+                    parseField(ctx, *message);
+            }
+            ctx.tree.messages.push_back(message);
+            return;
+        }
+    }
+
+    throw exception("Invalid message", CURRENT_TOKEN_POSITION);
+}
 
 static void parsePackage( ProtoContext &ctx )
 {
     Token tt = ctx.tokens.next();
     if ((tt.code == TOKEN_NAME || tt.code == TOKEN_QNAME) && ctx.tokens.next().code == TOKEN_SCOLON)
-    {
         ctx.package = tt.value;
-    }
     else
         throw exception("Invalid package", CURRENT_TOKEN_POSITION);
 }
-
 
 static void parseSyntax( ProtoContext &ctx )
 {
@@ -746,17 +725,16 @@ static void parseSyntax( ProtoContext &ctx )
     Token tt = ctx.tokens.next();
     if (tt.code == TOKEN_STRING && ctx.tokens.next().code == TOKEN_SCOLON)
     {
-        if (tt.value != "proto3") throw exception("Invalid language version", CURRENT_TOKEN_POSITION);
+        if (tt.value != "proto3")
+            throw exception("Invalid language version", CURRENT_TOKEN_POSITION);
     }
     else
         throw exception("Invalid syntax", CURRENT_TOKEN_POSITION);
 }
 
-
 static void parseProto( ProtoContext &ctx )
 {
-    do
-    {
+    do {
         ctx.tokens.next();
         if (ctx.tokens.current.code == TOKEN_MESSAGE)
             parseMessage(ctx);
@@ -820,11 +798,7 @@ void Proto3::parse( std::istream &input, const std::string &fileName )
     }
 }
 
-
-
-
 } // protogen
-
 
 #ifdef BUILD_DEBUG
 
@@ -835,7 +809,6 @@ std::ostream &operator<<( std::ostream &out, const protogen::Token &tt )
     out << "pos=" << tt.line << ':' << tt.column << "]";
     return out;
 }
-
 
 std::ostream &operator<<( std::ostream &out, protogen::Field &field )
 {
@@ -849,7 +822,6 @@ std::ostream &operator<<( std::ostream &out, protogen::Field &field )
     return out;
 }
 
-
 std::ostream &operator<<( std::ostream &out, protogen::Message &message )
 {
     out << "message " << message.name << " {" << std::endl;;
@@ -861,7 +833,6 @@ std::ostream &operator<<( std::ostream &out, protogen::Message &message )
     out << '}' << std::endl;
     return out;
 }
-
 
 std::ostream &operator<<( std::ostream &out, protogen::Proto3 &proto )
 {

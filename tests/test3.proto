@@ -10,4 +10,14 @@ message Cake
     int32 weight = 2;
     string flavor = 3 [transient = true];
     repeated string ingredients = 4;
+    string message = 5; // using keyword as name
+    string package = 6; // using keyword as name
+}
+
+message message // using keyword as name
+{
+}
+
+message package // using keyword as name
+{
 }

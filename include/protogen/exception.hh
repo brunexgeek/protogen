@@ -27,9 +27,11 @@ class Token;
 class exception : public std::exception
 {
     public:
-        int line, column;
+        int line = 0;
+        int column = 0;
 
-        exception( const std::string &message, int line = 1, int column = 1 );
+        exception( const std::string &message );
+        exception( const std::string &message, int line, int column );
         virtual ~exception();
         const char *what() const throw();
         const std::string cause() const;
