@@ -15,6 +15,8 @@
  */
 
 #include <algorithm>
+#include <unordered_set>
+#include <vector>
 #include <cmake.hh>
 #include <auto-code.hh>
 #include <auto-protogen.hh>
@@ -45,8 +47,6 @@ struct GeneratorContext
     bool cpp_enable_errors;
     bool cpp_use_lists;
     std::string custom_parent;
-    std::string version;
-    std::string versionNo;
 
     GeneratorContext( Printer &printer, Proto3 &root ) : printer(printer), root(root),
         number_names(false), obfuscate_strings(false),
@@ -115,7 +115,11 @@ static std::string nativeType( const Field &field )
         return "uint8_t";
     else
     if (field.type.id == protogen::TYPE_MESSAGE)
+    {
+        if (field.type.ref == nullptr)
+            throw protogen::exception("Message type reference is null");
         return nativePackage(field.type.ref->package) + "::" + field.type.ref->name;
+    }
     else
         throw protogen::exception("Invalid field type");
 }
@@ -123,7 +127,7 @@ static std::string nativeType( const Field &field )
  /**
   * Translates protobuf3 types to C++ types.
   */
-static std::string fieldNativeType( GeneratorContext &ctx, const Field &field, bool useLists )
+static std::string fieldNativeType( const Field &field, bool useLists )
 {
     std::string valueType;
 
@@ -156,8 +160,8 @@ static std::string fieldNativeType( GeneratorContext &ctx, const Field &field, b
         return valueType;
     else
     {
-        std::string output = "protogen_";
-        output += ctx.version;
+        std::string output = "protogen";
+        output += PROTOGEN_VERSION_NAMING;
         output += "::field<";
         output += valueType;
         output += '>';
@@ -194,7 +198,7 @@ static void generateModel( GeneratorContext &ctx, const Message &message )
     ctx.printer("\tstruct $1$_type\n\t{\n", message.name);
     for (auto field : message.fields)
     {
-        ctx.printer("\t\t$1$ $2$;\n", fieldNativeType(ctx, field, ctx.cpp_use_lists), fieldStorage(field) );
+        ctx.printer("\t\t$1$ $2$;\n", fieldNativeType(field, ctx.cpp_use_lists), fieldStorage(field) );
     }
     ctx.printer("\t};\n");
 
@@ -321,46 +325,43 @@ static std::string makeGuard( const std::string &fileName )
     return out;
 }
 
-typedef std::vector<protogen::Message *> MessageList;
+typedef std::vector<std::shared_ptr<protogen::Message>> MessageList;
+typedef std::unordered_set<std::shared_ptr<protogen::Message>> MessageSet;
 
-static bool contains( const MessageList &items, const protogen::Message *message )
+static bool contains( const MessageList &items, const std::shared_ptr<protogen::Message> &message )
 {
-    for (auto mi = items.begin(); mi != items.end(); ++mi)
-        if (*mi == message) return true;
+    for (const auto &current : items)
+        if (current == message)
+            return true;
     return false;
 }
 
-
-static void sort( MessageList &items, MessageList &pending, protogen::Message *message )
+static void sort( MessageList &output, MessageSet &pending, std::shared_ptr<protogen::Message> message )
 {
-    if (contains(pending, message)) return; // circular reference
-    if (contains(items, message)) return; // already processed
+    if (pending.count(message) > 0)
+        throw exception("circular reference with '" + message->name + "'");
+    if (contains(output, message))
+        return; // already processed
 
-    pending.push_back(message);
-
-    for (auto fi = message->fields.begin(); fi != message->fields.end(); ++fi)
+    pending.insert(message);
+    for (auto &field : message->fields)
     {
-        if (fi->type.ref == nullptr) continue;
-        if (!contains(items, fi->type.ref)) sort(items, pending, fi->type.ref);
+        if (field.type.ref != nullptr && !contains(output, field.type.ref))
+            sort(output, pending, field.type.ref);
     }
+    pending.erase(message);
 
-    items.push_back(message);
-
-    auto it = std::find(pending.begin(), pending.end(), message);
-    if (it != pending.end()) pending.erase(it);
+    output.push_back(message);
 }
-
 
 static void sort( GeneratorContext &ctx )
 {
-    std::vector<protogen::Message *> items;
-    std::vector<protogen::Message *> pending;
-    for (auto mi = ctx.root.messages.begin(); mi != ctx.root.messages.end(); ++mi)
-    {
-        sort(items, pending, *mi);
-    }
+    std::vector<std::shared_ptr<protogen::Message>> messages;
+    std::unordered_set<std::shared_ptr<protogen::Message>> pending;
+    for (auto &message : ctx.root.messages)
+        sort(messages, pending, message);
 
-    ctx.root.messages.swap(items);
+    ctx.root.messages.swap(messages);
 }
 
 static void generateInclusions( GeneratorContext &ctx )
@@ -371,16 +372,8 @@ static void generateInclusions( GeneratorContext &ctx )
 
 static void generateModel( GeneratorContext &ctx )
 {
-    char version[12] = { 0 };
-    SNPRINTF(version, sizeof(version) - 1, "%02X%02X%02X",
-        (int) PROTOGEN_MAJOR, (int) PROTOGEN_MINOR, (int) PROTOGEN_PATCH);
-    ctx.versionNo = version;
-    SNPRINTF(version, sizeof(version) - 1, "%d_%d_%d",
-        (int) PROTOGEN_MAJOR, (int) PROTOGEN_MINOR, (int) PROTOGEN_PATCH);
-    ctx.version = version;
-
     std::string guard = makeGuard(ctx.root.fileName);
-    ctx.printer(CODE_HEADER, PROTOGEN_VERSION, ctx.root.fileName, guard, ctx.version);
+    ctx.printer(CODE_HEADER, PROTOGEN_VERSION, ctx.root.fileName, guard, PROTOGEN_VERSION_NAMING);
 
     sort(ctx);
 

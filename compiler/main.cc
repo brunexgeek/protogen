@@ -69,7 +69,7 @@ int main( int argc, char **argv )
     protogen::Proto3 proto;
     try
     {
-        protogen::Proto3::parse(proto, input, fullPath);
+        proto.parse(input, fullPath);
         protogen::CppGenerator gen;
         gen.generate(proto, *output);
     } catch (protogen::exception &ex)

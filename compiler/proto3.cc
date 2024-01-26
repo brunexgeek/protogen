@@ -509,17 +509,6 @@ std::ostream &operator<<( std::ostream &out, protogen::Proto3 &proto );
 
 namespace protogen {
 
-
-TypeInfo::TypeInfo() : id(TYPE_DOUBLE), ref(nullptr), repeated(false)
-{
-}
-
-
-Field::Field() : index(0)
-{
-}
-
-
 std::string Message::qualifiedName() const
 {
     if (package.empty()) return name;
@@ -593,7 +582,7 @@ static void parseStandardOption( ProtoContext &ctx, OptionMap &entries )
 }
 
 
-static Message *findMessage( ProtoContext &ctx, const std::string &name )
+static std::shared_ptr<Message> findMessage( ProtoContext &ctx, const std::string &name )
 {
     for (auto it = ctx.tree.messages.begin(); it != ctx.tree.messages.end(); ++it)
         if ((*it)->qualifiedName() == name) return *it;
@@ -650,13 +639,19 @@ static void parseField( ProtoContext &ctx, Message &message )
         throw exception("Missing field type", TOKEN_POSITION(ctx.tokens.current));
 
     // name
-    if (ctx.tokens.next().code != TOKEN_NAME) throw exception("Missing field name", TOKEN_POSITION(ctx.tokens.current));
+    if (ctx.tokens.next().code != TOKEN_NAME)
+        throw exception("Missing field name", TOKEN_POSITION(ctx.tokens.current));
     field.name = ctx.tokens.current.value;
     // equal symbol
-    if (ctx.tokens.next().code != TOKEN_EQUAL) throw exception("Expected '='", TOKEN_POSITION(ctx.tokens.current));
+    if (ctx.tokens.next().code != TOKEN_EQUAL)
+        throw exception("Expected '='", TOKEN_POSITION(ctx.tokens.current));
     // index
-    if (ctx.tokens.next().code != TOKEN_INTEGER) throw exception("Missing field index", TOKEN_POSITION(ctx.tokens.current));
+    if (ctx.tokens.next().code != TOKEN_INTEGER)
+        throw exception("Missing field index", TOKEN_POSITION(ctx.tokens.current));
     field.index = (int) strtol(ctx.tokens.current.value.c_str(), nullptr, 10);
+    // https://protobuf.dev/programming-guides/proto3/#assigning
+    if (field.index <= 0 || field.index >= 0x1FFFFFFF || field.index == 0x4E1F || field.index == 0x4A38)
+        throw exception("Invalid field index", TOKEN_POSITION(ctx.tokens.current));
 
     ctx.tokens.next();
 
@@ -710,10 +705,7 @@ static void parseMessage( ProtoContext &ctx )
 {
     if (ctx.tokens.current.code == TOKEN_MESSAGE && ctx.tokens.next().code == TOKEN_NAME)
     {
-        Message *message = new(std::nothrow) Message();
-        if (message == nullptr)
-            throw exception("Out of memory");
-        //splitPackage(message.package, ctx.package);
+        auto message = std::make_shared<Message>();
         message->package = ctx.package;
         message->name = ctx.tokens.current.value;
         if (ctx.tokens.next().code != TOKEN_BEGIN)
@@ -790,14 +782,7 @@ static void parseProto( ProtoContext &ctx )
     } while (ctx.tokens.current.code != 0);
 }
 
-
-Proto3::~Proto3()
-{
-    for (auto it = messages.begin(); it != messages.end(); ++it) delete *it;
-}
-
-
-void Proto3::parse( Proto3 &tree, std::istream &input, const std::string &fileName )
+void Proto3::parse( std::istream &input, const std::string &fileName )
 {
     std::ios_base::fmtflags flags = input.flags();
     std::noskipws(input);
@@ -807,8 +792,8 @@ void Proto3::parse( Proto3 &tree, std::istream &input, const std::string &fileNa
     InputStream< std::istream_iterator<char> > is(begin, end);
     Tokenizer< std::istream_iterator<char> > tok(is);
 
-    ProtoContext ctx(tok, tree, is);
-    tree.fileName = fileName;
+    ProtoContext ctx(tok, *this, is);
+    this->fileName = fileName;
 
     try
     {
@@ -821,15 +806,16 @@ void Proto3::parse( Proto3 &tree, std::istream &input, const std::string &fileNa
     }
 
     // check if we have unresolved types
-    for (auto mit = tree.messages.begin(); mit != tree.messages.end(); ++mit)
+    for (auto &message : this->messages)
     {
-        for (auto fit = (*mit)->fields.begin(); fit != (*mit)->fields.end(); ++fit)
+        for (auto &field : message->fields)
         {
-            if (fit->type.ref != nullptr || fit->type.id != TYPE_MESSAGE) continue;
+            if (field.type.id != TYPE_MESSAGE || field.type.ref != nullptr)
+                continue;
 
-            fit->type.ref = findMessage(ctx, fit->type.qname);
-            if (fit->type.ref == nullptr)
-                throw exception("Unable to find message '" + fit->type.qname + "'");
+            field.type.ref = findMessage(ctx, field.type.qname);
+            if (field.type.ref == nullptr)
+                throw exception("Unable to find message '" + field.type.qname + "'");
         }
     }
 }

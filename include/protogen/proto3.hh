@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 Bruno Ribeiro <https://github.com/brunexgeek>
+ * Copyright 2024 Bruno Ribeiro <https://github.com/brunexgeek>
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,19 +17,14 @@
 #ifndef PROTOGEN_PROTO3_HH
 #define PROTOGEN_PROTO3_HH
 
-
 #include <string>
 #include <vector>
 #include <unordered_map>
 #include <iostream>
+#include <memory>
 #include <protogen/exception.hh>
 
-
 namespace protogen {
-
-
-#ifndef PROTOGEN_FIELD_TYPES
-#define PROTOGEN_FIELD_TYPES
 
 enum FieldType
 {
@@ -51,21 +46,16 @@ enum FieldType
     TYPE_MESSAGE  = 21,
 };
 
-#endif // PROTOGEN_FIELD_TYPES
-
-
 class Message;
 
 struct TypeInfo
 {
-    FieldType id;
+    FieldType id = FieldType::TYPE_DOUBLE;
     std::string qname;
-    Message *ref;
-    bool repeated;
-
-    TypeInfo();
+    std::shared_ptr<Message> ref;
+    bool repeated = false;
+    bool optional = false;
 };
-
 
 enum class OptionType
 {
@@ -75,55 +65,43 @@ enum class OptionType
     BOOLEAN
 };
 
-
 struct OptionEntry
 {
     std::string name;
-    OptionType type;
+    OptionType type = OptionType::IDENTIFIER;
     std::string value;
-    int line;
+    int line = 0;
 };
-
 
 typedef std::unordered_map<std::string, OptionEntry> OptionMap;
 
-
-class Field
+struct Field
 {
-    public:
-        TypeInfo type;
-        std::string name;
-        int index;
-        OptionMap options;
-
-        Field();
+    TypeInfo type;
+    std::string name;
+    int index = 0;
+    OptionMap options;
 };
 
-
-class Message
+struct Message
 {
-    public:
-        std::vector<Field> fields;
-        std::string name;
-        std::string package;
-        OptionMap options;
+    std::vector<Field> fields;
+    std::string name;
+    std::string package;
+    OptionMap options;
 
-        std::string qualifiedName() const;
-        void splitPackage( std::vector<std::string> &out );
+    std::string qualifiedName() const;
+    void splitPackage( std::vector<std::string> &out );
 };
 
-
-class Proto3
+struct Proto3
 {
-    public:
-        std::vector<Message*> messages;
-        OptionMap options;
-        std::string fileName;
+    std::vector<std::shared_ptr<Message>> messages;
+    OptionMap options;
+    std::string fileName;
 
-        ~Proto3();
-        static void parse( Proto3 &tree, std::istream &input, const std::string &fileName = "");
+    void parse( std::istream &input, const std::string &fileName = "");
 };
-
 
 } // protogen
 

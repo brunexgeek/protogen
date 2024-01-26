@@ -44,7 +44,7 @@
 #include <stdexcept>
 #include <forward_list>
 
-#ifndef PROTOGEN_$4$
+#ifndef PROTOGEN$4$
     #error Missing include of protogen $1$ header
 #endif
 ------
