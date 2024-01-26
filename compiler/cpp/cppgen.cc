@@ -28,10 +28,6 @@
 
 namespace protogen {
 
-
-#define IS_VALID_TYPE(x)      ( (x) >= protogen::TYPE_DOUBLE && (x) <= protogen::TYPE_MESSAGE )
-#define IS_NUMERIC_TYPE(x)    ( (x) >= protogen::TYPE_DOUBLE && (x) <= protogen::TYPE_SFIXED64 )
-
 #ifdef _WIN32
 #define SNPRINTF _snprintf
 #else
@@ -42,20 +38,16 @@ struct GeneratorContext
 {
     Printer &printer;
     Proto3 &root;
-    bool number_names;
-    bool obfuscate_strings;
-    bool cpp_enable_errors;
-    bool cpp_use_lists;
+    bool number_names = false;
+    bool obfuscate_strings = false;
+    bool cpp_enable_errors = false;
+    bool cpp_use_lists = false;
     std::string custom_parent;
 
-    GeneratorContext( Printer &printer, Proto3 &root ) : printer(printer), root(root),
-        number_names(false), obfuscate_strings(false),
-        cpp_enable_errors(false), cpp_use_lists(false)
-    {
-    }
+    GeneratorContext( Printer &printer, Proto3 &root ) : printer(printer), root(root) {}
 };
 
-static struct {
+static constexpr const struct {
     protogen::FieldType type;
     const char *typeName;
     const char *nativeType;
@@ -83,14 +75,18 @@ static struct {
 static std::string nativePackage( const std::string &package )
 {
     // extra space because the compiler may complain about '<::' (i.e. using in templates)
-    if (package.empty()) return " ";
-    std::string name = " ::";
-    for (auto it = package.begin(); it != package.end(); ++it)
+
+    if (package.empty())
+        return " ";
+    std::string name;
+    name.reserve(package.length());
+    name += " ::";
+    for (auto c : package)
     {
-        if (*it == '.')
+        if (c == '.')
             name += "::";
         else
-            name += *it;
+            name += c;
     }
     return name;
 }
@@ -169,24 +165,24 @@ static std::string fieldNativeType( const Field &field, bool useLists )
     }
 }
 
-static void generateNamespace( GeneratorContext &ctx, const Message &message, bool start )
+static void generateNamespace( GeneratorContext &ctx, const Message &message, bool opening )
 {
     if (message.package.empty()) return;
 
     std::string name;
     std::string package = message.package + '.';
-    for (auto it = package.begin(); it != package.end(); ++it)
+    for (auto c : package)
     {
-        if (*it == '.')
+        if (c == '.')
         {
-            if (start)
+            if (opening)
                 ctx.printer("namespace $1$ {\n", name);
             else
                 ctx.printer("} // namespace $1$\n", name);
             name.clear();
         }
         else
-            name += *it;
+            name += c;
     }
 }
 
@@ -207,9 +203,6 @@ static void generateModel( GeneratorContext &ctx, const Message &message )
 }
 
 template <typename T>
-#if !defined(_WIN32)
-constexpr
-#endif
 T rol( T value, int count )
 {
 	static_assert(std::is_unsigned<T>::value, "Unsupported signed type");
@@ -231,13 +224,13 @@ static inline std::string obfuscate( const std::string &value )
 static void generateModelWrapper( GeneratorContext &ctx, const Message &message )
 {
     std::string typeName = nativePackage(message.package) + "::" + message.name + "_type";
-    std::stringstream temp1;
-    std::stringstream temp2;
-    std::stringstream temp3;
-    std::stringstream temp4;
-    std::stringstream temp5;
-    std::stringstream temp6;
-    std::stringstream temp7;
+    std::stringstream temp_deserialize_if;
+    std::stringstream temp_serialize_if;
+    std::stringstream temp_empty_if;
+    std::stringstream temp_clear_call;
+    std::stringstream temp_equal_if;
+    std::stringstream temp_swap_call;
+    std::stringstream temp_is_missing_if;
     int i = 0;
     for (auto field : message.fields)
     {
@@ -261,20 +254,26 @@ static void generateModelWrapper( GeneratorContext &ctx, const Message &message 
 
         if (!transient)
         {
-            Printer::format(temp1, CODE_DESERIALIZE_IF, name, label, i);
-            Printer::format(temp2, CODE_SERIALIZE_IF, name, label);
-            Printer::format(temp7, CODE_IS_MISSING_IF, label, 1 << i);
+            Printer::format(temp_deserialize_if, CODE_DESERIALIZE_IF, name, label, i);
+            Printer::format(temp_serialize_if, CODE_SERIALIZE_IF, name, label);
+            Printer::format(temp_is_missing_if, CODE_IS_MISSING_IF, label, 1 << i);
         }
-        Printer::format(temp3, CODE_EMPTY_IF, name);
-        Printer::format(temp4, CODE_CLEAR_CALL, name);
-        Printer::format(temp5, CODE_EQUAL_IF, name);
-        Printer::format(temp6, CODE_SWAP_CALL, name);
+        Printer::format(temp_empty_if, CODE_EMPTY_IF, name);
+        Printer::format(temp_clear_call, CODE_CLEAR_CALL, name);
+        Printer::format(temp_equal_if, CODE_EQUAL_IF, name);
+        Printer::format(temp_swap_call, CODE_SWAP_CALL, name);
         ++i;
     }
 
-    ctx.printer(CODE_JSON_MODEL, typeName, temp1.str(),
-        temp2.str(), temp3.str(), temp4.str(), temp5.str(),
-        temp6.str(), temp7.str(), PROTOGEN_VERSION_NAMING);
+    ctx.printer(CODE_JSON_MODEL, typeName,
+        temp_deserialize_if.str(),
+        temp_serialize_if.str(),
+        temp_empty_if.str(),
+        temp_clear_call.str(),
+        temp_equal_if.str(),
+        temp_swap_call.str(),
+        temp_is_missing_if.str(),
+        PROTOGEN_VERSION_NAMING);
 }
 
 static void generateEntity( GeneratorContext &ctx, const Message &message )
@@ -307,7 +306,6 @@ static void generateMessage( GeneratorContext &ctx, const Message &message )
     generateEntity(ctx, message);
     generateEntityWrapper(ctx, message);
 }
-
 
 static std::string makeGuard( const std::string &fileName )
 {
@@ -373,13 +371,13 @@ static void generateInclusions( GeneratorContext &ctx )
 static void generateModel( GeneratorContext &ctx )
 {
     std::string guard = makeGuard(ctx.root.fileName);
-    ctx.printer(CODE_HEADER, PROTOGEN_VERSION, ctx.root.fileName, guard, PROTOGEN_VERSION_NAMING);
+    ctx.printer(CODE_HEADER, PROTOGEN_VERSION, ctx.root.fileName, guard);
 
     sort(ctx);
 
     // message declarations
-    for (auto mi = ctx.root.messages.begin(); mi != ctx.root.messages.end(); ++mi)
-        generateMessage(ctx, **mi);
+    for (const auto &message : ctx.root.messages)
+        generateMessage(ctx, *message);
 
     ctx.printer("#endif // $1$\n", guard);
 }
