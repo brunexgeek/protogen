@@ -11,7 +11,7 @@
 
 using namespace std::chrono;
 
-using namespace protogen_2_1_0;
+using namespace protogen_3_0_0;
 
 bool RUN_TEST1( int argc, char **argv)
 {
