@@ -15,6 +15,7 @@
  */
 
 #include <algorithm>
+#include <cmake.hh>
 #include <auto-code.hh>
 #include <auto-protogen.hh>
 #include <auto-json.hh>
@@ -269,21 +270,21 @@ static void generateModelWrapper( GeneratorContext &ctx, const Message &message 
 
     ctx.printer(CODE_JSON_MODEL, typeName, temp1.str(),
         temp2.str(), temp3.str(), temp4.str(), temp5.str(),
-        temp6.str(), temp7.str());
+        temp6.str(), temp7.str(), PROTOGEN_VERSION_NAMING);
 }
 
 static void generateEntity( GeneratorContext &ctx, const Message &message )
 {
     std::string originalType = nativePackage(message.package) + "::" + message.name + "_type";
     generateNamespace(ctx, message, true);
-    ctx.printer(CODE_ENTITY, message.name , originalType);
+    ctx.printer(CODE_ENTITY, message.name , originalType, PROTOGEN_VERSION_NAMING);
     generateNamespace(ctx, message, false);
 }
 
 static void generateEntityWrapper( GeneratorContext &ctx, const Message &message )
 {
     std::string typeName = nativePackage(message.package) + "::" + message.name;
-    ctx.printer(CODE_ENTITY_JSON, typeName, typeName + "_type");
+    ctx.printer(CODE_ENTITY_JSON, typeName, typeName + "_type", PROTOGEN_VERSION_NAMING);
 }
 
 static void generateMessage( GeneratorContext &ctx, const Message &message )

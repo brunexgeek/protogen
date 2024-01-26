@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef PROTOGEN_3_0_0
-#define PROTOGEN_3_0_0
+#ifndef PROTOGEN_X_Y_Z
+#define PROTOGEN_X_Y_Z
 
 #include <string>
 #include <vector>
@@ -27,7 +27,7 @@
 
 #define PG_MKSTR(...) #__VA_ARGS__
 
-namespace protogen_3_0_0 {
+namespace protogen_X_Y_Z {
 
 enum error_code
 {
@@ -469,7 +469,7 @@ class mem_iterator
 
 } // namespace internal
 
-using namespace protogen_3_0_0::internal;
+using namespace protogen_X_Y_Z::internal;
 
 template<typename T, typename _ = void>
 struct is_container : std::false_type {};
@@ -683,6 +683,6 @@ struct message
     bool operator!=( const T &that ) const { return !equal(that); }
 };
 
-} // namespace protogen_3_0_0
+} // namespace protogen_X_Y_Z
 
-#endif // PROTOGEN_3_0_0
+#endif // PROTOGEN_X_Y_Z

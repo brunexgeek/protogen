@@ -20,6 +20,7 @@
 #include <iostream>
 #include <limits.h>
 #include <stdlib.h>
+#include <cmake.hh>
 
 #ifdef _WIN32
 #include <Windows.h>

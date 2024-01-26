@@ -2,14 +2,12 @@ project(protogen)
 
 cmake_minimum_required(VERSION 3.18)
 
+# This variables affect everything in the compiler and generated code
 set(PROTOGEN_MAJOR 3)
 set(PROTOGEN_MINOR 0)
 set(PROTOGEN_PATCH 0)
 
-add_definitions(-DPROTOGEN_MAJOR=${PROTOGEN_MAJOR})
-add_definitions(-DPROTOGEN_MINOR=${PROTOGEN_MINOR})
-add_definitions(-DPROTOGEN_PATCH=${PROTOGEN_PATCH})
-add_definitions(-DPROTOGEN_VERSION="${PROTOGEN_MAJOR}.${PROTOGEN_MINOR}.${PROTOGEN_PATCH}")
+configure_file("compiler/cmake.hh.in" "__include/cmake.hh")
 
 if (UNIX)
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wfatal-errors -pedantic -std=c++11 -Wl,--no-undefined -fPIC -Wall -Wextra -Wconversion -Wmaybe-uninitialized -Werror=return-type")
@@ -46,6 +44,8 @@ set_target_properties(libprotogen_static PROPERTIES
 
 add_executable(protogen
     "compiler/main.cc")
+target_include_directories(protogen
+    PRIVATE "${CMAKE_BINARY_DIR}/__include/")
 target_link_libraries(protogen libprotogen_static)
 set_target_properties(protogen PROPERTIES
     OUTPUT_NAME "protogen"
@@ -53,7 +53,6 @@ set_target_properties(protogen PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}" )
 
-file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/__include/")
 add_custom_target(process_template
     COMMAND "${CMAKE_BINARY_DIR}/template" "${CMAKE_CURRENT_LIST_DIR}/compiler/cpp/code.txt" "${CMAKE_BINARY_DIR}/__include/auto-code.hh"
     COMMAND "${CMAKE_BINARY_DIR}/template" "${CMAKE_CURRENT_LIST_DIR}/compiler/cpp/protogen.hh" "${CMAKE_BINARY_DIR}/__include/auto-protogen.hh"
@@ -61,6 +60,8 @@ add_custom_target(process_template
     DEPENDS template)
 
 add_executable(template "compiler/template.cc")
+target_include_directories(template
+    PRIVATE "${CMAKE_BINARY_DIR}/__include/")
 set_target_properties(template PROPERTIES
     OUTPUT_NAME "template"
     ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
