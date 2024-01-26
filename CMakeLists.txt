@@ -55,7 +55,9 @@ set_target_properties(protogen PROPERTIES
 
 file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/__include/")
 add_custom_target(process_template
-    "${CMAKE_BINARY_DIR}/template" "${CMAKE_CURRENT_LIST_DIR}/compiler/cpp/code.txt" "${CMAKE_BINARY_DIR}/__include/auto-code.hh"
+    COMMAND "${CMAKE_BINARY_DIR}/template" "${CMAKE_CURRENT_LIST_DIR}/compiler/cpp/code.txt" "${CMAKE_BINARY_DIR}/__include/auto-code.hh"
+    COMMAND "${CMAKE_BINARY_DIR}/template" "${CMAKE_CURRENT_LIST_DIR}/compiler/cpp/protogen.hh" "${CMAKE_BINARY_DIR}/__include/auto-protogen.hh"
+    COMMAND "${CMAKE_BINARY_DIR}/template" "${CMAKE_CURRENT_LIST_DIR}/compiler/cpp/json.hh" "${CMAKE_BINARY_DIR}/__include/auto-json.hh"
     DEPENDS template)
 
 add_executable(template "compiler/template.cc")

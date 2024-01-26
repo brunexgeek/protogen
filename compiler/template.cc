@@ -2,6 +2,35 @@
 #include <iostream>
 #include <string>
 
+void copy( std::istream &input, std::ostream &output, const std::string &name )
+{
+    std::string line;
+
+    output << "#define " << name << " \\\n";
+    while (!input.eof())
+    {
+        std::getline(input, line);
+		if (!input.good()) break;
+
+        if (line.length() > 0 && line[0] == '#' && line.find("AUTO-REMOVE") != std::string::npos)
+            continue;
+
+        output << "    \"";
+        for (auto c : line)
+        {
+            if (c == '"')
+                output << "\\\"";
+            else
+            if (c == '\\')
+                output << "\\\\";
+            else
+                output << c;
+        }
+        output << "\\n\" \\\n";
+    }
+    output << "    \"\\n\"\n";
+}
+
 void process( std::istream &input, std::ostream &output, const std::string &guard )
 {
     std::string line;
@@ -48,6 +77,11 @@ void process( std::istream &input, std::ostream &output, const std::string &guar
     output << "#endif // " << guard << '\n';
 }
 
+static bool ends_with(const std::string &text, const std::string &needle)
+{
+    auto pos = text.rfind(needle);
+    return pos != std::string::npos && pos + needle.length() == text.length();
+}
 
 int main( int argc, char **argv )
 {
@@ -68,12 +102,17 @@ int main( int argc, char **argv )
     const char DIR_SEPARATOR = '/';
     #endif
     auto pos = guard.rfind(DIR_SEPARATOR);
-    if (pos != std::string::npos) guard = guard.substr(pos);
-    guard = "GENERATED_" + guard;
+    if (pos != std::string::npos)
+        guard = guard.substr(pos+1);
+    guard = "GENERATED__" + guard;
     for (auto it = guard.begin(); it != guard.end(); ++it)
         if (!isalpha(*it)) *it = '_';
 
-    process(input, output, guard);
+    if (ends_with(argv[1], ".hh"))
+        copy(input, output, guard);
+    else
+        process(input, output, guard);
+
 
     return 0;
 }

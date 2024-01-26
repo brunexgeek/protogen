@@ -4,7 +4,6 @@
 #include <vector>
 #include <sstream>
 #include <iostream>
-#include "../protogen.hh"
 #include <test1.pg.hh>
 #include <test3.pg.hh>
 #include <test7.pg.hh>

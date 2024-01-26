@@ -16,6 +16,8 @@
 
 #include <algorithm>
 #include <auto-code.hh>
+#include <auto-protogen.hh>
+#include <auto-json.hh>
 #include <protogen/protogen.hh>
 #include "../printer.hh"
 #include <sstream>
@@ -360,6 +362,11 @@ static void sort( GeneratorContext &ctx )
     ctx.root.messages.swap(items);
 }
 
+static void generateInclusions( GeneratorContext &ctx )
+{
+    ctx.printer(GENERATED__protogen_hh);
+    ctx.printer(GENERATED__json_hh);
+}
 
 static void generateModel( GeneratorContext &ctx )
 {
@@ -382,7 +389,6 @@ static void generateModel( GeneratorContext &ctx )
 
     ctx.printer("#endif // $1$\n", guard);
 }
-
 
 void CppGenerator::generate( Proto3 &root, std::ostream &out )
 {
@@ -421,6 +427,7 @@ void CppGenerator::generate( Proto3 &root, std::ostream &out )
         ctx.cpp_use_lists = opt.value == "true";
     }
 
+    generateInclusions(ctx);
     generateModel(ctx);
 }
 
