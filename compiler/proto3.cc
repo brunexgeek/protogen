@@ -67,6 +67,7 @@
 #define TOKEN_FALSE            38
 #define TOKEN_LBRACKET         39
 #define TOKEN_RBRACKET         40
+#define TOKEN_OPTIONAL         41
 
 
 #ifdef BUILD_DEBUG
@@ -113,6 +114,7 @@ static const char *TOKENS[] =
     "TOKEN_FALSE",
     "TOKEN_LBRACKET",
     "TOKEN_RBRACKET",
+    "TOKEN_OPTIONAL",
 };
 
 static const char *TYPES[] =
@@ -167,6 +169,7 @@ static const struct
     { TOKEN_OPTION      , "option" },
     { TOKEN_TRUE        , "true" },
     { TOKEN_FALSE       , "false" },
+    { TOKEN_OPTIONAL    , "optional" },
     { 0, nullptr },
 };
 
@@ -603,7 +606,11 @@ static void parseField( ProtoContext &ctx, Message &message )
         ctx.tokens.next();
     }
     else
-        field.type.repeated = false;
+    if (ctx.tokens.current.code == TOKEN_OPTIONAL)
+    {
+        field.type.optional = true;
+        ctx.tokens.next();
+    }
 
     // type
     if (ctx.tokens.current.code >= TOKEN_T_DOUBLE && ctx.tokens.current.code <= TOKEN_T_BYTES)
