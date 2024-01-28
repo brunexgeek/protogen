@@ -537,21 +537,24 @@ static OptionEntry parseOption( ProtoContext &ctx )
     {
         case TOKEN_TRUE:
         case TOKEN_FALSE:
-            temp.type = OptionType::BOOLEAN; break;
+            temp.type = OptionType::BOOLEAN;
+            break;
         case TOKEN_NAME:
         case TOKEN_QNAME:
-            temp.type = OptionType::IDENTIFIER; break;
+            temp.type = OptionType::IDENTIFIER;
+            break;
         case TOKEN_INTEGER:
-            temp.type = OptionType::INTEGER; break;
+            temp.type = OptionType::INTEGER;
+            break;
         case TOKEN_STRING:
-            temp.type = OptionType::STRING; break;
+            temp.type = OptionType::STRING;
+            break;
         default:
             throw exception("Invalid option value", TOKEN_POSITION(ctx.tokens.current));
     }
     temp.value = ctx.tokens.current.value;
     return temp;
 }
-
 
 static void parseFieldOptions( ProtoContext &ctx, OptionMap &entries )
 {
