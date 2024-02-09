@@ -98,6 +98,7 @@ struct json<T, typename std::enable_if<is_container<T>::value>::type >
 
 // Base64 encoder/decoder based on Joe DF's implementation
 // Original source at <https://github.com/joedf/base64.c> (MIT licensed)
+
 template <>
 struct json< std::vector<uint8_t> >
 {

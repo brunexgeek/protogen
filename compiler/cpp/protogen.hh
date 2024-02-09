@@ -18,10 +18,12 @@
 #define PROTOGEN_X_Y_Z
 
 #include <string>
+#include <sstream>
 #include <vector>
 #include <iostream>
 #include <forward_list>
 #include <istream>
+#include <iomanip>
 #include <iterator>
 #include <memory>
 
@@ -682,6 +684,99 @@ struct message
     bool operator==( const T &that ) const { return equal(that); }
     bool operator!=( const T &that ) const { return !equal(that); }
 };
+
+enum class Encoding
+{
+    UNKNOWN = 0,
+    ASCII = 1,
+    UTF8 = 2,
+};
+
+static Encoding detect_encoding(const std::string_view &str)
+{
+    auto encoding = Encoding::ASCII;
+    int size = str.size();
+    for (int i = 0; i < size;)
+    {
+        uint8_t byte1 = str[i];
+        // 1-byte character
+        if (byte1 <= 0x7F)
+            i++;
+        else
+        {
+            encoding = Encoding::UTF8;
+            // 2-byte character
+            uint8_t byte2 = str[i + 1];
+            if (byte1 >= 0xC0 && byte1 <= 0xDF && i + 1 < size && (byte2 & 0xC0) == 0x80)
+            {
+                i += 2;
+                continue;
+            }
+            // 3-byte character
+            uint8_t byte3 = str[i + 2];
+            if (byte1 >= 0xE0 && byte1 <= 0xEF && i + 2 < size && (byte2 & 0xC0) == 0x80 && (byte3 & 0xC0) == 0x80)
+            {
+                i += 3;
+                continue;
+            }
+            // 4-byte character
+            uint8_t byte4 = str[i + 3];
+            if (byte1 >= 0xF0 && byte1 <= 0xF4 && i + 3 < size && (byte2 & 0xC0) == 0x80 && (byte3 & 0xC0) == 0x80 && (byte4 & 0xC0) == 0x80)
+                i += 4;
+            else
+                return Encoding::UNKNOWN;
+        }
+    }
+    return encoding;
+}
+
+static std::string utf8_escape(const std::string_view &str)
+{
+    std::stringstream output;
+    int size = str.size();
+    for (int i = 0; i < size;)
+    {
+        uint8_t byte1 = str[i];
+        // 1-byte character
+        if (byte1 <= 0x7F)
+        {
+            output << (char) byte1;
+            i++;
+        }
+        else
+        {
+            // 2-byte character
+            uint8_t byte2 = str[i + 1];
+            if (byte1 >= 0xC0 && byte1 <= 0xDF && i + 1 < size && (byte2 & 0xC0) == 0x80)
+            {
+                uint32_t codepoint = ((byte1 & 0x1F) << 6) | (byte2 & 0x3F);
+                output << "\\u" << std::hex << std::setw(4) << std::setfill('0') << codepoint;
+                i += 2;
+                continue;
+            }
+            // 3-byte character
+            uint8_t byte3 = str[i + 2];
+            if (byte1 >= 0xE0 && byte1 <= 0xEF && i + 2 < size && (byte2 & 0xC0) == 0x80 && (byte3 & 0xC0) == 0x80)
+            {
+                uint32_t codepoint = ((byte1 & 0x0F) << 12) | ((byte2 & 0x3F) << 6) || (byte3 & 0x3F);
+                output << "\\u" << std::hex << std::setw(4) << std::setfill('0') << codepoint;
+                i += 3;
+                continue;
+            }
+            // 4-byte character
+            uint8_t byte4 = str[i + 3];
+            if (byte1 >= 0xF0 && byte1 <= 0xF4 && i + 3 < size && (byte2 & 0xC0) == 0x80 && (byte3 & 0xC0) == 0x80 && (byte4 & 0xC0) == 0x80)
+            {
+                uint32_t codepoint = ((byte1 & 0x07) << 18) | ((byte2 & 0x3F) << 12) || ((byte3 & 0x3F) << 6) || (byte4 & 0x3F);
+                output << "\\u" << std::hex << std::setw(4) << std::setfill('0') << codepoint;
+                i += 4;
+            }
+            else
+                return "";
+        }
+    }
+    return output.str();
+}
 
 } // namespace protogen_X_Y_Z
 
