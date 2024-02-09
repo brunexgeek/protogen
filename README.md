@@ -90,14 +90,9 @@ Supported field types:
 - [x] other messages (see [Limitations](#Limitations))
 - [x] repeated
 - [x] optional
-- [x] double
-- [x] float
-- [x] int32, sint32, uint32
-- [x] int64, sint64, uint64
-- [x] fixed32
-- [x] fixed64
-- [x] sfixed32
-- [x] sfixed64
+- [x] double, float
+- [x] int32, sint32, uint32, fixed32, sfixed32
+- [x] int64, sint64, uint64, fixed64, sfixed64
 - [x] bool
 - [x] string
 - [x] bytes
@@ -122,8 +117,8 @@ proto3     | C++
 -----------|----
 `message`  | `class`
 `repeated` | `std::vector` or `std::list`
-`double`   | `double`
-`float`    | `float`
+`double`   | `protogen_x_y_z::field<double>`
+`float`    | `protogen_x_y_z::field<float>`
 `int32`    | `protogen_x_y_z::field<int32_t>`
 `sint32`   | `protogen_x_y_z::field<int32_t>`
 `uint32`   | `protogen_x_y_z::field<uint32_t>`
@@ -134,7 +129,7 @@ proto3     | C++
 `fixed64`  | `protogen_x_y_z::field<uint64_t>`
 `sfixed32` | `protogen_x_y_z::field<int32_t>`
 `sfixed64` | `protogen_x_y_z::field<int64_t>`
-`bool`     | `bool`
+`bool`     | `protogen_x_y_z::field<bool>`
 `string`   | `std::string`
 `bytes`    | `std::vector<uint8_t>`
 
