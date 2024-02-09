@@ -18,10 +18,12 @@
 #define PROTOGEN_X_Y_Z
 
 #include <string>
+#include <sstream>
 #include <vector>
 #include <iostream>
 #include <forward_list>
 #include <istream>
+#include <iomanip>
 #include <iterator>
 #include <memory>
 
@@ -308,6 +310,7 @@ class tokenizer
 
         token parse_string()
         {
+            int32_t lead = 0;
             std::string value;
             int line = input_.line();
             int column = input_.column();
@@ -327,23 +330,91 @@ class tokenizer
                     c = input_.peek();
                     switch (c)
                     {
-                        case '"':  c = '"'; break;
-                        case '\\': c = '\\'; break;
-                        case '/':  c = '/'; break;
-                        case 'b':  c = '\b'; break;
-                        case 'f':  c = '\f'; break;
-                        case 'r':  c = '\r'; break;
-                        case 'n':  c = '\n'; break;
-                        case 't':  c = '\t'; break;
-                        // TODO: handle escaped unicode (\uXXXX)
+                        case '"':  value += '"'; break;
+                        case '\\': value += '\\'; break;
+                        case '/':  value += '/'; break;
+                        case 'b':  value += '\b'; break;
+                        case 'f':  value += '\f'; break;
+                        case 'r':  value += '\r'; break;
+                        case 'n':  value += '\n'; break;
+                        case 't':  value += '\t'; break;
+                        case 'u':
+                            if (!parse_escaped_utf8(value, lead))
+                                goto ESCAPE;
+                            break;
                         default: goto ESCAPE;
                     }
                 }
-                if (c == 0) goto ESCAPE;
-                value += (char) c;
+                else
+                {
+                    if (c == 0)
+                        goto ESCAPE;
+                    value += (char) c;
+                }
             }
             ESCAPE:
             return token(token_id::NONE, "", line, column);
+        }
+
+        bool parse_escaped_utf8(std::string &value, int32_t &lead)
+        {
+            char temp[5] = {0};
+            for (int i = 0; i < 4; ++i)
+            {
+                input_.next();
+                auto c = input_.peek();
+                if ((c >= '0' && c <= '9') || (c >= 'A' && c <= 'F') || (c >= 'a' && c <= 'f'))
+                    temp[i] = (char) c;
+                else
+                    return false;
+            }
+            int32_t codepoint = (int32_t) strtol(temp, nullptr, 16);
+
+            // first 2-byte UTF-16 surrogate pair
+            if (codepoint >= 0xD800 && codepoint <= 0xDBFF)
+            {
+                lead = codepoint;
+                return true;
+            }
+            else
+            // second 2-byte UTF-16 surrogate pair
+            if (codepoint >= 0xDC00 && codepoint <= 0xDFFF)
+            {
+                // check whether we have a lead (first value in the surrogate pair)
+                if (lead == 0)
+                    return false;
+                // compute the final codepoint
+                static const int32_t SURROGATE_OFFSET = 0x10000 - (0xD800 << 10) - 0xDC00;
+                codepoint = (lead << 10) + codepoint + SURROGATE_OFFSET;
+
+                // 4-byte UTF-8 = 11110xxx 10xxxxxx 10xxxxxx 10xxxxxx
+                value += (char) (0xF0 | ((codepoint >> 18) & 0x07));
+                value += (char) (0x80 | ((codepoint >> 12) & 0x3F));
+                value += (char) (0x80 | ((codepoint >> 6) & 0x3F));
+                value += (char) (0x80 | (codepoint & 0x3F));
+            }
+            else
+            // 2-byte UTF-8 = 110xxxxx 10xxxxxx
+            if (codepoint >= 0x80 && codepoint <= 0x7FF)
+            {
+                value += (char) (0xC0 | ((codepoint >> 6) & 0x1F));
+                value += (char) (0x80 | (codepoint & 0x3F));
+            }
+            else
+            // 3-byte UTF-8 = 1110xxxx 10xxxxxx 10xxxxxx
+            if (codepoint >= 0x800 && codepoint <= 0xFFFF)
+            {
+                value += (char) (0xE0 | ((codepoint >> 12) & 0x0F));
+                value += (char) (0x80 | ((codepoint >> 6) & 0x3F));
+                value += (char) (0x80 | (codepoint & 0x3F));
+            }
+            else
+                return false;
+
+            // reset the surrogate pair lead
+            lead = 0;
+
+            return true;
         }
 
         bool parse_keyword( const std::string &keyword )

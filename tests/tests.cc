@@ -1,5 +1,6 @@
 #include <chrono>
 #include <string>
+#include <cstring>
 #include <list>
 #include <vector>
 #include <sstream>
@@ -19,8 +20,8 @@ bool RUN_TEST1( int argc, char **argv)
 
     phonebook::AddressBook book;
     book.owner.id = 33;
-    book.owner.name = "王詩安";
-    book.owner.email = "wang@example.com";
+    book.owner.name = "이주영";
+    book.owner.email = "ljy@example.com";
     book.owner.last_updated = (uint32_t) duration_cast<seconds>(system_clock::now().time_since_epoch()).count();
 
     phonebook::Person person;
@@ -96,19 +97,21 @@ bool RUN_TEST4( int argc, char **argv)
     (void) argc;
     (void) argv;
 
-    struct { std::string json; int line; int col; error_code code; } CASES[] =
+    struct { int line; int col; error_code code; std::string json; } CASES[] =
     {
-        {"{ \n\n   \"bla\" : 55,,", 3, 15, error_code::PGERR_INVALID_NAME},
-        {"{\"bla", 1, 2, error_code::PGERR_INVALID_NAME},
-        {"{\"bla\"", 1, 7, error_code::PGERR_INVALID_SEPARATOR},
-        {"{\"name\":\"bla\"}", 1, 15, error_code::PGERR_MISSING_FIELD},
-        {"", 1, 1, error_code::PGERR_INVALID_OBJECT},
-        {"{\"1\":45}", 1, 6, error_code::PGERR_INVALID_VALUE},
-        {"{\"blip1\":{}", 1, 12, error_code::PGERR_INVALID_OBJECT},
-        {"{\"blip2\":[}", 1, 11, error_code::PGERR_IGNORE_FAILED},
-        {"{\"blip3\":\"}", 1, 10, error_code::PGERR_IGNORE_FAILED},
-        {"{\"name\":null}", 0, 00, error_code::PGERR_OK},
-        {"", 0, 0, error_code::PGERR_OK}
+        {3, 15, error_code::PGERR_INVALID_NAME,      "{ \n\n   \"bla\" : 55,," },
+        {1,  2, error_code::PGERR_INVALID_NAME,      "{\"bla" },
+        {1,  7, error_code::PGERR_INVALID_SEPARATOR, "{\"bla\"" },
+        {1, 15, error_code::PGERR_MISSING_FIELD,     "{\"name\":\"bla\"}" },
+        {1,  1, error_code::PGERR_INVALID_OBJECT,    "" },
+        {1,  6, error_code::PGERR_INVALID_VALUE,     "{\"1\":45}" },
+        {1, 12, error_code::PGERR_INVALID_OBJECT,    "{\"blip1\":{}" },
+        {1, 11, error_code::PGERR_IGNORE_FAILED,     "{\"blip2\":[}" },
+        {1, 10, error_code::PGERR_IGNORE_FAILED,     "{\"blip3\":\"}" },
+        {0,  0, error_code::PGERR_OK,                "{\"name\":null}" },
+        {0,  0, error_code::PGERR_INVALID_VALUE,     "{\"name\":\"\\uFFFF\"}" },
+        {0,  0, error_code::PGERR_INVALID_VALUE,     "{\"name\":\"\\u01\"}" },
+        {0,  0, error_code::PGERR_OK,                ""}
     };
 
     options::Cake temp;
@@ -247,7 +250,6 @@ bool RUN_TEST7A( int argc, char **argv)
     object1.k = std::numeric_limits<decltype(object1.k)::value_type>::max();
     object1.l = std::numeric_limits<decltype(object1.l)::value_type>::max();
     object1.m = 13; // should be true as 13 is non-zero
-    object1.n = "test";
 
     std::string json;
     object1.serialize(json);
@@ -276,7 +278,6 @@ bool RUN_TEST7A( int argc, char **argv)
     COMPARING(object1.k, object2.k)
     COMPARING(object1.l, object2.l)
     COMPARING(object1.m, object2.m)
-    //COMPARING(object1.n, object2.n)
     output.clear();
 
     std::cerr << "[TEST #7A] " << ((result) ? "Passed!" : "Failed!" ) << std::endl;
@@ -327,6 +328,48 @@ bool RUN_TEST7B( int argc, char **argv)
     return true;
 }
 
+bool RUN_TEST8( int argc, char **argv)
+{
+    (void) argc;
+    (void) argv;
+
+    static const char *VALUES[] = {
+        "a", // 1-bytes UTF-8
+        "ß", // 2-bytes UTF-8
+        "이", // 3-bytes UTF-8
+        "𑙤", // 4-bytes UTF-8
+        "이주영",
+        nullptr
+    };
+
+    phonebook::AddressBook book;
+
+    for (int i = 0; VALUES[i] != nullptr; ++i)
+    {
+        book.owner.name = VALUES[i];
+
+        std::string json1;
+        book.serialize(json1);
+        book.clear();
+
+        phonebook::AddressBook::ErrorInfo err;
+        bool result = book.deserialize(json1, false, &err);
+        std::string json2;
+        book.serialize(json2);
+
+        if (!result || json1 != json2 || book.owner.name != VALUES[i])
+        {
+            if (!result)
+                std::cerr << ERRORS[err.code] << " at " << err.line << ':' << err.column << ']' << std::endl;
+            std::cerr << "   " << json1 << " -> " << VALUES[i] << '\n';
+            std::cerr << "   " << json2 << " -> " << book.owner.name << '\n';
+            std::cerr << "   '" << book.owner.name << "' == '" << VALUES[i] << "'  ->" << (book.owner.name == VALUES[i] ? "true" : "false") << '\n';
+            return false;
+        }
+    }
+    return true;
+}
+
 int main( int argc, char **argv)
 {
     bool result = true;
@@ -337,5 +380,6 @@ int main( int argc, char **argv)
     result &= RUN_TEST6(argc, argv);
     result &= RUN_TEST7A(argc, argv);
     result &= RUN_TEST7B(argc, argv);
+    result &= RUN_TEST8(argc, argv);
     return (int) !result;
 }

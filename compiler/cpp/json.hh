@@ -98,6 +98,7 @@ struct json<T, typename std::enable_if<is_container<T>::value>::type >
 
 // Base64 encoder/decoder based on Joe DF's implementation
 // Original source at <https://github.com/joedf/base64.c> (MIT licensed)
+
 template <>
 struct json< std::vector<uint8_t> >
 {
@@ -217,6 +218,13 @@ struct json<bool, void>
     static void swap( bool &a, bool &b ) { std::swap(a, b); }
 };
 
+static void write_escaped_utf8(internal::ostream *out, uint32_t codepoint)
+{
+    char buffer[7];
+    snprintf(buffer, sizeof(buffer), "\\u%04x", codepoint);
+    (*out) << buffer;
+}
+
 template<>
 struct json<std::string, void>
 {
@@ -232,21 +240,81 @@ struct json<std::string, void>
     static void write( json_context &ctx, const std::string &value )
     {
         (*ctx.os) <<  '"';
-        for (std::string::const_iterator it = value.begin(); it != value.end(); ++it)
+        size_t size = value.size();
+        for (size_t i = 0; i < size;)
         {
-            switch (*it)
+            uint8_t byte1 = value[i];
+            // 1-byte character
+            if (byte1 <= 0x7F)
             {
-                case '"':  (*ctx.os) <<  "\\\""; break;
-                case '\\': (*ctx.os) <<  "\\\\"; break;
-                case '/':  (*ctx.os) <<  "\\/"; break;
-                case '\b': (*ctx.os) <<  "\\b"; break;
-                case '\f': (*ctx.os) <<  "\\f"; break;
-                case '\r': (*ctx.os) <<  "\\r"; break;
-                case '\n': (*ctx.os) <<  "\\n"; break;
-                case '\t': (*ctx.os) <<  "\\t"; break;
-                default:   (*ctx.os) << *it;
+                switch (byte1)
+                {
+                    case '"':  (*ctx.os) <<  "\\\""; break;
+                    case '\\': (*ctx.os) <<  "\\\\"; break;
+                    case '/':  (*ctx.os) <<  "\\/"; break;
+                    case '\b': (*ctx.os) <<  "\\b"; break;
+                    case '\f': (*ctx.os) <<  "\\f"; break;
+                    case '\r': (*ctx.os) <<  "\\r"; break;
+                    case '\n': (*ctx.os) <<  "\\n"; break;
+                    case '\t': (*ctx.os) <<  "\\t"; break;
+                    default:   (*ctx.os) << (char) byte1;
+                }
+                i++;
+            }
+            else
+            {
+                // 2-byte character
+
+                if (i + 1 >= size)
+                    goto ESCAPE; // TODO return error
+
+                uint8_t byte2 = value[i + 1];
+                if (byte1 >= 0xC0 && byte1 <= 0xDF && (byte2 & 0xC0) == 0x80)
+                {
+                    uint32_t codepoint = ((byte1 & 0x1F) << 6) | (byte2 & 0x3F);
+                    write_escaped_utf8(ctx.os, codepoint);
+                    i += 2;
+                    continue;
+                }
+
+                // 3-byte character
+
+                if (i + 2 >= size)
+                    goto ESCAPE; // TODO return error
+
+                uint8_t byte3 = value[i + 2];
+                if (byte1 >= 0xE0 && byte1 <= 0xEF && i + 2 < size && (byte2 & 0xC0) == 0x80 && (byte3 & 0xC0) == 0x80)
+                {
+                    uint32_t codepoint = ((byte1 & 0x0F) << 12) | ((byte2 & 0x3F) << 6) | (byte3 & 0x3F);
+                    write_escaped_utf8(ctx.os, codepoint);
+                    i += 3;
+                    continue;
+                }
+
+                // 4-byte character
+
+                if (i + 3 >= size)
+                    goto ESCAPE; // TODO return error
+
+                uint8_t byte4 = value[i + 3];
+                if (byte1 >= 0xF0 && byte1 <= 0xF4 && i + 3 < size && (byte2 & 0xC0) == 0x80 && (byte3 & 0xC0) == 0x80 && (byte4 & 0xC0) == 0x80)
+                {
+                    uint32_t codepoint = ((byte1 & 0x07) << 18) | ((byte2 & 0x3F) << 12) | ((byte3 & 0x3F) << 6) | (byte4 & 0x3F);
+
+                    // break the codepoint into UTF-16 surrogate pair
+                    static const uint32_t LEAD_OFFSET = 0xD800 - (0x10000 >> 10);
+                    uint32_t lead = LEAD_OFFSET + (codepoint >> 10);
+                    uint32_t trail = 0xDC00 + (codepoint & 0x3FF);
+                    // write the surrogate pair
+                    write_escaped_utf8(ctx.os, lead);
+                    write_escaped_utf8(ctx.os, trail);
+                    i += 4;
+                }
+                // TODO do something in case of invalid UTF-8 character
             }
         }
+
+        ESCAPE:
         (*ctx.os) <<  '"';
     }
     static bool empty( const std::string &value ) { return value.empty(); }
