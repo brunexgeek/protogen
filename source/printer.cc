@@ -31,12 +31,6 @@ void Printer::print( const char *format )
     out_ << format;
 }
 
-static void indent( std::ostream &out, int level )
-{
-    if (level < 1 || level > 20) return;
-    for (int i = 0; i < level; ++i) out << '\t';
-}
-
 void Printer::print( const char *format, const std::vector<std::string> &vars )
 {
     print(out_, format, vars);

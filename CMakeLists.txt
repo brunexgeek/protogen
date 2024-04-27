@@ -7,7 +7,7 @@ set(PROTOGEN_MAJOR 3)
 set(PROTOGEN_MINOR 0)
 set(PROTOGEN_PATCH 0)
 
-configure_file("compiler/cmake.hh.in" "__include/cmake.hh")
+configure_file("source/cmake.hh.in" "__include/cmake.hh")
 
 if (UNIX)
     set(ENABLE_SANITIZER OFF CACHE BOOL "")
@@ -33,10 +33,10 @@ endif()
 message("Build type: ${CMAKE_BUILD_TYPE}")
 
 add_library(libprotogen_static STATIC
-    "compiler/proto3.cc"
-    "compiler/printer.cc"
-    "compiler/exception.cc"
-    "compiler/cpp/cppgen.cc" )
+    "source/proto3.cc"
+    "source/printer.cc"
+    "source/exception.cc"
+    "source/cpp/cppgen.cc" )
 target_include_directories(libprotogen_static
     PUBLIC "include/"
     PRIVATE "${CMAKE_BINARY_DIR}/__include/")
@@ -47,7 +47,7 @@ set_target_properties(libprotogen_static PROPERTIES
     PREFIX "lib" )
 
 add_executable(protogen
-    "compiler/main.cc")
+    "source/main.cc")
 target_include_directories(protogen
     PRIVATE "${CMAKE_BINARY_DIR}/__include/")
 target_link_libraries(protogen libprotogen_static)
@@ -57,27 +57,27 @@ set_target_properties(protogen PROPERTIES
 
 add_custom_command(
     OUTPUT "${CMAKE_BINARY_DIR}/__include/auto-code.hh"
-    DEPENDS template "${CMAKE_CURRENT_LIST_DIR}/compiler/cpp/code.txt"
-    COMMAND "${CMAKE_BINARY_DIR}/template" "${CMAKE_CURRENT_LIST_DIR}/compiler/cpp/code.txt" "${CMAKE_BINARY_DIR}/__include/auto-code.hh"
+    DEPENDS template "${CMAKE_CURRENT_LIST_DIR}/source/cpp/code.txt"
+    COMMAND "${CMAKE_BINARY_DIR}/template" "${CMAKE_CURRENT_LIST_DIR}/source/cpp/code.txt" "${CMAKE_BINARY_DIR}/__include/auto-code.hh"
 )
 
 add_custom_command(
     OUTPUT "${CMAKE_BINARY_DIR}/__include/auto-protogen.hh"
-    DEPENDS template "${CMAKE_CURRENT_LIST_DIR}/compiler/cpp/protogen.hh"
-    COMMAND "${CMAKE_BINARY_DIR}/template" "${CMAKE_CURRENT_LIST_DIR}/compiler/cpp/protogen.hh" "${CMAKE_BINARY_DIR}/__include/auto-protogen.hh"
+    DEPENDS template "${CMAKE_CURRENT_LIST_DIR}/source/cpp/protogen.hh"
+    COMMAND "${CMAKE_BINARY_DIR}/template" "${CMAKE_CURRENT_LIST_DIR}/source/cpp/protogen.hh" "${CMAKE_BINARY_DIR}/__include/auto-protogen.hh"
 )
 
 add_custom_command(
     OUTPUT "${CMAKE_BINARY_DIR}/__include/auto-json.hh"
-    DEPENDS template "${CMAKE_CURRENT_LIST_DIR}/compiler/cpp/json.hh"
-    COMMAND "${CMAKE_BINARY_DIR}/template" "${CMAKE_CURRENT_LIST_DIR}/compiler/cpp/json.hh" "${CMAKE_BINARY_DIR}/__include/auto-json.hh"
+    DEPENDS template "${CMAKE_CURRENT_LIST_DIR}/source/cpp/json.hh"
+    COMMAND "${CMAKE_BINARY_DIR}/template" "${CMAKE_CURRENT_LIST_DIR}/source/cpp/json.hh" "${CMAKE_BINARY_DIR}/__include/auto-json.hh"
 )
 
 add_custom_target(process_template
     DEPENDS "${CMAKE_BINARY_DIR}/__include/auto-code.hh" "${CMAKE_BINARY_DIR}/__include/auto-protogen.hh" "${CMAKE_BINARY_DIR}/__include/auto-json.hh"
 )
 
-add_executable(template "compiler/template.cc")
+add_executable(template "source/template.cc")
 target_include_directories(template
     PRIVATE "${CMAKE_BINARY_DIR}/__include/")
 set_target_properties(template PROPERTIES
