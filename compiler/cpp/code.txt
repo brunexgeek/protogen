@@ -56,13 +56,14 @@ template<> struct json<$1$>
         (void)ctx; (void)name; (void)value;
 $2$        return PGR_NIL;
     }
-    static void write( json_context &ctx, const $1$ &value )
+    static int write( json_context &ctx, const $1$ &value )
     {
         (void)value;
         bool first = true;
         (*ctx.os) << '{';
 $3$        (*ctx.os) << '}';
         (void)first;
+        return PGR_OK;
     }
     static bool empty( const $1$ &value )
     {

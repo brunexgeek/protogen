@@ -13,7 +13,18 @@ struct json_context
     ostream *os = nullptr;
     uint32_t mask = 0;
     Parameters params;
+    ErrorInfo *err = nullptr;
 };
+
+static int set_error( ErrorInfo *err, error_code code, const std::string &msg )
+{
+    if (err == nullptr || err->code != error_code::PGERR_OK)
+        return PGR_ERROR;
+    err->code = code;
+    err->message = msg;
+    err->line = err->column = 0;
+    return PGR_ERROR;
+}
 
 template<typename T>
 struct json<field<T>, typename std::enable_if<std::is_arithmetic<T>::value>::type>
@@ -26,10 +37,10 @@ struct json<field<T>, typename std::enable_if<std::is_arithmetic<T>::value>::typ
         value = temp;
         return result;
     }
-    static void write( json_context &ctx, const field<T> &value )
+    static int write( json_context &ctx, const field<T> &value )
     {
         T temp = (T) value;
-        json<T>::write(ctx, temp);
+        return json<T>::write(ctx, temp);
     }
     static bool empty( const field<T> &value ) { return value.empty(); }
     static void clear( field<T> &value ) { value.clear(); }
@@ -51,7 +62,11 @@ struct json<T, typename std::enable_if<std::is_arithmetic<T>::value>::type>
         ctx.tok->next();
         return PGR_OK;
     }
-    static void write( json_context &ctx, const T &value ) { (*ctx.os) << number_to_string(value); }
+    static int write( json_context &ctx, const T &value )
+    {
+        (*ctx.os) << number_to_string(value);
+        return PGR_OK;
+    }
     static bool empty( const T &value ) { (void) value; return false; }
     static void clear( T &value ) { value = (T) 0; }
     static bool equal( const T &a, const T &b ) { return a == b; } // TODO: create float comparison using epsilon
@@ -78,7 +93,7 @@ struct json<T, typename std::enable_if<is_container<T>::value>::type >
             return ctx.tok->error(error_code::PGERR_INVALID_OBJECT, "Invalid object");
         return PGR_OK;
     }
-    static void write( json_context &ctx, const T &value )
+    static int write( json_context &ctx, const T &value )
     {
         (*ctx.os) <<  '[';
         size_t i = 0, t = value.size();
@@ -88,6 +103,7 @@ struct json<T, typename std::enable_if<is_container<T>::value>::type >
             if (i + 1 < t) (*ctx.os) <<  ',';
         }
         (*ctx.os) <<  ']';
+        return PGR_OK;
     }
     static bool empty( const T &value ) { return value.empty(); }
     static void clear( T &value ) { value.clear(); }
@@ -112,7 +128,7 @@ struct json< std::vector<uint8_t> >
         if (ch >= 'a' && ch <= 'z') return (ch - 'a') + 26;
         return 0;
     }
-    static void write( json_context &ctx, const std::vector<uint8_t> &value )
+    static int write( json_context &ctx, const std::vector<uint8_t> &value )
     {
         static const char *B64_SYMBOLS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
         char o[5] = { 0 };
@@ -146,6 +162,7 @@ struct json< std::vector<uint8_t> >
             (*ctx.os) <<  o;
         }
         (*ctx.os) <<  '"';
+        return PGR_OK;
     }
     static int read( json_context &ctx, std::vector<uint8_t> &value )
     {
@@ -208,9 +225,10 @@ struct json<bool, void>
         ctx.tok->next();
         return PGR_OK;
     }
-    static void write( json_context &ctx, const bool &value )
+    static int write( json_context &ctx, const bool &value )
     {
         (*ctx.os) <<  (value ? "true" : "false");
+        return PGR_OK;
     }
     static bool empty( const bool &value ) { (void) value; return false; }
     static void clear( bool &value ) { value = false; }
@@ -237,7 +255,7 @@ struct json<std::string, void>
         value = tt.value;
         return PGR_OK;
     }
-    static void write( json_context &ctx, const std::string &value )
+    static int write( json_context &ctx, const std::string &value )
     {
         (*ctx.os) <<  '"';
         size_t size = value.size();
@@ -274,7 +292,7 @@ struct json<std::string, void>
                 // 2-byte character
 
                 if (i + 1 >= size)
-                    goto ESCAPE; // TODO return error
+                    return set_error(ctx.err, error_code::PGERR_INVALID_VALUE, "Invalid UTF-8 code point");
 
                 uint8_t byte2 = value[i + 1];
                 if (byte1 >= 0xC0 && byte1 <= 0xDF && (byte2 & 0xC0) == 0x80)
@@ -288,7 +306,7 @@ struct json<std::string, void>
                 // 3-byte character
 
                 if (i + 2 >= size)
-                    goto ESCAPE; // TODO return error
+                    return set_error(ctx.err, error_code::PGERR_INVALID_VALUE, "Invalid UTF-8 code point");
 
                 uint8_t byte3 = value[i + 2];
                 if (byte1 >= 0xE0 && byte1 <= 0xEF && i + 2 < size && (byte2 & 0xC0) == 0x80 && (byte3 & 0xC0) == 0x80)
@@ -302,7 +320,7 @@ struct json<std::string, void>
                 // 4-byte character
 
                 if (i + 3 >= size)
-                    goto ESCAPE; // TODO return error
+                    return set_error(ctx.err, error_code::PGERR_INVALID_VALUE, "Invalid UTF-8 code point");
 
                 uint8_t byte4 = value[i + 3];
                 if (byte1 >= 0xF0 && byte1 <= 0xF4 && i + 3 < size && (byte2 & 0xC0) == 0x80 && (byte3 & 0xC0) == 0x80 && (byte4 & 0xC0) == 0x80)
@@ -317,13 +335,15 @@ struct json<std::string, void>
                     write_escaped_utf8(ctx.os, lead);
                     write_escaped_utf8(ctx.os, trail);
                     i += 4;
+                    continue;
                 }
-                // TODO do something in case of invalid UTF-8 character
+
+                return set_error(ctx.err, error_code::PGERR_INVALID_VALUE, "Invalid UTF-8 code point");
             }
         }
 
-        ESCAPE:
         (*ctx.os) <<  '"';
+        return PGR_OK;
     }
     static bool empty( const std::string &value ) { return value.empty(); }
     static void clear( std::string &value ) { value.clear(); }
@@ -407,8 +427,9 @@ bool deserialize( T &value, protogen_X_Y_Z::tokenizer& tok, const Parameters &pa
     json_context ctx;
     ctx.tok = &tok;
     ctx.params = params;
-    if (json<T>::read(ctx, value) != PGR_ERROR) return true;
-    if (err != nullptr) *err = tok.error();
+    tok.set_error(err);
+    if (json<T>::read(ctx, value) != PGR_ERROR)
+        return true;
     return false;
 }
 
@@ -514,17 +535,21 @@ bool empty( const T &value ) { return json<T>::empty(value); }
             protogen_X_Y_Z::json_context ctx; \
             ctx.tok = &tok; \
             ctx.params = params; \
+            ctx.err = err; \
             int result = S::read(ctx, *this); \
             if (result == protogen_X_Y_Z::PGR_OK) return true; \
-            if (err != nullptr) *err = tok.error(); \
             return false; \
         } \
-        void serialize( protogen_X_Y_Z::ostream &out, const protogen_X_Y_Z::Parameters &params ) const override \
+        bool serialize( protogen_X_Y_Z::ostream &out, const protogen_X_Y_Z::Parameters &params, \
+            protogen_X_Y_Z::ErrorInfo *err = nullptr ) const override \
         { \
             protogen_X_Y_Z::json_context ctx; \
             ctx.os = &out; \
             ctx.params = params; \
-            S::write(ctx, *this); \
+            ctx.err = err; \
+            int result = S::write(ctx, *this); \
+            if (result == protogen_X_Y_Z::PGR_OK) return true; \
+            return false; \
         } \
         void clear() override { S::clear(*this); } \
         bool empty() const override { return S::empty(*this); } \
@@ -539,7 +564,7 @@ bool empty( const T &value ) { return json<T>::empty(value); }
     { \
         static int read( json_context &ctx, O &value ) { return S::read(ctx, value); } \
         static int read_field( json_context &ctx, const std::string &name, O &value ) { return S::read_field(ctx, name, value); } \
-        static void write( json_context &ctx, const O &value ) { S::write(ctx, value); } \
+        static int write( json_context &ctx, const O &value ) { return S::write(ctx, value); } \
         static bool empty( const O &value ) { return S::empty(value); } \
         static void clear( O &value ) { S::clear(value); } \
         static bool equal( const O &a, const O &b ) { return S::equal(a, b); } \

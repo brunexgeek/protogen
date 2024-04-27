@@ -213,7 +213,7 @@ class iterator_istream : public istream
 class tokenizer
 {
     public:
-        tokenizer( istream &input ) : input_(input)
+        tokenizer( istream &input, ErrorInfo *err = nullptr ) : input_(input), error_(err)
         {
             next();
         }
@@ -288,20 +288,24 @@ class tokenizer
         }
         int error( error_code code, const std::string &msg )
         {
-            if (error_.code != error_code::PGERR_OK) return PGR_ERROR;
-            error_.code = code;
-            error_.message = msg;
-            error_.line = current_.line;//input_.line();
-            error_.column = current_.column;//input_.column();
+            if (error_ == nullptr || error_->code != error_code::PGERR_OK)
+                return PGR_ERROR;
+            error_->code = code;
+            error_->message = msg;
+            error_->line = current_.line;
+            error_->column = current_.column;
             return PGR_ERROR;
         }
-        const ErrorInfo &error() const { return error_; }
+        void set_error(ErrorInfo *err)
+        {
+            error_ = err;
+        }
         int ignore( ) { return ignore_value(); }
 
     protected:
         token current_;
         istream &input_;
-        ErrorInfo error_;
+        ErrorInfo *error_ = nullptr;
 
         std::string parse_identifier()
         {
@@ -710,7 +714,7 @@ struct message
     }
     virtual bool deserialize( istream &in, const Parameters &params, ErrorInfo *err = nullptr )
     {
-        tokenizer tok(in);
+        tokenizer tok(in, err);
         return deserialize(tok, params, err);
     }
     virtual bool deserialize( istream &in, ErrorInfo *err = nullptr )
@@ -761,43 +765,43 @@ struct message
     {
         return deserialize(in, len, Parameters(), err);
     }
-    virtual void serialize( ostream &out, const Parameters &params ) const = 0;
-    virtual void serialize( ostream &out ) const
+    virtual bool serialize( ostream &out, const Parameters &params, ErrorInfo *err = nullptr ) const = 0;
+    virtual bool serialize( ostream &out, ErrorInfo *err = nullptr ) const
     {
-        serialize(out, Parameters());
+        return serialize(out, Parameters(), err);
     }
-    virtual void serialize( std::string &out, const Parameters &params ) const
+    virtual bool serialize( std::string &out, const Parameters &params, ErrorInfo *err = nullptr ) const
     {
         typedef std::back_insert_iterator<std::string> ittype;
         ittype begin(out);
         iterator_ostream<ittype> os(begin);
-        serialize(os, params);
+        return serialize(os, params, err);
     }
-    virtual void serialize( std::string &out ) const
+    virtual bool serialize( std::string &out, ErrorInfo *err = nullptr ) const
     {
-        serialize(out, Parameters());
+        return serialize(out, Parameters(), err);
     }
-    virtual void serialize( std::vector<char> &out, const Parameters &params ) const
+    virtual bool serialize( std::vector<char> &out, const Parameters &params, ErrorInfo *err = nullptr ) const
     {
         typedef std::back_insert_iterator<std::vector<char>> ittype;
         ittype begin(out);
         iterator_ostream<ittype> os(begin);
-        serialize(os, params);
+        return serialize(os, params, err);
     }
-    virtual void serialize( std::vector<char> &out ) const
+    virtual bool serialize( std::vector<char> &out, ErrorInfo *err = nullptr ) const
     {
-        serialize(out, Parameters());
+        return serialize(out, Parameters(), err);
     }
-    virtual void serialize( std::ostream &out, const Parameters &params ) const
+    virtual bool serialize( std::ostream &out, const Parameters &params, ErrorInfo *err = nullptr ) const
     {
         typedef std::ostream_iterator<char> ittype;
         ittype begin(out);
         iterator_ostream<ittype> os(begin);
-        serialize(os, params);
+        return serialize(os, params, err);
     }
-    virtual void serialize( std::ostream &out ) const
+    virtual bool serialize( std::ostream &out, ErrorInfo *err = nullptr ) const
     {
-        serialize(out, Parameters());
+        return serialize(out, Parameters(), err);
     }
     virtual void clear() = 0;
     virtual bool empty() const  = 0;
