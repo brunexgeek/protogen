@@ -263,6 +263,14 @@ struct json<std::string, void>
             }
             else
             {
+                // check whether we do not need to escape
+                if (!ctx.params.ensure_ascii)
+                {
+                    (*ctx.os) << (char) byte1;
+                    i++;
+                    continue;
+                }
+
                 // 2-byte character
 
                 if (i + 1 >= size)

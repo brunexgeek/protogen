@@ -330,6 +330,40 @@ bool RUN_TEST7B( int argc, char **argv)
     return true;
 }
 
+static bool test8_iteration( const char **values, bool ensure_ascii = false )
+{
+    phonebook::AddressBook book;
+    Parameters params;
+    params.ensure_ascii = ensure_ascii;
+
+    for (int i = 0; values[i] != nullptr; ++i)
+    {
+        book.owner.name = values[i];
+
+        std::string json1;
+        book.serialize(json1, params);
+        book.clear();
+
+        phonebook::AddressBook::ErrorInfo err;
+        bool result = book.deserialize(json1, params, &err);
+        std::string json2;
+        book.serialize(json2, params);
+
+        result = result && json1 == json2 && book.owner.name == values[i];
+        if (!result)
+        {
+            std::cerr << "[TEST #8] Failed!" << std::endl;
+            if (err.code != PGERR_OK)
+                std::cerr << ERRORS[err.code] << " at " << err.line << ':' << err.column << ']' << std::endl;
+            std::cerr << "   " << json1 << " -> " << values[i] << '\n';
+            std::cerr << "   " << json2 << " -> " << book.owner.name << '\n';
+            std::cerr << "   '" << book.owner.name << "' == '" << values[i] << "'  ->" << (book.owner.name == values[i] ? "true" : "false") << '\n';
+            return false;
+        }
+    }
+    return true;
+}
+
 bool RUN_TEST8( int argc, char **argv)
 {
     (void) argc;
@@ -344,33 +378,10 @@ bool RUN_TEST8( int argc, char **argv)
         nullptr
     };
 
-    phonebook::AddressBook book;
-
-    for (int i = 0; VALUES[i] != nullptr; ++i)
-    {
-        book.owner.name = VALUES[i];
-
-        std::string json1;
-        book.serialize(json1);
-        book.clear();
-
-        phonebook::AddressBook::ErrorInfo err;
-        bool result = book.deserialize(json1, &err);
-        std::string json2;
-        book.serialize(json2);
-
-        result = result && json1 == json2 && book.owner.name == VALUES[i];
-        if (!result)
-        {
-            std::cerr << "[TEST #8] Failed!" << std::endl;
-            if (err.code != PGERR_OK)
-                std::cerr << ERRORS[err.code] << " at " << err.line << ':' << err.column << ']' << std::endl;
-            std::cerr << "   " << json1 << " -> " << VALUES[i] << '\n';
-            std::cerr << "   " << json2 << " -> " << book.owner.name << '\n';
-            std::cerr << "   '" << book.owner.name << "' == '" << VALUES[i] << "'  ->" << (book.owner.name == VALUES[i] ? "true" : "false") << '\n';
-            return false;
-        }
-    }
+    if (!test8_iteration(VALUES, false))
+        return false;
+    if (!test8_iteration(VALUES, true))
+        return false;
 
     std::cerr << "[TEST #8] Passed!" << std::endl;
     return true;
