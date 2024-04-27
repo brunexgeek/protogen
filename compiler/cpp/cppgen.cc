@@ -42,7 +42,6 @@ struct GeneratorContext
     bool obfuscate_strings = false;
     bool cpp_enable_errors = false;
     bool cpp_use_lists = false;
-    std::string custom_parent;
 
     GeneratorContext( Printer &printer, Proto3 &root ) : printer(printer), root(root) {}
 };
@@ -75,7 +74,6 @@ static constexpr const struct {
 static std::string nativePackage( const std::string &package )
 {
     // extra space because the compiler may complain about '<::' (i.e. using in templates)
-
     if (package.empty())
         return " ";
     std::string name;
@@ -401,14 +399,6 @@ void CppGenerator::generate( Proto3 &root, std::ostream &out )
         if (opt.type != OptionType::BOOLEAN)
             throw exception("The value for 'number_names' must be a boolean", opt.line, 1);
         ctx.number_names = opt.value == "true";
-    }
-
-    if (ctx.root.options.count(PROTOGEN_O_CUSTOM_PARENT))
-    {
-        OptionEntry opt = ctx.root.options.at(PROTOGEN_O_CUSTOM_PARENT);
-        if (opt.type != OptionType::STRING && opt.type != OptionType::IDENTIFIER)
-            throw exception("The value for 'custom_parent' must be a string or an identifier", opt.line, 1);
-        ctx.custom_parent = opt.value;
     }
 
     if (ctx.root.options.count(PROTOGEN_O_CPP_USE_LISTS))

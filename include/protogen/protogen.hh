@@ -32,15 +32,8 @@ namespace protogen {
 // The default value value is false.
 #define PROTOGEN_O_NUMBER_NAMES            "number_names"
 
-// Enable (true) or disable (false) information about parsing errors. The default value is false.
-// If enabled, 'deserializer' functions will populate the 'ErrorInfo' object given as argument.
-#define PROTOGEN_O_CPP_ENABLE_ERRORS       "cpp_enable_errors"
-
 // Make a field transient (true) or not (false). The default value is false.
 #define PROTOGEN_O_TRANSIENT               "transient"
-
-// Define a custom parent class for all messages. Use the same syntax as package definition.
-#define PROTOGEN_O_CUSTOM_PARENT           "custom_parent"
 
 // Enable (true) or disable (false) the use of 'std::list' as container class for repeated
 // fields. If disabled, 'std::vector' will be used instead. The default value is false.

@@ -43,9 +43,9 @@ bool RUN_TEST1( int argc, char **argv)
     std::string json1;
     std::string json2;
     phonebook::AddressBook temp;
-    serialize(book, json1);
+    book.serialize(json1);
     temp.deserialize(json1);
-    serialize(temp, json2);
+    temp.serialize(json2);
 
     bool result = (json1 == json2) ;//&& (book == temp);
     std::cerr << "[TEST #1] " << ((result) ? "Passed!" : "Failed!" ) << std::endl;
@@ -70,9 +70,9 @@ bool RUN_TEST3( int argc, char **argv)
     std::string json1;
     std::string json2;
     options::Cake temp;
-    serialize(cake, json1);
+    cake.serialize(json1);
     temp.deserialize(json1);
-    serialize(temp, json2);
+    temp.serialize(json2);
 
     bool result = (json1 == json2) && (cake != temp) && temp.flavor.empty();
     std::cerr << "[TEST #3] " << ((result) ? "Passed!" : "Failed!" ) << std::endl;
@@ -159,16 +159,16 @@ bool RUN_TEST5( int argc, char **argv)
 
     // std::string
     std::string json1;
-    serialize(person, json1);
+    person.serialize(json1);
 
     // std::vector<char>
     std::vector<char> json2;
-    serialize(person, json2);
+    person.serialize(json2);
     json2.push_back(0);
 
     // std::ostream
     std::stringstream temp;
-    serialize(person, temp);
+    person.serialize(temp);
 
     result |= (json1 == json2.data() && json2.data() == temp.str());
 

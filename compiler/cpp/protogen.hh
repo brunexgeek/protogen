@@ -465,7 +465,7 @@ class tokenizer
         int ignore_array()
         {
             if (!expect(token_id::ARRS))
-                return error(error_code::PGERR_IGNORE_FAILED, "Invalid array");
+                return error(error_code::PGERR_IGNORE_FAILED, "invalid array");
 
             while (peek().id != token_id::ARRE)
             {
@@ -474,27 +474,27 @@ class tokenizer
                 if (!expect(token_id::COMMA)) break;
             }
             if (!expect(token_id::ARRE))
-                return error(error_code::PGERR_IGNORE_FAILED, "Invalid array");
+                return error(error_code::PGERR_IGNORE_FAILED, "invalid array");
             return PGR_OK;
         }
 
         int ignore_object()
         {
             if (!expect(token_id::OBJS))
-                return error(error_code::PGERR_IGNORE_FAILED, "Invalid object");
+                return error(error_code::PGERR_IGNORE_FAILED, "invalid object");
 
             while (peek().id != token_id::OBJE)
             {
                 if (!expect(token_id::STRING))
-                    return error(error_code::PGERR_IGNORE_FAILED, "Expected field name");
+                    return error(error_code::PGERR_IGNORE_FAILED, "expected field name");
                 if (!expect(token_id::COLON))
-                    return error(error_code::PGERR_IGNORE_FAILED, "Expected colon");
+                    return error(error_code::PGERR_IGNORE_FAILED, "expected colon");
                 int result = ignore_value();
                 if (result != PGERR_OK) return result;
                 if (!expect(token_id::COMMA)) break;
             }
             if (!expect(token_id::OBJE))
-                return error(error_code::PGERR_IGNORE_FAILED, "Invalid object");
+                return error(error_code::PGERR_IGNORE_FAILED, "invalid object");
             return PGR_OK;
         }
 
@@ -504,7 +504,7 @@ class tokenizer
             {
                 case token_id::NONE:
                 case token_id::EOS:
-                    return error(error_code::PGERR_IGNORE_FAILED, "End of stream");
+                    return error(error_code::PGERR_IGNORE_FAILED, "end of stream");
                 case token_id::OBJS:
                     return ignore_object();
                 case token_id::ARRS:
@@ -517,11 +517,11 @@ class tokenizer
                 {
                     auto tt = next();
                     if (tt.id == token_id::NONE || tt.id == token_id::EOS)
-                        return error(PGERR_IGNORE_FAILED, "End of stream");
+                        return error(PGERR_IGNORE_FAILED, "end of stream");
                     return PGERR_OK;
                 }
                 default:
-                    return error(error_code::PGERR_IGNORE_FAILED, "Invalid json");
+                    return error(error_code::PGERR_IGNORE_FAILED, "invalid json");
             }
         }
 };
@@ -529,7 +529,7 @@ class tokenizer
 template<class T>
 class mem_iterator
 {
-    static_assert(std::is_arithmetic<T>::value, "Invalid template parameters");
+    static_assert(std::is_arithmetic<T>::value, "invalid template parameters");
     public:
         mem_iterator( const T *begin, size_t count ) : cursor(begin), end(begin + count), empty(0)
         {
@@ -589,7 +589,7 @@ template<typename T, typename E = void> struct json;
 
 template<typename T> class field
 {
-    static_assert(std::is_arithmetic<T>::value, "Invalid arithmetic type");
+    static_assert(std::is_arithmetic<T>::value, "invalid arithmetic type");
     protected:
         T value_ = (T) 0;
         bool empty_ = true;
@@ -686,7 +686,7 @@ constexpr
 #endif
 T rol( T value, int count )
 {
-	static_assert(std::is_unsigned<T>::value, "Unsupported signed type");
+	static_assert(std::is_unsigned<T>::value, "unsupported signed type");
 	return (T) ((value << count) | (value >> (-count & (sizeof(T) * 8 - 1))));
 }
 
