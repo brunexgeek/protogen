@@ -44,7 +44,7 @@ bool RUN_TEST1( int argc, char **argv)
     std::string json2;
     phonebook::AddressBook temp;
     serialize(book, json1);
-    deserialize(temp, json1);
+    temp.deserialize(json1);
     serialize(temp, json2);
 
     bool result = (json1 == json2) ;//&& (book == temp);
@@ -71,7 +71,7 @@ bool RUN_TEST3( int argc, char **argv)
     std::string json2;
     options::Cake temp;
     serialize(cake, json1);
-    deserialize(temp, json1);
+    temp.deserialize(json1);
     serialize(temp, json2);
 
     bool result = (json1 == json2) && (cake != temp) && temp.flavor.empty();
@@ -121,10 +121,12 @@ bool RUN_TEST4( int argc, char **argv)
     int i = 0;
     for (; result && CASES[i].line != 0; ++i)
     {
-        err.code = error_code::PGERR_OK;
-        err.column = err.line = 0;
-        err.message.clear();
-        result &= !temp.deserialize(CASES[i].json, CASES[i].code == error_code::PGERR_MISSING_FIELD, &err);
+        Parameters params;
+        params.required = CASES[i].code == error_code::PGERR_MISSING_FIELD;
+
+        err.clear();
+
+        result &= !temp.deserialize(CASES[i].json, params, &err);
         result &= CASES[i].line == err.line && CASES[i].col == err.column;
         result &= CASES[i].code == err.code;
     }
@@ -172,22 +174,22 @@ bool RUN_TEST5( int argc, char **argv)
 
     // std::string
     phonebook::Person retrieved1;
-    deserialize(retrieved1, json1);
+    retrieved1.deserialize(json1);
     result |= (retrieved1 == person);
 
     // std::vector<char>
     phonebook::Person retrieved2;
-    deserialize(retrieved2, json2);
+    retrieved2.deserialize(json2);
     result |= (retrieved2 != person);
 
     // std::istream
     phonebook::Person retrieved3;
-    deserialize(retrieved3, temp);
+    retrieved3.deserialize(temp);
     result |= (retrieved3 != person);
 
     // C string
     phonebook::Person retrieved4;
-    deserialize(retrieved4, json1.c_str(), json1.length());
+    retrieved4.deserialize(json1.c_str(), json1.length());
     result |= (retrieved4 != person);
 
     std::cerr << "[TEST #5] " << ((result) ? "Passed!" : "Failed!" ) << std::endl;
@@ -353,7 +355,7 @@ bool RUN_TEST8( int argc, char **argv)
         book.clear();
 
         phonebook::AddressBook::ErrorInfo err;
-        bool result = book.deserialize(json1, false, &err);
+        bool result = book.deserialize(json1, &err);
         std::string json2;
         book.serialize(json2);
 

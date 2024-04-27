@@ -16,9 +16,11 @@ void copy( std::istream &input, std::ostream &output, const std::string &name )
         if (line.length() > 0 && line[0] == '#' && line.find("AUTO-REMOVE") != std::string::npos)
             continue;
 
-        auto pos = line.find("_X_Y_Z");
-        if (pos != std::string::npos)
+        size_t pos;
+        while ((pos = line.find("_X_Y_Z")) != std::string::npos)
+        {
             line.replace(pos, 6, PROTOGEN_VERSION_NAMING);
+        }
 
         output << "    \"";
         for (auto c : line)

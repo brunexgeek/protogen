@@ -12,7 +12,7 @@ struct json_context
     tokenizer *tok = nullptr;
     ostream *os = nullptr;
     uint32_t mask = 0;
-    bool required = false;
+    Parameters params;
 };
 
 template<typename T>
@@ -351,7 +351,7 @@ static int read_object( json_context &ctx, T &object )
             return ctx.tok->error(error_code::PGERR_INVALID_OBJECT, "invalid JSON object");
         };
     }
-    if (ctx.required && J::is_missing(ctx))
+    if (ctx.params.required && J::is_missing(ctx))
         return error_code::PGERR_MISSING_FIELD;
     return PGR_OK;
 }
@@ -394,57 +394,57 @@ static int read_object( json_context &ctx, T &object )
     if (!(ctx.mask & (1 << field_id))) { name = PG_MKSTR(field_name); } else
 
 template<typename T>
-bool deserialize( T &value, protogen_X_Y_Z::tokenizer& tok, bool required = false, ErrorInfo *err = nullptr )
+bool deserialize( T &value, protogen_X_Y_Z::tokenizer& tok, const Parameters &params, ErrorInfo *err = nullptr )
 {
     json_context ctx;
     ctx.tok = &tok;
-    ctx.required = required;
+    ctx.params = params;
     if (json<T>::read(ctx, value) != PGR_ERROR) return true;
     if (err != nullptr) *err = tok.error();
     return false;
 }
 
 template<typename T>
-bool deserialize( T &value, istream &in, bool required = false, ErrorInfo *err = nullptr )
+bool deserialize( T &value, istream &in, const Parameters &params, ErrorInfo *err = nullptr )
 {
     tokenizer tok(in);
-    return deserialize<T>(value, tok, required, err);
+    return deserialize<T>(value, tok, params, err);
 }
 
 template<typename T>
-bool deserialize( T &value, const std::string &in, bool required = false, ErrorInfo *err = nullptr )
+bool deserialize( T &value, const std::string &in, const Parameters &params, ErrorInfo *err = nullptr )
 {
     iterator_istream<std::string::const_iterator> is(in.begin(), in.end());
-    return deserialize<T>(value, is, required, err);
+    return deserialize<T>(value, is, params, err);
 }
 
 template<typename T>
-bool deserialize( T &value, const std::vector<char> &in, bool required = false, ErrorInfo *err = nullptr )
+bool deserialize( T &value, const std::vector<char> &in, const Parameters &params, ErrorInfo *err = nullptr )
 {
     iterator_istream<std::vector<char>::const_iterator> is(in.begin(), in.end());
-    return deserialize<T>(value, is, required, err);
+    return deserialize<T>(value, is, params, err);
 }
 
 template<typename T>
-bool deserialize( T &value, std::istream &in, bool required = false, ErrorInfo *err = nullptr )
+bool deserialize( T &value, std::istream &in, const Parameters &params, ErrorInfo *err = nullptr )
 {
     bool skip = in.flags() & std::ios_base::skipws;
     std::noskipws(in);
     std::istream_iterator<char> end;
     std::istream_iterator<char> begin(in);
     iterator_istream<std::istream_iterator<char>> is(begin, end);
-    bool result = deserialize<T>(value, is, required, err);
+    bool result = deserialize<T>(value, is, params, err);
     if (skip) std::skipws(in);
     return result;
 }
 
 template<typename T>
-bool deserialize( T &value, const char *in, size_t len, bool required = false, ErrorInfo *err = nullptr )
+bool deserialize( T &value, const char *in, size_t len, const Parameters &params, ErrorInfo *err = nullptr )
 {
     auto begin = mem_iterator<char>(in, len);
     auto end = mem_iterator<char>(in + len, 0);
     iterator_istream<mem_iterator<char>> is(begin, end);
-    return deserialize<T>(value, is, required, err);
+    return deserialize<T>(value, is, params, err);
 }
 
 template<typename T>
@@ -500,21 +500,22 @@ bool empty( const T &value ) { return json<T>::empty(value); }
         N &operator=( const N & ) = default; \
         using protogen_X_Y_Z::message<O, S>::serialize; \
         using protogen_X_Y_Z::message<O, S>::deserialize; \
-        bool deserialize( protogen_X_Y_Z::tokenizer& tok, bool required = false, \
+        bool deserialize( protogen_X_Y_Z::tokenizer& tok, const protogen_X_Y_Z::Parameters &params, \
             protogen_X_Y_Z::ErrorInfo *err = nullptr ) override \
         { \
             protogen_X_Y_Z::json_context ctx; \
             ctx.tok = &tok; \
-            ctx.required = required; \
+            ctx.params = params; \
             int result = S::read(ctx, *this); \
             if (result == protogen_X_Y_Z::PGR_OK) return true; \
             if (err != nullptr) *err = tok.error(); \
             return false; \
         } \
-        void serialize( protogen_X_Y_Z::ostream &out ) const override \
+        void serialize( protogen_X_Y_Z::ostream &out, const protogen_X_Y_Z::Parameters &params ) const override \
         { \
             protogen_X_Y_Z::json_context ctx; \
             ctx.os = &out; \
+            ctx.params = params; \
             S::write(ctx, *this); \
         } \
         void clear() override { S::clear(*this); } \
