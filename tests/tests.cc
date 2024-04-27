@@ -334,11 +334,11 @@ bool RUN_TEST8( int argc, char **argv)
     (void) argv;
 
     static const char *VALUES[] = {
-        "a", // 1-bytes UTF-8
+        "a", // 1-byte UTF-8
         "ß", // 2-bytes UTF-8
         "이", // 3-bytes UTF-8
         "𑙤", // 4-bytes UTF-8
-        "이주영",
+        "이주영𑙤Hello",
         nullptr
     };
 
@@ -357,9 +357,11 @@ bool RUN_TEST8( int argc, char **argv)
         std::string json2;
         book.serialize(json2);
 
-        if (!result || json1 != json2 || book.owner.name != VALUES[i])
+        result = result && json1 == json2 && book.owner.name == VALUES[i];
+        if (!result)
         {
-            if (!result)
+            std::cerr << "[TEST #8] Failed!" << std::endl;
+            if (err.code != PGERR_OK)
                 std::cerr << ERRORS[err.code] << " at " << err.line << ':' << err.column << ']' << std::endl;
             std::cerr << "   " << json1 << " -> " << VALUES[i] << '\n';
             std::cerr << "   " << json2 << " -> " << book.owner.name << '\n';
@@ -367,6 +369,8 @@ bool RUN_TEST8( int argc, char **argv)
             return false;
         }
     }
+
+    std::cerr << "[TEST #8] Passed!" << std::endl;
     return true;
 }
 
