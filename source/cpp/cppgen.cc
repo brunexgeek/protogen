@@ -252,8 +252,8 @@ static void generateModelWrapper( GeneratorContext &ctx, const Message &message 
 
         if (!transient)
         {
-            Printer::format(temp_deserialize_if, CODE_DESERIALIZE_IF, name, label, i);
-            Printer::format(temp_serialize_if, CODE_SERIALIZE_IF, name, label);
+            Printer::format(temp_deserialize_if, CODE_DESERIALIZE_IF, name, label, i, PROTOGEN_VERSION_NAMING);
+            Printer::format(temp_serialize_if, CODE_SERIALIZE_IF, name, label, PROTOGEN_VERSION_NAMING);
             Printer::format(temp_is_missing_if, CODE_IS_MISSING_IF, label, 1 << i);
         }
         Printer::format(temp_empty_if, CODE_EMPTY_IF, name);

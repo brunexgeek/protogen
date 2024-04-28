@@ -96,11 +96,11 @@ $8$        return false;
 ------
 
 --- CODE_DESERIALIZE_IF
-        PG_DIF_EX($3$,$1$,$2$)
+        PG$4$_DIF($3$,$1$,$2$)
 ------
 
 --- CODE_SERIALIZE_IF
-        PG_SIF_EX($1$,$2$)
+        PG$3$_SIF($1$,$2$)
 ------
 
 --- CODE_EMPTY_IF
@@ -124,9 +124,9 @@ $8$        return false;
 ------
 
 --- CODE_ENTITY
-PG_ENTITY($1$,$2$,protogen$3$::json<$2$>)
+PG$3$_ENTITY($1$,$2$,protogen$3$::json<$2$>)
 ------
 
 --- CODE_ENTITY_JSON
-PG_ENTITY_SERIALIZER($1$,$2$,protogen$3$::json<$2$>)
+PG$3$_ENTITY_SERIALIZER($1$,$2$,protogen$3$::json<$2$>)
 ------

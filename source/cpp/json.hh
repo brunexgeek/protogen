@@ -386,14 +386,14 @@ static int read_object( json_context &ctx, T &object )
     return PGR_OK;
 }
 
-#define PG_DIF_EX(field_id, field_name, field_label) \
+#define PG_X_Y_Z_DIF(field_id, field_name, field_label) \
     if (name == field_label) { \
         int result = protogen_X_Y_Z::json<decltype(value.field_name)>::read(ctx, value.field_name); \
         if (result == PGR_OK) ctx.mask |= (1 << field_id); \
         return result; \
     } else
 
-#define PG_SIF_EX(field_name, field_label) \
+#define PG_X_Y_Z_SIF(field_name, field_label) \
     if (!protogen_X_Y_Z::json<decltype(value.field_name)>::empty(value.field_name)) \
     { \
         if (!first) (*ctx.os) <<  ','; \
@@ -408,7 +408,7 @@ void clear( T &value ) { json<T>::clear(value); }
 template<typename T, typename J = protogen_X_Y_Z::json<T>>
 bool empty( const T &value ) { return json<T>::empty(value); }
 
-#define PG_ENTITY(N,O,S) \
+#define PG_X_Y_Z_ENTITY(N,O,S) \
     struct N : public O, public protogen_X_Y_Z::message< O, S > \
     { \
         typedef O value_type; \
@@ -452,7 +452,7 @@ bool empty( const T &value ) { return json<T>::empty(value); }
         void swap( O &that ) { S::swap(*this, that); } \
     };
 
-#define PG_ENTITY_SERIALIZER(N,O,S) \
+#define PG_X_Y_Z_ENTITY_SERIALIZER(N,O,S) \
     namespace protogen_X_Y_Z { \
     template<> \
     struct json<N> \

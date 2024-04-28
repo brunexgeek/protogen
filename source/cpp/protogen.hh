@@ -27,8 +27,6 @@
 #include <iterator>
 #include <memory>
 
-#define PG_MKSTR(...) #__VA_ARGS__
-
 namespace protogen_X_Y_Z {
 
 enum error_code
