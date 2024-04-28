@@ -38,6 +38,7 @@ enum error_code
     PGERR_INVALID_VALUE     = 4,
     PGERR_INVALID_OBJECT    = 5,
     PGERR_INVALID_NAME      = 6,
+    PGERR_INVALID_ARRAY     = 7,
 };
 
 enum parse_error

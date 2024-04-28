@@ -83,17 +83,24 @@ struct json<T, typename std::enable_if<is_container<T>::value>::type >
     {
         if (ctx.tok->peek().id == token_id::NIL) return PGR_NIL;
         if (!ctx.tok->expect(token_id::ARRS))
-            return ctx.tok->error(error_code::PGERR_INVALID_OBJECT, "invalid object");
-        while (true)
-        {
-            typename T::value_type temp;
-            int result = json<typename T::value_type>::read(ctx, temp);
-            if (result == PGR_ERROR) return result;
-            if (result == PGR_OK) value.push_back(temp);
-            if (!ctx.tok->expect(token_id::COMMA)) break;
-        }
+            return ctx.tok->error(error_code::PGERR_INVALID_ARRAY, "invalid array");
         if (!ctx.tok->expect(token_id::ARRE))
-            return ctx.tok->error(error_code::PGERR_INVALID_OBJECT, "invalid object");
+        {
+            while (true)
+            {
+                typename T::value_type temp;
+                int result = json<typename T::value_type>::read(ctx, temp);
+                if (result == PGR_ERROR) return result;
+                if (result == PGR_OK) value.push_back(temp);
+
+                if (!ctx.tok->expect(token_id::COMMA))
+                {
+                    if (ctx.tok->expect(token_id::ARRE))
+                        break;
+                    return ctx.tok->error(error_code::PGERR_INVALID_ARRAY, "invalid array");
+                }
+            }
+        }
         return PGR_OK;
     }
     static int write( json_context &ctx, const T &value )
