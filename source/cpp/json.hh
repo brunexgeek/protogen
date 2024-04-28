@@ -415,6 +415,86 @@ void clear( T &value ) { json<T>::clear(value); }
 template<typename T, typename J = protogen_X_Y_Z::json<T>>
 bool empty( const T &value ) { return json<T>::empty(value); }
 
+//
+// Deserialization of arrays
+//
+
+template<typename T, typename std::enable_if<is_container<T>::value, int>::type = 0>
+bool deserialize_array( T& container, protogen_X_Y_Z::istream& in, protogen_X_Y_Z::Parameters *params = nullptr )
+{
+    protogen_X_Y_Z::json_context ctx;
+    if (params != nullptr) {
+        params->error.clear();
+        ctx.params = *params;
+    }
+    protogen_X_Y_Z::tokenizer tok(in, ctx.params);
+    ctx.tok = &tok;
+    int result = json<T>::read(ctx, container);
+    if (result == protogen_X_Y_Z::PGR_OK) return true;
+    if (params != nullptr) params->error = std::move(ctx.params.error);
+    return false;
+}
+
+template<typename T, typename std::enable_if<is_container<T>::value, int>::type = 0>
+bool deserialize_array( T& container, const std::string &in, Parameters *params = nullptr )
+{
+    iterator_istream<std::string::const_iterator> is(in.begin(), in.end());
+    return deserialize_array(container, is, params);
+}
+
+template<typename T, typename std::enable_if<is_container<T>::value, int>::type = 0>
+bool deserialize_array( T& container, const char *in, size_t len, Parameters *params = nullptr )
+{
+    auto begin = mem_iterator<char>(in, len);
+    auto end = mem_iterator<char>(in + len, 0);
+    iterator_istream<mem_iterator<char>> is(begin, end);
+    return deserialize_array(container, is, params);
+}
+
+template<typename T, typename std::enable_if<is_container<T>::value, int>::type = 0>
+bool deserialize_array( T& container, const std::vector<char> &in, Parameters *params = nullptr )
+{
+    iterator_istream<std::vector<char>::const_iterator> is(in.begin(), in.end());
+    return deserialize_array(container, is, params);
+}
+
+//
+// Serialization of arrays
+//
+
+template<typename T, typename std::enable_if<is_container<T>::value, int>::type = 0>
+bool serialize_array( const T& container, protogen_X_Y_Z::ostream &out, protogen_X_Y_Z::Parameters *params = nullptr )
+{
+    protogen_X_Y_Z::json_context ctx;
+    ctx.os = &out;
+    if (params != nullptr) {
+        params->error.clear();
+        ctx.params = *params;
+    }
+    int result = json<T>::write(ctx, container);
+    if (result == protogen_X_Y_Z::PGR_OK) return true;
+    if (params != nullptr) params->error = std::move(ctx.params.error);
+    return false;
+}
+
+template<typename T, typename std::enable_if<is_container<T>::value, int>::type = 0>
+bool serialize_array( const T& container, std::string &out, Parameters *params = nullptr )
+{
+    typedef std::back_insert_iterator<std::string> ittype;
+    ittype begin(out);
+    iterator_ostream<ittype> os(begin);
+    return serialize_array(container, os, params);
+}
+
+template<typename T, typename std::enable_if<is_container<T>::value, int>::type = 0>
+bool serialize_array( const T& container, std::vector<char> &out, Parameters *params = nullptr )
+{
+    typedef std::back_insert_iterator<std::vector<char>> ittype;
+    ittype begin(out);
+    iterator_ostream<ittype> os(begin);
+    return serialize_array(container, os, params);
+}
+
 #define PG_X_Y_Z_ENTITY(N,O,S) \
     struct N : public O, public protogen_X_Y_Z::message< O, S > \
     { \

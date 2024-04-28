@@ -384,6 +384,74 @@ bool RUN_TEST8( int argc, char **argv)
     return true;
 }
 
+bool RUN_TEST9( int argc, char **argv)
+{
+    (void) argc;
+    (void) argv;
+
+    std::list<phonebook::Person> people;
+    for (int i = 0; i < 5; ++i)
+    {
+        phonebook::Person person;
+        person.email = "test@example.com";
+        person.id = 1234 + i;
+        person.name = "Person " + std::to_string(i);
+        people.push_back(std::move(person));
+    }
+
+    std::string json1;
+    protogen_3_0_0::serialize_array(people, json1);
+
+    people.clear();
+    auto result = protogen_3_0_0::deserialize_array(people, json1);
+    std::string json2;
+    protogen_3_0_0::serialize_array(people, json2);
+
+    if (!result || json1 != json2)
+    {
+        std::cerr << "[TEST #9] Failed!" << std::endl;
+        std::cerr << "   " << json1 << '\n';
+        std::cerr << "   " << json2 << '\n';
+        return false;
+    }
+    else
+    {
+        std::cerr << "[TEST #9] Passed!" << std::endl;
+        std::cerr << "   " << json1 << '\n';
+        return true;
+    }
+}
+
+bool RUN_TEST10( int argc, char **argv)
+{
+    (void) argc;
+    (void) argv;
+
+    std::list<phonebook::Person> people;
+
+    std::string json1;
+    std::vector<char> json2;
+
+    if (!protogen_3_0_0::serialize_array(people, json1))
+        goto FAILED;
+    //if (!protogen_3_0_0::deserialize_array(people, json1.c_str(), json1.length()))
+    //    goto FAILED;
+    if (!protogen_3_0_0::deserialize_array(people, json1))
+        goto FAILED;
+
+    if (!protogen_3_0_0::serialize_array(people, json2))
+        goto FAILED;
+    if (!protogen_3_0_0::deserialize_array(people, json2))
+        goto FAILED;
+
+    std::cerr << "[TEST #10] Passed!" << std::endl;
+    return true;
+
+    FAILED:
+    std::cerr << "[TEST #10] Failed!" << std::endl;
+    return false;
+}
+
 int main( int argc, char **argv)
 {
     bool result = true;
@@ -395,5 +463,7 @@ int main( int argc, char **argv)
     result &= RUN_TEST7A(argc, argv);
     result &= RUN_TEST7B(argc, argv);
     result &= RUN_TEST8(argc, argv);
+    result &= RUN_TEST9(argc, argv);
+    result &= RUN_TEST10(argc, argv);
     return (int) !result;
 }
