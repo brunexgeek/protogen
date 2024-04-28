@@ -115,20 +115,17 @@ bool RUN_TEST4( int argc, char **argv)
     };
 
     options::Cake temp;
-    options::Cake::ErrorInfo err;
+    Parameters params;
     bool result = true;
 
     int i = 0;
     for (; result && CASES[i].line != 0; ++i)
     {
-        Parameters params;
         params.required = CASES[i].code == error_code::PGERR_MISSING_FIELD;
 
-        err.clear();
-
-        result &= !temp.deserialize(CASES[i].json, params, &err);
-        result &= CASES[i].line == err.line && CASES[i].col == err.column;
-        result &= CASES[i].code == err.code;
+        result &= !temp.deserialize(CASES[i].json, &params);
+        result &= CASES[i].line == params.error.line && CASES[i].col == params.error.column;
+        result &= CASES[i].code == params.error.code;
     }
 
     std::cerr << "[TEST #4] " << ((result) ? "Passed!" : "Failed!" ) << std::endl;
@@ -139,7 +136,7 @@ bool RUN_TEST4( int argc, char **argv)
         std::cerr << "   Expected [";
         std::cerr << ERRORS[CASES[i].code] << " at " << CASES[i].line << ':' << CASES[i].col << "]";
         std::cerr << " but got [";
-        std::cerr << ERRORS[err.code] << " at " << err.line << ':' << err.column << ']' << std::endl;
+        std::cerr << ERRORS[params.error.code] << " at " << params.error.line << ':' << params.error.column << ']' << std::endl;
     }
 
     return result;
@@ -341,20 +338,20 @@ static bool test8_iteration( const char **values, bool ensure_ascii = false )
         book.owner.name = values[i];
 
         std::string json1;
-        book.serialize(json1, params);
+        book.serialize(json1, &params);
         book.clear();
 
-        phonebook::AddressBook::ErrorInfo err;
-        bool result = book.deserialize(json1, params, &err);
+        bool result = book.deserialize(json1, &params);
         std::string json2;
-        book.serialize(json2, params);
+        Parameters params2 = params;
+        book.serialize(json2, &params2);
 
         result = result && json1 == json2 && book.owner.name == values[i];
         if (!result)
         {
             std::cerr << "[TEST #8] Failed!" << std::endl;
-            if (err.code != PGERR_OK)
-                std::cerr << ERRORS[err.code] << " at " << err.line << ':' << err.column << ']' << std::endl;
+            if (params.error.code != PGERR_OK)
+                std::cerr << ERRORS[params.error.code] << " at " << params.error.line << ':' << params.error.column << ']' << std::endl;
             std::cerr << "   " << json1 << " -> " << values[i] << '\n';
             std::cerr << "   " << json2 << " -> " << book.owner.name << '\n';
             std::cerr << "   '" << book.owner.name << "' == '" << values[i] << "'  ->" << (book.owner.name == values[i] ? "true" : "false") << '\n';

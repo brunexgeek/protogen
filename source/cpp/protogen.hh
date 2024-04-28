@@ -62,9 +62,25 @@ struct ErrorInfo
         code(code), message(message), line(line), column(column) { }
     ErrorInfo( const ErrorInfo &that ) = default;
     ErrorInfo( ErrorInfo &&that ) = default;
-    bool operator ==( error_code value ) const { return code == value; }
+    operator bool() const
+    {
+        return code == error_code::PGERR_OK;
+    }
+    bool operator ==( error_code value ) const
+    {
+        return code == value;
+    }
+    bool operator ==( const ErrorInfo &that ) const
+    {
+        return code == that.code && line == that.line && column == that.column;
+    }
     ErrorInfo &operator=( const ErrorInfo &that ) = default;
-    void clear() { code = error_code::PGERR_OK; message.clear(); line = column = 0; }
+    void clear()
+    {
+        code = error_code::PGERR_OK;
+        message.clear();
+        line = column = 0;
+    }
 };
 
 struct Parameters
@@ -76,6 +92,9 @@ struct Parameters
     /// If true, ensures the output JSON will have all non-ASCII characters escaped.
     /// Default is false.
     bool ensure_ascii = false;
+
+    /// Information about the error that occurred during the last operation.
+    ErrorInfo error;
 };
 
 namespace internal {
@@ -213,7 +232,7 @@ class iterator_istream : public istream
 class tokenizer
 {
     public:
-        tokenizer( istream &input, ErrorInfo *err = nullptr ) : input_(input), error_(err)
+        tokenizer( istream &input, Parameters &params ) : input_(input), error_(params.error)
         {
             next();
         }
@@ -288,15 +307,15 @@ class tokenizer
         }
         int error( error_code code, const std::string &msg )
         {
-            if (error_ == nullptr || error_->code != error_code::PGERR_OK)
+            if (error_.code != error_code::PGERR_OK)
                 return PGR_ERROR;
-            error_->code = code;
-            error_->message = msg;
-            error_->line = current_.line;
-            error_->column = current_.column;
+            error_.code = code;
+            error_.message = msg;
+            error_.line = current_.line;
+            error_.column = current_.column;
             return PGR_ERROR;
         }
-        void set_error(ErrorInfo *err)
+        void set_error(ErrorInfo &err)
         {
             error_ = err;
         }
@@ -305,7 +324,7 @@ class tokenizer
     protected:
         token current_;
         istream &input_;
-        ErrorInfo *error_ = nullptr;
+        ErrorInfo &error_;
 
         std::string parse_identifier()
         {
@@ -707,102 +726,65 @@ struct message
     typedef T underlying_type;
     typedef J serializer_type;
     virtual ~message() = default;
-    virtual bool deserialize( tokenizer& tok, const Parameters &params, ErrorInfo *err = nullptr ) = 0;
-    virtual bool deserialize( tokenizer& tok, ErrorInfo *err = nullptr )
-    {
-        return deserialize(tok, Parameters(), err);
-    }
-    virtual bool deserialize( istream &in, const Parameters &params, ErrorInfo *err = nullptr )
-    {
-        tokenizer tok(in, err);
-        return deserialize(tok, params, err);
-    }
-    virtual bool deserialize( istream &in, ErrorInfo *err = nullptr )
-    {
-        return deserialize(in, Parameters(), err);
-    }
-    virtual bool deserialize( const std::string &in, const Parameters &params, ErrorInfo *err = nullptr )
+    virtual bool deserialize( istream &in, Parameters *params = nullptr ) = 0;
+    virtual bool serialize( ostream &out, Parameters *params = nullptr ) const = 0;
+
+    virtual bool deserialize( const std::string &in, Parameters *params = nullptr )
     {
         iterator_istream<std::string::const_iterator> is(in.begin(), in.end());
-        return deserialize(is, params, err);
+        return deserialize(is, params);
     }
-    virtual bool deserialize( const std::string &in, ErrorInfo *err = nullptr )
-    {
-        return deserialize(in, Parameters(), err);
-    }
-    virtual bool deserialize( const std::vector<char> &in, const Parameters &params, ErrorInfo *err = nullptr )
-    {
-        iterator_istream<std::vector<char>::const_iterator> is(in.begin(), in.end());
-        return deserialize(is, params, err);
-    }
-    virtual bool deserialize( const std::vector<char> &in, ErrorInfo *err = nullptr )
-    {
-        return deserialize(in, Parameters(), err);
-    }
-    virtual bool deserialize( std::istream &in, const Parameters &params, ErrorInfo *err = nullptr )
+
+    virtual bool deserialize( std::istream &in, Parameters *params = nullptr )
     {
         bool skip = in.flags() & std::ios_base::skipws;
         std::noskipws(in);
         std::istream_iterator<char> end;
         std::istream_iterator<char> begin(in);
         iterator_istream<std::istream_iterator<char>> is(begin, end);
-        bool result = deserialize(is, params, err);
+        bool result = deserialize(is, params);
         if (skip) std::skipws(in);
         return result;
     }
-    virtual bool deserialize( std::istream &in, ErrorInfo *err = nullptr )
-    {
-        return deserialize(in, Parameters(), err);
-    }
-    virtual bool deserialize( const char *in, size_t len, const Parameters &params, ErrorInfo *err = nullptr )
+
+    virtual bool deserialize( const char *in, size_t len, Parameters *params = nullptr )
     {
         auto begin = mem_iterator<char>(in, len);
         auto end = mem_iterator<char>(in + len, 0);
         iterator_istream<mem_iterator<char>> is(begin, end);
-        return deserialize(is, params, err);
+        return deserialize(is, params);
     }
-    virtual bool deserialize( const char *in, size_t len, ErrorInfo *err = nullptr )
+
+    virtual bool deserialize( const std::vector<char> &in, Parameters *params = nullptr )
     {
-        return deserialize(in, len, Parameters(), err);
+        iterator_istream<std::vector<char>::const_iterator> is(in.begin(), in.end());
+        return deserialize(is, params);
     }
-    virtual bool serialize( ostream &out, const Parameters &params, ErrorInfo *err = nullptr ) const = 0;
-    virtual bool serialize( ostream &out, ErrorInfo *err = nullptr ) const
-    {
-        return serialize(out, Parameters(), err);
-    }
-    virtual bool serialize( std::string &out, const Parameters &params, ErrorInfo *err = nullptr ) const
+
+    virtual bool serialize( std::string &out, Parameters *params = nullptr ) const
     {
         typedef std::back_insert_iterator<std::string> ittype;
         ittype begin(out);
         iterator_ostream<ittype> os(begin);
-        return serialize(os, params, err);
+        return serialize(os, params);
     }
-    virtual bool serialize( std::string &out, ErrorInfo *err = nullptr ) const
-    {
-        return serialize(out, Parameters(), err);
-    }
-    virtual bool serialize( std::vector<char> &out, const Parameters &params, ErrorInfo *err = nullptr ) const
-    {
-        typedef std::back_insert_iterator<std::vector<char>> ittype;
-        ittype begin(out);
-        iterator_ostream<ittype> os(begin);
-        return serialize(os, params, err);
-    }
-    virtual bool serialize( std::vector<char> &out, ErrorInfo *err = nullptr ) const
-    {
-        return serialize(out, Parameters(), err);
-    }
-    virtual bool serialize( std::ostream &out, const Parameters &params, ErrorInfo *err = nullptr ) const
+
+    virtual bool serialize( std::ostream &out, Parameters *params = nullptr ) const
     {
         typedef std::ostream_iterator<char> ittype;
         ittype begin(out);
         iterator_ostream<ittype> os(begin);
-        return serialize(os, params, err);
+        return serialize(os, params);
     }
-    virtual bool serialize( std::ostream &out, ErrorInfo *err = nullptr ) const
+
+    virtual bool serialize( std::vector<char> &out, Parameters *params = nullptr ) const
     {
-        return serialize(out, Parameters(), err);
+        typedef std::back_insert_iterator<std::vector<char>> ittype;
+        ittype begin(out);
+        iterator_ostream<ittype> os(begin);
+        return serialize(os, params);
     }
+
     virtual void clear() = 0;
     virtual bool empty() const  = 0;
     virtual bool equal( const T &that ) const = 0;

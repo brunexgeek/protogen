@@ -9,20 +9,23 @@ using namespace protogen_X_Y_Z::internal;
 
 struct json_context
 {
+    // Tokenizer object used for loading JSON during deserialization
     tokenizer *tok = nullptr;
+    // Output stream for writing JSON during serialization
     ostream *os = nullptr;
+    // Bitmask of fields found in the JSON input
     uint32_t mask = 0;
+    // Configuration parameters and error information
     Parameters params;
-    ErrorInfo *err = nullptr;
 };
 
-static int set_error( ErrorInfo *err, error_code code, const std::string &msg )
+static int set_error( ErrorInfo &error, error_code code, const std::string &msg )
 {
-    if (err == nullptr || err->code != error_code::PGERR_OK)
+    if (error.code != error_code::PGERR_OK)
         return PGR_ERROR;
-    err->code = code;
-    err->message = msg;
-    err->line = err->column = 0;
+    error.code = code;
+    error.message = msg;
+    error.line = error.column = 0;
     return PGR_ERROR;
 }
 
@@ -292,7 +295,7 @@ struct json<std::string, void>
                 // 2-byte character
 
                 if (i + 1 >= size)
-                    return set_error(ctx.err, error_code::PGERR_INVALID_VALUE, "invalid UTF-8 code point");
+                    return set_error(ctx.params.error, error_code::PGERR_INVALID_VALUE, "invalid UTF-8 code point");
 
                 uint8_t byte2 = value[i + 1];
                 if (byte1 >= 0xC0 && byte1 <= 0xDF && (byte2 & 0xC0) == 0x80)
@@ -306,7 +309,7 @@ struct json<std::string, void>
                 // 3-byte character
 
                 if (i + 2 >= size)
-                    return set_error(ctx.err, error_code::PGERR_INVALID_VALUE, "invalid UTF-8 code point");
+                    return set_error(ctx.params.error, error_code::PGERR_INVALID_VALUE, "invalid UTF-8 code point");
 
                 uint8_t byte3 = value[i + 2];
                 if (byte1 >= 0xE0 && byte1 <= 0xEF && i + 2 < size && (byte2 & 0xC0) == 0x80 && (byte3 & 0xC0) == 0x80)
@@ -320,7 +323,7 @@ struct json<std::string, void>
                 // 4-byte character
 
                 if (i + 3 >= size)
-                    return set_error(ctx.err, error_code::PGERR_INVALID_VALUE, "invalid UTF-8 code point");
+                    return set_error(ctx.params.error, error_code::PGERR_INVALID_VALUE, "invalid UTF-8 code point");
 
                 uint8_t byte4 = value[i + 3];
                 if (byte1 >= 0xF0 && byte1 <= 0xF4 && i + 3 < size && (byte2 & 0xC0) == 0x80 && (byte3 & 0xC0) == 0x80 && (byte4 & 0xC0) == 0x80)
@@ -338,7 +341,7 @@ struct json<std::string, void>
                     continue;
                 }
 
-                return set_error(ctx.err, error_code::PGERR_INVALID_VALUE, "invalid UTF-8 code point");
+                return set_error(ctx.params.error, error_code::PGERR_INVALID_VALUE, "invalid UTF-8 code point");
             }
         }
         (*ctx.os) <<  '"';
@@ -410,33 +413,37 @@ bool empty( const T &value ) { return json<T>::empty(value); }
     { \
         typedef O value_type; \
         typedef S serializer_type; \
-        typedef protogen_X_Y_Z::ErrorInfo ErrorInfo; \
         N() = default; \
         N( const N& ) = default; \
         N( N &&that ) = default; \
         N &operator=( const N & ) = default; \
         using protogen_X_Y_Z::message<O, S>::serialize; \
         using protogen_X_Y_Z::message<O, S>::deserialize; \
-        bool deserialize( protogen_X_Y_Z::tokenizer& tok, const protogen_X_Y_Z::Parameters &params, \
-            protogen_X_Y_Z::ErrorInfo *err = nullptr ) override \
+        bool deserialize( protogen_X_Y_Z::istream& in, protogen_X_Y_Z::Parameters *params = nullptr ) override \
         { \
             protogen_X_Y_Z::json_context ctx; \
+            if (params != nullptr) { \
+                params->error.clear(); \
+                ctx.params = *params; \
+            } \
+            protogen_X_Y_Z::tokenizer tok(in, ctx.params); \
             ctx.tok = &tok; \
-            ctx.params = params; \
-            ctx.err = err; \
             int result = S::read(ctx, *this); \
             if (result == protogen_X_Y_Z::PGR_OK) return true; \
+            if (params != nullptr) params->error = std::move(ctx.params.error); \
             return false; \
         } \
-        bool serialize( protogen_X_Y_Z::ostream &out, const protogen_X_Y_Z::Parameters &params, \
-            protogen_X_Y_Z::ErrorInfo *err = nullptr ) const override \
+        bool serialize( protogen_X_Y_Z::ostream &out, protogen_X_Y_Z::Parameters *params = nullptr ) const override \
         { \
             protogen_X_Y_Z::json_context ctx; \
             ctx.os = &out; \
-            ctx.params = params; \
-            ctx.err = err; \
+            if (params != nullptr) { \
+                params->error.clear(); \
+                ctx.params = *params; \
+            } \
             int result = S::write(ctx, *this); \
             if (result == protogen_X_Y_Z::PGR_OK) return true; \
+            if (params != nullptr) params->error = std::move(ctx.params.error); \
             return false; \
         } \
         void clear() override { S::clear(*this); } \
