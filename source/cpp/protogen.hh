@@ -178,16 +178,15 @@ class iterator_ostream : public ostream
         I beg_;
 };
 
-class istream
+struct istream
 {
-    public:
-        istream() = default;
-        virtual ~istream() = default;
-        virtual int peek() = 0;
-        virtual void next() = 0;
-        virtual bool eof() const = 0;
-        virtual int line() const = 0;
-        virtual int column() const = 0;
+    istream() = default;
+    virtual ~istream() = default;
+    virtual int peek() = 0;
+    virtual void next() = 0;
+    virtual bool eof() const = 0;
+    virtual int line() const = 0;
+    virtual int column() const = 0;
 };
 
 template<typename I>
@@ -545,14 +544,14 @@ class tokenizer
 };
 
 template<class T>
-class mem_iterator
+class mem_const_iterator
 {
     static_assert(std::is_arithmetic<T>::value, "invalid template parameters");
     public:
-        mem_iterator( const T *begin, size_t count ) : cursor(begin), end(begin + count), empty(0)
+        mem_const_iterator( const T *begin, size_t count ) : cursor(begin), end(begin + count), empty(0)
         {
         }
-        mem_iterator &operator++()
+        mem_const_iterator &operator++()
         {
             if (cursor < end) cursor++;
             return *this;
@@ -562,12 +561,40 @@ class mem_iterator
             if (cursor >= end) return empty;
             return *cursor;
         }
-        bool operator==( const mem_iterator<T> &that ) const
+        bool operator==( const mem_const_iterator<T> &that ) const
         {
             return cursor == that.cursor;
         }
     protected:
         const T *cursor;
+        const T *end;
+        T empty;
+};
+
+template<class T>
+class mem_iterator
+{
+    static_assert(std::is_arithmetic<T>::value, "invalid template parameters");
+    public:
+        mem_iterator( T *begin, size_t count ) : cursor(begin), end(begin + count), empty(0)
+        {
+        }
+        mem_iterator &operator++()
+        {
+            if (cursor < end) cursor++;
+            return *this;
+        }
+        T &operator*()
+        {
+            if (cursor >= end) return empty;
+            return *cursor;
+        }
+        bool operator==( const mem_iterator<T> &that ) const
+        {
+            return cursor == that.cursor;
+        }
+    protected:
+        T *cursor;
         const T *end;
         T empty;
 };
@@ -708,6 +735,7 @@ T rol( T value, int count )
 	return (T) ((value << count) | (value >> (-count & (sizeof(T) * 8 - 1))));
 }
 
+// TODO: perform the deobfuscation once in the message construtor
 template<typename T>
 static inline std::string reveal( const T *value, size_t length )
 {
@@ -718,7 +746,7 @@ static inline std::string reveal( const T *value, size_t length )
 	return result;
 }
 
-// parent class for messages
+// Parent class for messages
 template<typename T, typename J>
 struct message
 {
@@ -727,12 +755,6 @@ struct message
     virtual ~message() = default;
     virtual bool deserialize( istream &in, Parameters *params = nullptr ) = 0;
     virtual bool serialize( ostream &out, Parameters *params = nullptr ) const = 0;
-
-    virtual bool deserialize( const std::string &in, Parameters *params = nullptr )
-    {
-        iterator_istream<std::string::const_iterator> is(in.begin(), in.end());
-        return deserialize(is, params);
-    }
 
     virtual bool deserialize( std::istream &in, Parameters *params = nullptr )
     {
@@ -746,11 +768,17 @@ struct message
         return result;
     }
 
+    virtual bool deserialize( const std::string &in, Parameters *params = nullptr )
+    {
+        iterator_istream<std::string::const_iterator> is(in.begin(), in.end());
+        return deserialize(is, params);
+    }
+
     virtual bool deserialize( const char *in, size_t len, Parameters *params = nullptr )
     {
-        auto begin = mem_iterator<char>(in, len);
-        auto end = mem_iterator<char>(in + len, 0);
-        iterator_istream<mem_iterator<char>> is(begin, end);
+        auto begin = mem_const_iterator<char>(in, len);
+        auto end = mem_const_iterator<char>(in + len, 0);
+        iterator_istream<mem_const_iterator<char>> is(begin, end);
         return deserialize(is, params);
     }
 
@@ -773,6 +801,13 @@ struct message
         typedef std::ostream_iterator<char> ittype;
         ittype begin(out);
         iterator_ostream<ittype> os(begin);
+        return serialize(os, params);
+    }
+
+    virtual bool serialize( char *in, size_t len, Parameters *params = nullptr )
+    {
+        auto begin = mem_iterator<char>(in, len);
+        iterator_ostream<mem_iterator<char>> os(begin);
         return serialize(os, params);
     }
 
