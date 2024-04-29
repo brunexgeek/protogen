@@ -229,21 +229,31 @@ static void generateModelWrapper( GeneratorContext &ctx, const Message &message 
     std::stringstream temp_equal_if;
     std::stringstream temp_swap_call;
     std::stringstream temp_is_missing_if;
+    std::stringstream temp_field_index;
+
+    if (ctx.obfuscate_strings)
+        temp_field_index << Printer::format("        std::string temp = reveal(name.c_str(), name.length());\n");
+    else
+        temp_field_index << "        const std::string &temp = name;\n";
+
     int i = 0;
     for (auto field : message.fields)
     {
         std::string name = field.name;
+        std::string olabel = name; // obfuscated label
         std::string label = name;
-        if (ctx.number_names) label = std::to_string(field.index);
+        if (ctx.number_names)
+            label = olabel = std::to_string(field.index);
 
         if (ctx.obfuscate_strings)
         {
-            auto len = label.length();
-            label = obfuscate(label);
-            label = Printer::format("reveal(\"$1$\",$2$)", label, len);
+            auto len = olabel.length();
+            olabel = obfuscate(olabel);
+            label = Printer::format("\"$1$\"", olabel);
+            olabel = Printer::format("reveal(\"$1$\",$2$)", olabel, len);
         }
         else
-            label = Printer::format("\"$1$\"", label);
+            label = olabel = Printer::format("\"$1$\"", label);
 
         bool transient = false;
         auto it = field.options.find(PROTOGEN_O_TRANSIENT);
@@ -252,9 +262,10 @@ static void generateModelWrapper( GeneratorContext &ctx, const Message &message 
 
         if (!transient)
         {
-            Printer::format(temp_deserialize_if, CODE_DESERIALIZE_IF, name, label, i, PROTOGEN_VERSION_NAMING);
-            Printer::format(temp_serialize_if, CODE_SERIALIZE_IF, name, label, PROTOGEN_VERSION_NAMING);
-            Printer::format(temp_is_missing_if, CODE_IS_MISSING_IF, label, 1 << i);
+            Printer::format(temp_deserialize_if, CODE_DESERIALIZE_IF, name, i, i, PROTOGEN_VERSION_NAMING);
+            Printer::format(temp_serialize_if, CODE_SERIALIZE_IF, name, olabel, PROTOGEN_VERSION_NAMING);
+            Printer::format(temp_is_missing_if, CODE_IS_MISSING_IF, olabel, 1 << i);
+            Printer::format(temp_field_index, CODE_FIELD_INDEX, label, i);
         }
         Printer::format(temp_empty_if, CODE_EMPTY_IF, name);
         Printer::format(temp_clear_call, CODE_CLEAR_CALL, name);
@@ -271,6 +282,7 @@ static void generateModelWrapper( GeneratorContext &ctx, const Message &message 
         temp_equal_if.str(),
         temp_swap_call.str(),
         temp_is_missing_if.str(),
+        temp_field_index.str(),
         PROTOGEN_VERSION_NAMING);
 }
 

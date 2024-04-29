@@ -393,22 +393,6 @@ static int read_object( json_context &ctx, T &object )
     return PGR_OK;
 }
 
-#define PG_X_Y_Z_DIF(field_id, field_name, field_label) \
-    if (name == field_label) { \
-        int result = protogen_X_Y_Z::json<decltype(value.field_name)>::read(ctx, value.field_name); \
-        if (result == PGR_OK) ctx.mask |= (1 << field_id); \
-        return result; \
-    } else
-
-#define PG_X_Y_Z_SIF(field_name, field_label) \
-    if (!protogen_X_Y_Z::json<decltype(value.field_name)>::empty(value.field_name)) \
-    { \
-        if (!first) (*ctx.os) <<  ','; \
-        first = false; \
-        (*ctx.os) <<  '\"' << field_label << "\":"; \
-        protogen_X_Y_Z::json<decltype(value.field_name)>::write(ctx, value.field_name); \
-    }
-
 template<typename T, typename J = protogen_X_Y_Z::json<T>>
 void clear( T &value ) { json<T>::clear(value); }
 

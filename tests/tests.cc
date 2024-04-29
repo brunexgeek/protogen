@@ -222,10 +222,10 @@ bool RUN_TEST6( int argc, char **argv)
     {
         person.deserialize(json1);
     }
-    uint64_t count = (std::chrono::system_clock::now() - t).count() / 1000 / 1000;
+    uint64_t count = (std::chrono::system_clock::now() - t).count() / 1000;
 
     std::cerr << "[TEST #6] Passed!" << std::endl;
-    std::cerr << "   Took " << count << " ms" << std::endl;
+    std::cerr << "   Took " << count << " us" << std::endl;
 
     return true;
 }
