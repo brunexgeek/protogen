@@ -45,6 +45,176 @@
 #include <forward_list>
 ------
 
+--- CODE_JSON_MODEL__HEADER
+namespace protogen$1$ {
+template<> struct json<$2$>
+{
+    static int read( json_context &ctx, $2$ &value ) { return read_object(ctx, value); }
+------
+
+--- CODE_JSON_MODEL__FOOTER
+};
+} // protogen$1$
+------
+
+
+--- CODE_JSON__READ_FIELD__EMPTY
+    static int read_field( json_context &ctx, const std::string &name, $1$ &value )
+    {
+        (void) ctx; (void) name; (void) value;
+        return PGR_NIL;
+    }
+------
+
+--- CODE_JSON__READ_FIELD__HEADER
+    static int read_field( json_context &ctx, const std::string &name, $1$ &value )
+    {
+        int index = field_index(name);
+        if (index < 0) return PGR_NIL;
+        ctx.mask |= (1 << index);
+        switch (index) {
+------
+
+--- CODE_JSON__READ_FIELD__FOOTER
+            default: return PGR_NIL;
+        }
+    }
+------
+
+
+--- CODE_JSON__WRITE__EMPTY
+    static int write( json_context &ctx, const $1$ &value )
+    {
+        (void) value;
+        (*ctx.os) << "{}";
+        return PGR_OK;
+    }
+------
+
+--- CODE_JSON__WRITE__HEADER
+    static int write( json_context &ctx, const $1$ &value )
+    {
+        #define PG_SIF(field_name, field_label) \
+            if (!protogen$2$::json<decltype(value.field_name)>::empty(value.field_name)) \
+            { \
+                if (!first) (*ctx.os) <<  ','; \
+                first = false; \
+                (*ctx.os) <<  '\"' << field_label << "\":"; \
+                protogen$2$::json<decltype(value.field_name)>::write(ctx, value.field_name); \
+            }
+        bool first = true;
+        (*ctx.os) << '{';
+------
+
+--- CODE_JSON__WRITE__FOOTER
+        (*ctx.os) << '}';
+        return PGR_OK;
+        #undef PG_SIF
+    }
+------
+
+
+--- CODE_JSON__EMPTY__EMPTY
+    static bool empty( const $1$ &value ) { (void) value; return true; }
+------
+
+--- CODE_JSON__EMPTY__HEADER
+    static bool empty( const $1$ &value )
+    {
+        return
+------
+
+--- CODE_JSON__EMPTY__FOOTER
+            true;
+    }
+------
+
+
+--- CODE_JSON__CLEAR__EMPTY
+    static void clear( $1$ &value ) { (void) value; }
+------
+
+--- CODE_JSON__CLEAR__HEADER
+    static void clear( $1$ &value )
+    {
+------
+
+--- CODE_JSON__CLEAR__FOOTER
+    }
+------
+
+
+--- CODE_JSON__EQUAL__EMPTY
+    static bool equal( const $1$ &a, const $1$ &b ) { (void) a; (void) b; return true; }
+------
+
+--- CODE_JSON__EQUAL__HEADER
+    static bool equal( const $1$ &a, const $1$ &b )
+    {
+        return
+------
+
+--- CODE_JSON__EQUAL__FOOTER
+            true;
+    }
+------
+
+
+--- CODE_JSON__SWAP__EMPTY
+    static void swap( $1$ &a, $1$ &b ) { (void) a; (void) b; }
+------
+
+--- CODE_JSON__SWAP__HEADER
+    static void swap( $1$ &a, $1$ &b )
+    {
+------
+
+--- CODE_JSON__SWAP__FOOTER
+    }
+------
+
+
+--- CODE_JSON__IS_MISSING__EMPTY
+    static bool is_missing( json_context &ctx ) { (void) ctx; return false; }
+------
+
+--- CODE_JSON__IS_MISSING__HEADER
+    static bool is_missing( json_context &ctx )
+    {
+        std::string name;
+------
+
+--- CODE_JSON__IS_MISSING__FOOTER
+        return false;
+        ctx.tok->error(PGERR_MISSING_FIELD, std::string("Missing field '") + name + "'");
+        return true;
+
+    }
+------
+
+
+--- CODE_JSON__FIELD_INDEX__EMPTY
+    static int field_index( const std::string &name ) { (void) name; return -1; }
+------
+
+--- CODE_JSON__FIELD_INDEX__HEADER
+    static int field_index( const std::string &name )
+    {
+------
+
+--- CODE_JSON__FIELD_INDEX__ITEM_OBF
+        if (memcmp("$1$", temp.data(), std::min((size_t)$2$, temp.length())) == 0) return $3$;
+------
+
+--- CODE_JSON__FIELD_INDEX__ITEM
+        if (name == "$1$") return $3$;
+------
+
+--- CODE_JSON__FIELD_INDEX__FOOTER
+        return -1;
+    }
+------
+
 
 --- CODE_JSON_MODEL
 namespace protogen$10$ {
@@ -109,18 +279,36 @@ $8$        return false;
     }
     static int field_index( const std::string &name )
     {
-$9$        (void) temp;
+$9$        };
+        if (COUNT > 0) {
+            auto ptr = std::lower_bound(FIELDS, FIELDS + COUNT, temp.c_str());
+            if (ptr >= FIELDS && ptr < FIELDS + COUNT) return ptr - FIELDS;
+        }
         return -1;
     }
 };}
 ------
 
+--- CODE_FIELD_HEADER
+        };
+        auto ptr = std::lower_bound(FIELDS, FIELDS + COUNT, temp.c_str());
+        if (ptr >= FIELDS && ptr < FIELDS + COUNT) return ptr - FIELDS;
+        return -1;
+------
+
 --- CODE_FIELD_INDEX
-        if (temp == $1$) return $2$;
+            $1$,
+------
+
+--- CODE_FIELD_FOOTER
+        };
+        auto ptr = std::lower_bound(FIELDS, FIELDS + COUNT, temp.c_str());
+        if (ptr >= FIELDS && ptr < FIELDS + COUNT) return ptr - FIELDS;
+        return -1;
 ------
 
 --- CODE_DESERIALIZE_IF
-            case $2$: return protogen$4$::json<decltype(value.$1$)>::read(ctx, value.$1$);
+            case $1$: return protogen$2$::json<decltype(value.$3$)>::read(ctx, value.$3$);
 ------
 
 --- CODE_SERIALIZE_IF
@@ -128,7 +316,7 @@ $9$        (void) temp;
 ------
 
 --- CODE_EMPTY_IF
-        json<decltype(value.$1$)>::empty(value.$1$) &&
+            json<decltype(value.$1$)>::empty(value.$1$) &&
 ------
 
 --- CODE_CLEAR_CALL
@@ -136,7 +324,7 @@ $9$        (void) temp;
 ------
 
 --- CODE_EQUAL_IF
-        json<decltype(a.$1$)>::equal(a.$1$, b.$1$) &&
+            json<decltype(a.$1$)>::equal(a.$1$, b.$1$) &&
 ------
 
 --- CODE_SWAP_CALL

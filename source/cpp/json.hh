@@ -2,6 +2,7 @@
 #define PROTOGEN_JSON_X_Y_Z
 
 #include "protogen.hh" // AUTO-REMOVE
+#include <cstring>
 
 namespace protogen_X_Y_Z {
 

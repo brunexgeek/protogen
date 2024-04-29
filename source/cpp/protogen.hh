@@ -18,6 +18,7 @@
 #define PROTOGEN_X_Y_Z
 
 #include <string>
+#include <cstring>
 #include <sstream>
 #include <vector>
 #include <iostream>
@@ -26,6 +27,7 @@
 #include <iomanip>
 #include <iterator>
 #include <memory>
+#include <algorithm>
 
 namespace protogen_X_Y_Z {
 

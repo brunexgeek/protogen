@@ -20,6 +20,7 @@
 #include <iostream>
 #include <limits.h>
 #include <stdlib.h>
+#include <algorithm>
 #include <cmake.hh>
 
 #ifdef _WIN32
@@ -70,6 +71,11 @@ int main( int argc, char **argv )
     try
     {
         proto.parse(input, fullPath);
+
+        for (auto &message : proto.messages)
+            std::sort(message->fields.begin(), message->fields.end(),
+                [](const protogen::Field &a, const protogen::Field &b) { return a.name < b.name; });
+
         protogen::CppGenerator gen;
         gen.generate(proto, *output);
     } catch (protogen::exception &ex)

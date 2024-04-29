@@ -219,71 +219,233 @@ static inline std::string obfuscate( const std::string &value )
 	return result.str();
 }
 
-static void generateModelWrapper( GeneratorContext &ctx, const Message &message )
+static bool is_transient( const Field &field )
 {
-    std::string typeName = nativePackage(message.package) + "::" + message.name + "_type";
-    std::stringstream temp_deserialize_if;
-    std::stringstream temp_serialize_if;
-    std::stringstream temp_empty_if;
-    std::stringstream temp_clear_call;
-    std::stringstream temp_equal_if;
-    std::stringstream temp_swap_call;
-    std::stringstream temp_is_missing_if;
-    std::stringstream temp_field_index;
+    auto it = field.options.find(PROTOGEN_O_TRANSIENT);
+    if (it != field.options.end())
+        return it->second.type == OptionType::BOOLEAN && it->second.value == "true";
+    return false;
+}
 
-    if (ctx.obfuscate_strings)
-        temp_field_index << Printer::format("        std::string temp = reveal(name.c_str(), name.length());\n");
-    else
-        temp_field_index << "        const std::string &temp = name;\n";
+static void generate_function__read_field( GeneratorContext &ctx, const Message &message, const std::string &typeName,
+    bool is_persistent )
+{
+    if (message.fields.size() == 0 || !is_persistent)
+    {
+        ctx.printer(CODE_JSON__READ_FIELD__EMPTY, typeName);
+        return;
+    }
+
+    ctx.printer(CODE_JSON__READ_FIELD__HEADER, typeName);
 
     int i = 0;
     for (auto field : message.fields)
     {
-        std::string name = field.name;
-        std::string olabel = name; // obfuscated label
-        std::string label = name;
-        if (ctx.number_names)
-            label = olabel = std::to_string(field.index);
-
-        if (ctx.obfuscate_strings)
-        {
-            auto len = olabel.length();
-            olabel = obfuscate(olabel);
-            label = Printer::format("\"$1$\"", olabel);
-            olabel = Printer::format("reveal(\"$1$\",$2$)", olabel, len);
-        }
-        else
-            label = olabel = Printer::format("\"$1$\"", label);
-
-        bool transient = false;
-        auto it = field.options.find(PROTOGEN_O_TRANSIENT);
-        if (it != field.options.end())
-            transient = it->second.type == OptionType::BOOLEAN && it->second.value == "true";
-
-        if (!transient)
-        {
-            Printer::format(temp_deserialize_if, CODE_DESERIALIZE_IF, name, i, i, PROTOGEN_VERSION_NAMING);
-            Printer::format(temp_serialize_if, CODE_SERIALIZE_IF, name, olabel, PROTOGEN_VERSION_NAMING);
-            Printer::format(temp_is_missing_if, CODE_IS_MISSING_IF, olabel, 1 << i);
-            Printer::format(temp_field_index, CODE_FIELD_INDEX, label, i);
-        }
-        Printer::format(temp_empty_if, CODE_EMPTY_IF, name);
-        Printer::format(temp_clear_call, CODE_CLEAR_CALL, name);
-        Printer::format(temp_equal_if, CODE_EQUAL_IF, name);
-        Printer::format(temp_swap_call, CODE_SWAP_CALL, name);
+        if (is_transient(field))
+            continue;
+        ctx.printer(CODE_DESERIALIZE_IF, i, PROTOGEN_VERSION_NAMING, field.name);
         ++i;
     }
 
-    ctx.printer(CODE_JSON_MODEL, typeName,
-        temp_deserialize_if.str(),
-        temp_serialize_if.str(),
-        temp_empty_if.str(),
-        temp_clear_call.str(),
-        temp_equal_if.str(),
-        temp_swap_call.str(),
-        temp_is_missing_if.str(),
-        temp_field_index.str(),
-        PROTOGEN_VERSION_NAMING);
+    ctx.printer(CODE_JSON__READ_FIELD__FOOTER);
+}
+
+static void generate_function__write( GeneratorContext &ctx, const Message &message, const std::string &typeName,
+    bool is_persistent )
+{
+    if (message.fields.size() == 0 || !is_persistent)
+    {
+        ctx.printer(CODE_JSON__WRITE__EMPTY, typeName);
+        return;
+    }
+
+    ctx.printer(CODE_JSON__WRITE__HEADER, typeName, PROTOGEN_VERSION_NAMING);
+
+    int i = 0;
+    for (auto field : message.fields)
+    {
+        if (is_transient(field))
+            continue;
+
+        std::string label = ctx.number_names ? std::to_string(field.index) : field.name;
+        if (ctx.obfuscate_strings)
+            label = Printer::format("reveal(\"$1$\", $2$)", obfuscate(label), label.length());
+        else
+            label = Printer::format("\"$1$\"", label);
+        ctx.printer(CODE_SERIALIZE_IF, field.name, label);
+        ++i;
+    }
+
+    ctx.printer(CODE_JSON__WRITE__FOOTER);
+}
+
+static void generate_function__empty( GeneratorContext &ctx, const Message &message, const std::string &typeName )
+{
+    if (message.fields.size() == 0)
+    {
+        ctx.printer(CODE_JSON__EMPTY__EMPTY, typeName);
+        return;
+    }
+
+    ctx.printer(CODE_JSON__EMPTY__HEADER, typeName);
+
+    int i = 0;
+    for (auto field : message.fields)
+    {
+        ctx.printer(CODE_EMPTY_IF, field.name);
+        ++i;
+    }
+
+    ctx.printer(CODE_JSON__EMPTY__FOOTER);
+}
+
+static void generate_function__clear( GeneratorContext &ctx, const Message &message, const std::string &typeName )
+{
+    if (message.fields.size() == 0)
+    {
+        ctx.printer(CODE_JSON__CLEAR__EMPTY, typeName);
+        return;
+    }
+
+    ctx.printer(CODE_JSON__CLEAR__HEADER, typeName);
+
+    int i = 0;
+    for (auto field : message.fields)
+    {
+        ctx.printer(CODE_CLEAR_CALL, field.name);
+        ++i;
+    }
+
+    ctx.printer(CODE_JSON__CLEAR__FOOTER);
+}
+
+static void generate_function__equal( GeneratorContext &ctx, const Message &message, const std::string &typeName )
+{
+    if (message.fields.size() == 0)
+    {
+        ctx.printer(CODE_JSON__EQUAL__EMPTY, typeName);
+        return;
+    }
+
+    ctx.printer(CODE_JSON__EQUAL__HEADER, typeName);
+
+    int i = 0;
+    for (auto field : message.fields)
+    {
+        ctx.printer(CODE_EQUAL_IF, field.name);
+        ++i;
+    }
+
+    ctx.printer(CODE_JSON__EQUAL__FOOTER);
+}
+
+static void generate_function__swap( GeneratorContext &ctx, const Message &message, const std::string &typeName )
+{
+    if (message.fields.size() == 0)
+    {
+        ctx.printer(CODE_JSON__SWAP__EMPTY, typeName);
+        return;
+    }
+
+    ctx.printer(CODE_JSON__SWAP__HEADER, typeName);
+
+    int i = 0;
+    for (auto field : message.fields)
+    {
+        ctx.printer(CODE_SWAP_CALL, field.name);
+        ++i;
+    }
+
+    ctx.printer(CODE_JSON__SWAP__FOOTER);
+}
+
+static void generate_function__is_missing( GeneratorContext &ctx, const Message &message, const std::string &typeName,
+    bool is_persistent )
+{
+    if (message.fields.size() == 0 || !is_persistent)
+    {
+        ctx.printer(CODE_JSON__IS_MISSING__EMPTY);
+        return;
+    }
+
+    ctx.printer(CODE_JSON__IS_MISSING__HEADER, typeName);
+
+    int i = 0;
+    for (auto field : message.fields)
+    {
+        if (is_transient(field))
+            continue;
+
+        std::string label = ctx.number_names ? std::to_string(field.index) : field.name;
+        if (ctx.obfuscate_strings)
+            label = Printer::format("reveal(\"$1$\", $2$)", obfuscate(label), label.length());
+        else
+            label = Printer::format("\"$1$\"", label);
+
+        ctx.printer(CODE_IS_MISSING_IF, label, 1 << i);
+        ++i;
+    }
+
+    ctx.printer(CODE_JSON__IS_MISSING__FOOTER);
+}
+
+static void generate_function__field_index( GeneratorContext &ctx, const Message &message, bool is_persistent )
+{
+    if (message.fields.size() == 0 || !is_persistent)
+    {
+        ctx.printer(CODE_JSON__FIELD_INDEX__EMPTY);
+        return;
+    }
+
+    ctx.printer(CODE_JSON__FIELD_INDEX__HEADER, message.fields.size());
+    if (ctx.obfuscate_strings)
+        ctx.printer("        std::string temp = reveal(name.c_str(), name.length());\n");
+
+    int i = 0;
+    for (auto field : message.fields)
+    {
+        if (is_transient(field))
+            continue;
+        std::string label = ctx.number_names ? std::to_string(field.index) : field.name;
+        if (ctx.obfuscate_strings)
+        {
+            label = obfuscate(label);
+            ctx.printer(CODE_JSON__FIELD_INDEX__ITEM_OBF, label, label.length(), i);
+        }
+        else
+        {
+            ctx.printer(CODE_JSON__FIELD_INDEX__ITEM, label, label.length(), i);
+        }
+        ++i;
+    }
+
+    ctx.printer(CODE_JSON__FIELD_INDEX__FOOTER);
+}
+
+static void generateModelWrapper( GeneratorContext &ctx, const Message &message )
+{
+    std::string typeName = nativePackage(message.package) + "::" + message.name + "_type";
+
+    bool is_persistent = false;
+    for (auto field : message.fields)
+    {
+        if (!is_transient(field))
+        {
+            is_persistent = true;
+            break;
+        }
+    }
+
+    ctx.printer(CODE_JSON_MODEL__HEADER, PROTOGEN_VERSION_NAMING, typeName);
+    generate_function__read_field(ctx, message, typeName, is_persistent);
+    generate_function__write(ctx, message, typeName, is_persistent);
+    generate_function__empty(ctx, message, typeName);
+    generate_function__clear(ctx, message, typeName);
+    generate_function__equal(ctx, message, typeName);
+    generate_function__swap(ctx, message, typeName);
+    generate_function__is_missing(ctx, message, typeName, is_persistent);
+    generate_function__field_index(ctx, message, is_persistent);
+    ctx.printer(CODE_JSON_MODEL__FOOTER, PROTOGEN_VERSION_NAMING);
 }
 
 static void generateEntity( GeneratorContext &ctx, const Message &message )
