@@ -49,6 +49,7 @@ class Generator
 class CppGenerator : public Generator
 {
     public:
+        static const int MAX_FIELDS = sizeof(uint64_t) * 8;
         void generate( Proto3 &proto, std::ostream &out );
 };
 

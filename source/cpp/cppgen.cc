@@ -272,7 +272,7 @@ static void generate_function__write( GeneratorContext &ctx, const Message &mess
             label = Printer::format("reveal(\"$1$\", $2$)", obfuscate(label), label.length());
         else
             label = Printer::format("\"$1$\"", label);
-        ctx.printer(CODE_SERIALIZE_IF, field.name, label);
+        ctx.printer(CODE_JSON__WRITE__ITEM, field.name, label);
         ++i;
     }
 

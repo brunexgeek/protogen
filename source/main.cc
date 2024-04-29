@@ -73,8 +73,13 @@ int main( int argc, char **argv )
         proto.parse(input, fullPath);
 
         for (auto &message : proto.messages)
+        {
+            if (message->fields.size() > protogen::CppGenerator::MAX_FIELDS)
+                throw protogen::exception("more than " + std::to_string(protogen::CppGenerator::MAX_FIELDS) +
+                    " fields in message '" + message->name + "'");
             std::sort(message->fields.begin(), message->fields.end(),
                 [](const protogen::Field &a, const protogen::Field &b) { return a.name < b.name; });
+        }
 
         protogen::CppGenerator gen;
         gen.generate(proto, *output);

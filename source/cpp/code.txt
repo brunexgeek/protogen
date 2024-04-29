@@ -94,22 +94,17 @@ template<> struct json<$2$>
 --- CODE_JSON__WRITE__HEADER
     static int write( json_context &ctx, const $1$ &value )
     {
-        #define PG_SIF(field_name, field_label) \
-            if (!protogen$2$::json<decltype(value.field_name)>::empty(value.field_name)) \
-            { \
-                if (!first) (*ctx.os) <<  ','; \
-                first = false; \
-                (*ctx.os) <<  '\"' << field_label << "\":"; \
-                protogen$2$::json<decltype(value.field_name)>::write(ctx, value.field_name); \
-            }
-        bool first = true;
+        bool f = true;
         (*ctx.os) << '{';
+------
+
+--- CODE_JSON__WRITE__ITEM
+        if (!json<decltype(value.$1$)>::empty(value.$1$)) { (*ctx.os) << (f?"\"":",\"") << $2$ << "\":"; json<decltype(value.$1$)>::write(ctx, value.$1$); f=false; }
 ------
 
 --- CODE_JSON__WRITE__FOOTER
         (*ctx.os) << '}';
         return PGR_OK;
-        #undef PG_SIF
     }
 ------
 

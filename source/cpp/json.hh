@@ -15,7 +15,7 @@ struct json_context
     // Output stream for writing JSON during serialization
     ostream *os = nullptr;
     // Bitmask of fields found in the JSON input
-    uint32_t mask = 0;
+    uint64_t mask = 0;
     // Configuration parameters and error information
     Parameters params;
 };
