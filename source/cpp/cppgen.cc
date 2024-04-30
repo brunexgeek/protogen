@@ -389,18 +389,18 @@ static void generate_function__is_missing( GeneratorContext &ctx, const Message 
     ctx.printer(CODE_JSON__IS_MISSING__FOOTER);
 }
 
-static void generate_function__field_index( GeneratorContext &ctx, const Message &message, bool is_persistent )
+static void generate_function__index( GeneratorContext &ctx, const Message &message, bool is_persistent )
 {
     if (message.fields.size() == 0 || !is_persistent)
     {
-        ctx.printer(CODE_JSON__FIELD_INDEX__EMPTY);
+        ctx.printer(CODE_JSON__INDEX__EMPTY);
         return;
     }
 
     if (ctx.obfuscate_strings)
-        ctx.printer(CODE_JSON__FIELD_INDEX__HEADER_OBF);
+        ctx.printer(CODE_JSON__INDEX__HEADER_OBF);
     else
-        ctx.printer(CODE_JSON__FIELD_INDEX__HEADER);
+        ctx.printer(CODE_JSON__INDEX__HEADER);
 
     int i = 0;
     for (auto field : message.fields)
@@ -410,11 +410,11 @@ static void generate_function__field_index( GeneratorContext &ctx, const Message
         std::string label = ctx.number_names ? std::to_string(field.index) : field.name;
         if (ctx.obfuscate_strings)
             label = obfuscate(label);
-        ctx.printer(CODE_JSON__FIELD_INDEX__ITEM, label, i);
+        ctx.printer(CODE_JSON__INDEX__ITEM, label, i);
         ++i;
     }
 
-    ctx.printer(CODE_JSON__FIELD_INDEX__FOOTER);
+    ctx.printer(CODE_JSON__INDEX__FOOTER);
 }
 
 static void generateModelWrapper( GeneratorContext &ctx, const Message &message )
@@ -439,7 +439,7 @@ static void generateModelWrapper( GeneratorContext &ctx, const Message &message 
     generate_function__equal(ctx, message, typeName);
     generate_function__swap(ctx, message, typeName);
     generate_function__is_missing(ctx, message, typeName, is_persistent);
-    generate_function__field_index(ctx, message, is_persistent);
+    generate_function__index(ctx, message, is_persistent);
     ctx.printer(CODE_JSON_MODEL__FOOTER, PROTOGEN_VERSION_NAMING);
 }
 

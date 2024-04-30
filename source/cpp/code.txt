@@ -69,10 +69,10 @@ template<> struct json<$2$>
 --- CODE_JSON__READ_FIELD__HEADER
     static int read_field( json_context &ctx, const std::string &name, $1$ &value )
     {
-        int index = field_index(name);
-        if (index < 0) return PGR_NIL;
-        ctx.mask |= (1 << index);
-        switch (index) {
+        int idx = index(name);
+        if (idx < 0) return PGR_NIL;
+        ctx.mask |= (1 << idx);
+        switch (idx) {
 ------
 
 --- CODE_JSON__READ_FIELD__FOOTER
@@ -188,29 +188,29 @@ template<> struct json<$2$>
 ------
 
 
---- CODE_JSON__FIELD_INDEX__EMPTY
-    static int field_index( const std::string &name ) { (void) name; return -1; }
+--- CODE_JSON__INDEX__EMPTY
+    static int index( const std::string &name ) { (void) name; return -1; }
 ------
 
---- CODE_JSON__FIELD_INDEX__HEADER
-    static int field_index( const std::string &name )
+--- CODE_JSON__INDEX__HEADER
+    static int index( const std::string &name )
     {
         const std::string &temp = name;
         static const std::unordered_map<std::string, int> FIELDS = {
 ------
 
---- CODE_JSON__FIELD_INDEX__HEADER_OBF
-    static int field_index( const std::string &name )
+--- CODE_JSON__INDEX__HEADER_OBF
+    static int index( const std::string &name )
     {
         std::string temp = reveal(name);
         static const std::unordered_map<std::string, int> FIELDS = {
 ------
 
---- CODE_JSON__FIELD_INDEX__ITEM
+--- CODE_JSON__INDEX__ITEM
             {"$1$", $2$},
 ------
 
---- CODE_JSON__FIELD_INDEX__FOOTER
+--- CODE_JSON__INDEX__FOOTER
         };
         auto it = FIELDS.find(temp);
         return (it == FIELDS.end()) ? -1 : it->second;
