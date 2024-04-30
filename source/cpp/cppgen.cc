@@ -269,7 +269,7 @@ static void generate_function__write( GeneratorContext &ctx, const Message &mess
 
         std::string label = ctx.number_names ? std::to_string(field.index) : field.name;
         if (ctx.obfuscate_strings)
-            label = Printer::format("reveal(\"$1$\", $2$)", obfuscate(label), label.length());
+            label = Printer::format("reveal(\"$1$\")", obfuscate(label));
         else
             label = Printer::format("\"$1$\"", label);
         ctx.printer(CODE_JSON__WRITE__ITEM, field.name, label);
@@ -378,7 +378,7 @@ static void generate_function__is_missing( GeneratorContext &ctx, const Message 
 
         std::string label = ctx.number_names ? std::to_string(field.index) : field.name;
         if (ctx.obfuscate_strings)
-            label = Printer::format("reveal(\"$1$\", $2$)", obfuscate(label), label.length());
+            label = Printer::format("reveal(\"$1$\")", obfuscate(label));
         else
             label = Printer::format("\"$1$\"", label);
 
@@ -397,9 +397,10 @@ static void generate_function__field_index( GeneratorContext &ctx, const Message
         return;
     }
 
-    ctx.printer(CODE_JSON__FIELD_INDEX__HEADER, message.fields.size());
     if (ctx.obfuscate_strings)
-        ctx.printer("        std::string temp = reveal(name.c_str(), name.length());\n");
+        ctx.printer(CODE_JSON__FIELD_INDEX__HEADER_OBF);
+    else
+        ctx.printer(CODE_JSON__FIELD_INDEX__HEADER);
 
     int i = 0;
     for (auto field : message.fields)
@@ -408,14 +409,8 @@ static void generate_function__field_index( GeneratorContext &ctx, const Message
             continue;
         std::string label = ctx.number_names ? std::to_string(field.index) : field.name;
         if (ctx.obfuscate_strings)
-        {
             label = obfuscate(label);
-            ctx.printer(CODE_JSON__FIELD_INDEX__ITEM_OBF, label, label.length(), i);
-        }
-        else
-        {
-            ctx.printer(CODE_JSON__FIELD_INDEX__ITEM, label, label.length(), i);
-        }
+        ctx.printer(CODE_JSON__FIELD_INDEX__ITEM, label, i);
         ++i;
     }
 

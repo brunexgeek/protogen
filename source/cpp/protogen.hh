@@ -738,13 +738,13 @@ T rol( T value, int count )
 }
 
 // TODO: perform the deobfuscation once in the message construtor
-template<typename T>
-static inline std::string reveal( const T *value, size_t length )
+static inline std::string reveal( const std::string &value )
 {
-    uint8_t mask = rol<uint8_t>(0x93U, length % 8);
-	std::string result(length, ' ');
-	for (size_t i = 0; i < length; ++i)
-		result[i] = (char) ((uint8_t) value[i] ^ mask);
+    uint8_t mask = rol<uint8_t>(0x93U, value.length() % 8);
+	std::string result;
+    result.reserve(value.length());
+	for (size_t i = 0; i < value.length(); ++i)
+		result += (char) ((uint8_t) value[i] ^ mask);
 	return result;
 }
 

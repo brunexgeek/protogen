@@ -195,18 +195,25 @@ template<> struct json<$2$>
 --- CODE_JSON__FIELD_INDEX__HEADER
     static int field_index( const std::string &name )
     {
+        const std::string &temp = name;
+        static const std::unordered_map<std::string, int> FIELDS = {
 ------
 
---- CODE_JSON__FIELD_INDEX__ITEM_OBF
-        if (memcmp("$1$", temp.data(), std::min((size_t)$2$, temp.length())) == 0) return $3$;
+--- CODE_JSON__FIELD_INDEX__HEADER_OBF
+    static int field_index( const std::string &name )
+    {
+        std::string temp = reveal(name);
+        static const std::unordered_map<std::string, int> FIELDS = {
 ------
 
 --- CODE_JSON__FIELD_INDEX__ITEM
-        if (name == "$1$") return $3$;
+            {"$1$", $2$},
 ------
 
 --- CODE_JSON__FIELD_INDEX__FOOTER
-        return -1;
+        };
+        auto it = FIELDS.find(temp);
+        return (it == FIELDS.end()) ? -1 : it->second;
     }
 ------
 
