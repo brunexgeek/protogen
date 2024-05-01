@@ -85,6 +85,7 @@ These options can be set in the `proto3` file:
 * **number_names** (top-level) &ndash; Use field numbers as JSON field names. The default value is `false`. If enabled, every JSON field name will be the number of the corresponding field in the `.proto` file. This can reduce significantly the size of the JSON output.
 * **transient** (field-level) &ndash; Make the field transient (`true`) or not (`false`). Transient fields are not serialized/deserialized. The default value is `false`.
 * **cpp_use_lists** (top-level) &ndash; Use `std::list` (`true`) instead of `std::vector` (`false`) in repeated fields. This gives best performance if your program constantly changes repeated fields (add and/or remove items). This option does not affect `bytes` fields which always use `std::vector`. The default value is `false` (i.e. use `std::vector`).
+* **name** (field-level) &ndash; Specify a custom name for the JSON field, while retaining the C++ field name as defined in the message. If no custom name is provided, the JSON field and the C++ field name will be the same.
 
 ## Features
 

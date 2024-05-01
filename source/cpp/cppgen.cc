@@ -40,7 +40,6 @@ struct GeneratorContext
     Proto3 &root;
     bool number_names = false;
     bool obfuscate_strings = false;
-    bool cpp_enable_errors = false;
     bool cpp_use_lists = false;
 
     GeneratorContext( Printer &printer, Proto3 &root ) : printer(printer), root(root) {}
@@ -87,11 +86,6 @@ static std::string nativePackage( const std::string &package )
             name += c;
     }
     return name;
-}
-
-static std::string fieldStorage( const Field &field )
-{
-    return field.name;
 }
 
 /**
@@ -192,7 +186,7 @@ static void generateModel( GeneratorContext &ctx, const Message &message )
     ctx.printer("\tstruct $1$_type\n\t{\n", message.name);
     for (auto field : message.fields)
     {
-        ctx.printer("\t\t$1$ $2$;\n", fieldNativeType(field, ctx.cpp_use_lists), fieldStorage(field) );
+        ctx.printer("\t\t$1$ $2$;\n", fieldNativeType(field, ctx.cpp_use_lists), field.name);
     }
     ctx.printer("\t};\n");
 
@@ -219,12 +213,40 @@ static inline std::string obfuscate( const std::string &value )
 	return result.str();
 }
 
+static std::string get_option( const protogen::OptionMap &options, const std::string &name, const std::string &value )
+{
+    if (options.count(name) == 0)
+        return value;
+
+    OptionEntry opt = options.at(name);
+    if (opt.type != OptionType::STRING)
+        throw exception("The value for '" + name + "' must be a string", opt.line, 1);
+    return opt.value;
+}
+
+static bool get_option( const protogen::OptionMap &options, const std::string &name, bool value )
+{
+    if (options.count(name) == 0)
+        return value;
+
+    OptionEntry opt = options.at(name);
+    if (opt.type != OptionType::BOOLEAN)
+        throw exception("The value for '" + name + "' must be a boolean", opt.line, 1);
+    return opt.value == "true";
+}
+
 static bool is_transient( const Field &field )
 {
-    auto it = field.options.find(PROTOGEN_O_TRANSIENT);
-    if (it != field.options.end())
-        return it->second.type == OptionType::BOOLEAN && it->second.value == "true";
-    return false;
+    return get_option(field.options, PROTOGEN_O_TRANSIENT, false);
+}
+
+static std::string get_json_name( const Field &field )
+{
+    auto name = get_option(field.options, PROTOGEN_O_NAME, field.name);
+    for (auto c : name)
+        if (c == '\'' || c == '"')
+            throw exception("option '" + std::string(PROTOGEN_O_NAME) + "' in the field '" + field.name + "' must not contain quotes", 1, 1);
+    return name;
 }
 
 static void generate_function__read_field( GeneratorContext &ctx, const Message &message, const std::string &typeName,
@@ -266,8 +288,9 @@ static void generate_function__write( GeneratorContext &ctx, const Message &mess
     {
         if (is_transient(field))
             continue;
+        auto name = get_json_name(field);
 
-        std::string label = ctx.number_names ? std::to_string(field.index) : field.name;
+        std::string label = ctx.number_names ? std::to_string(field.index) : name;
         if (ctx.obfuscate_strings)
             label = Printer::format("reveal(\"$1$\")", obfuscate(label));
         else
@@ -375,8 +398,9 @@ static void generate_function__is_missing( GeneratorContext &ctx, const Message 
     {
         if (is_transient(field))
             continue;
+        auto name = get_json_name(field);
 
-        std::string label = ctx.number_names ? std::to_string(field.index) : field.name;
+        std::string label = ctx.number_names ? std::to_string(field.index) : name;
         if (ctx.obfuscate_strings)
             label = Printer::format("reveal(\"$1$\")", obfuscate(label));
         else
@@ -407,7 +431,9 @@ static void generate_function__index( GeneratorContext &ctx, const Message &mess
     {
         if (is_transient(field))
             continue;
-        std::string label = ctx.number_names ? std::to_string(field.index) : field.name;
+        auto name = get_json_name(field);
+
+        std::string label = ctx.number_names ? std::to_string(field.index) : name;
         if (ctx.obfuscate_strings)
             label = obfuscate(label);
         ctx.printer(CODE_JSON__INDEX__ITEM, label, i);
@@ -459,8 +485,9 @@ static void generateEntityWrapper( GeneratorContext &ctx, const Message &message
 
 static void generateMessage( GeneratorContext &ctx, const Message &message )
 {
-    if (message.fields.size() > 24)
-        throw exception(std::string("Message '") + message.name + "' have more than 24 fields");
+    if (message.fields.size() > protogen::CppGenerator::MAX_FIELDS)
+        throw protogen::exception("more than " + std::to_string(protogen::CppGenerator::MAX_FIELDS) +
+            " fields in message '" + message.name + "'");
 
     ctx.printer("\n//\n// $1$\n//\n", message.name);
 
@@ -469,7 +496,6 @@ static void generateMessage( GeneratorContext &ctx, const Message &message )
     // create JSON wrapper for model structure
     generateModelWrapper(ctx, message);
     // create entoty structure and JSON wrapper
-    //ctx.printer("PG_JSON_ENTITY($1$, $2$)", message.name, message.name + "_type");
     generateEntity(ctx, message);
     generateEntityWrapper(ctx, message);
 }
@@ -554,29 +580,9 @@ void CppGenerator::generate( Proto3 &root, std::ostream &out )
     Printer printer(out);
     GeneratorContext ctx(printer, root);
 
-    if (ctx.root.options.count(PROTOGEN_O_OBFUSCATE_STRINGS))
-    {
-        OptionEntry opt = ctx.root.options.at(PROTOGEN_O_OBFUSCATE_STRINGS);
-        if (opt.type != OptionType::BOOLEAN)
-            throw exception("The value for 'obfuscate_strings' must be a boolean", opt.line, 1);
-        ctx.obfuscate_strings = opt.value == "true";
-    }
-
-    if (ctx.root.options.count(PROTOGEN_O_NUMBER_NAMES))
-    {
-        OptionEntry opt = ctx.root.options.at(PROTOGEN_O_NUMBER_NAMES);
-        if (opt.type != OptionType::BOOLEAN)
-            throw exception("The value for 'number_names' must be a boolean", opt.line, 1);
-        ctx.number_names = opt.value == "true";
-    }
-
-    if (ctx.root.options.count(PROTOGEN_O_CPP_USE_LISTS))
-    {
-        OptionEntry opt = ctx.root.options.at(PROTOGEN_O_CPP_USE_LISTS);
-        if (opt.type != OptionType::BOOLEAN)
-            throw exception("The value for 'cpp_use_lists' must be a boolean", opt.line, 1);
-        ctx.cpp_use_lists = opt.value == "true";
-    }
+    ctx.obfuscate_strings = get_option(ctx.root.options, PROTOGEN_O_OBFUSCATE_STRINGS, false);
+    ctx.cpp_use_lists = get_option(ctx.root.options, PROTOGEN_O_CPP_USE_LISTS, false);
+    ctx.number_names = get_option(ctx.root.options, PROTOGEN_O_NUMBER_NAMES, false);
 
     generateInclusions(ctx);
     generateModel(ctx);

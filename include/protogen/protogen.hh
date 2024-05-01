@@ -39,6 +39,10 @@ namespace protogen {
 // fields. If disabled, 'std::vector' will be used instead. The default value is false.
 #define PROTOGEN_O_CPP_USE_LISTS           "cpp_use_lists"
 
+// Specify a custom name for the JSON field, while retaining the C++ field name as defined in the message.
+// If no custom name is provided, the JSON field and the C++ field name will be the same.
+#define PROTOGEN_O_NAME                    "name"
+
 class Generator
 {
     public:

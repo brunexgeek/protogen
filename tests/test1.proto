@@ -13,7 +13,7 @@ message Person
 {
     string name = 1;
     int32 id = 2;
-    string email = 3;
+    string email = 3 [name = "e-mail"];
     repeated PhoneNumber phones = 4;
     int32 last_updated = 5;
 }
