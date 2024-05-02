@@ -265,7 +265,7 @@ static void generate_function__read_field( GeneratorContext &ctx, const Message 
     {
         if (is_transient(field))
             continue;
-        ctx.printer(CODE_DESERIALIZE_IF, i, PROTOGEN_VERSION_NAMING, field.name);
+        ctx.printer(CODE_JSON__READ_FIELD__ITEM, i, PROTOGEN_VERSION_NAMING, field.name);
         ++i;
     }
 
@@ -315,7 +315,7 @@ static void generate_function__empty( GeneratorContext &ctx, const Message &mess
     int i = 0;
     for (auto field : message.fields)
     {
-        ctx.printer(CODE_EMPTY_IF, field.name);
+        ctx.printer(CODE_JSON__EMPTY__ITEM, field.name);
         ++i;
     }
 
@@ -335,7 +335,7 @@ static void generate_function__clear( GeneratorContext &ctx, const Message &mess
     int i = 0;
     for (auto field : message.fields)
     {
-        ctx.printer(CODE_CLEAR_CALL, field.name);
+        ctx.printer(CODE_JSON__CLEAR__ITEM, field.name);
         ++i;
     }
 
@@ -355,7 +355,7 @@ static void generate_function__equal( GeneratorContext &ctx, const Message &mess
     int i = 0;
     for (auto field : message.fields)
     {
-        ctx.printer(CODE_EQUAL_IF, field.name);
+        ctx.printer(CODE_JSON__EQUAL__ITEM, field.name);
         ++i;
     }
 
@@ -375,42 +375,11 @@ static void generate_function__swap( GeneratorContext &ctx, const Message &messa
     int i = 0;
     for (auto field : message.fields)
     {
-        ctx.printer(CODE_SWAP_CALL, field.name);
+        ctx.printer(CODE_JSON__SWAP__ITEM, field.name);
         ++i;
     }
 
     ctx.printer(CODE_JSON__SWAP__FOOTER);
-}
-
-static void generate_function__is_missing( GeneratorContext &ctx, const Message &message, const std::string &typeName,
-    bool is_persistent )
-{
-    if (message.fields.size() == 0 || !is_persistent)
-    {
-        ctx.printer(CODE_JSON__IS_MISSING__EMPTY);
-        return;
-    }
-
-    ctx.printer(CODE_JSON__IS_MISSING__HEADER, typeName);
-
-    int i = 0;
-    for (auto field : message.fields)
-    {
-        if (is_transient(field))
-            continue;
-        auto name = get_json_name(field);
-
-        std::string label = ctx.number_names ? std::to_string(field.index) : name;
-        if (ctx.obfuscate_strings)
-            label = Printer::format("reveal(\"$1$\")", obfuscate(label));
-        else
-            label = Printer::format("\"$1$\"", label);
-
-        ctx.printer(CODE_IS_MISSING_IF, label, 1 << i);
-        ++i;
-    }
-
-    ctx.printer(CODE_JSON__IS_MISSING__FOOTER);
 }
 
 static void generate_function__index( GeneratorContext &ctx, const Message &message, bool is_persistent )
@@ -464,7 +433,6 @@ static void generateModelWrapper( GeneratorContext &ctx, const Message &message 
     generate_function__clear(ctx, message, typeName);
     generate_function__equal(ctx, message, typeName);
     generate_function__swap(ctx, message, typeName);
-    generate_function__is_missing(ctx, message, typeName, is_persistent);
     generate_function__index(ctx, message, is_persistent);
     ctx.printer(CODE_JSON_MODEL__FOOTER, PROTOGEN_VERSION_NAMING);
 }

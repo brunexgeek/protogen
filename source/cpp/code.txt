@@ -71,8 +71,11 @@ template<> struct json<$2$>
     {
         int idx = index(name);
         if (idx < 0) return PGR_NIL;
-        ctx.mask |= (1 << idx);
         switch (idx) {
+------
+
+--- CODE_JSON__READ_FIELD__ITEM
+            case $1$: return protogen$2$::json<decltype(value.$3$)>::read(ctx, value.$3$);
 ------
 
 --- CODE_JSON__READ_FIELD__FOOTER
@@ -119,6 +122,10 @@ template<> struct json<$2$>
         return
 ------
 
+--- CODE_JSON__EMPTY__ITEM
+            json<decltype(value.$1$)>::empty(value.$1$) &&
+------
+
 --- CODE_JSON__EMPTY__FOOTER
             true;
     }
@@ -132,6 +139,10 @@ template<> struct json<$2$>
 --- CODE_JSON__CLEAR__HEADER
     static void clear( $1$ &value )
     {
+------
+
+--- CODE_JSON__CLEAR__ITEM
+        json<decltype(value.$1$)>::clear(value.$1$);
 ------
 
 --- CODE_JSON__CLEAR__FOOTER
@@ -149,6 +160,10 @@ template<> struct json<$2$>
         return
 ------
 
+--- CODE_JSON__EQUAL__ITEM
+            json<decltype(a.$1$)>::equal(a.$1$, b.$1$) &&
+------
+
 --- CODE_JSON__EQUAL__FOOTER
             true;
     }
@@ -164,6 +179,10 @@ template<> struct json<$2$>
     {
 ------
 
+--- CODE_JSON__SWAP__ITEM
+        json<decltype(a.$1$)>::swap(a.$1$, b.$1$);
+------
+
 --- CODE_JSON__SWAP__FOOTER
     }
 ------
@@ -177,6 +196,10 @@ template<> struct json<$2$>
     static bool is_missing( json_context &ctx )
     {
         std::string name;
+------
+
+--- CODE_JSON__IS_MISSING__ITEM
+        if (!(ctx.mask & $2$)) { name = $1$; } else
 ------
 
 --- CODE_JSON__IS_MISSING__FOOTER
@@ -215,30 +238,6 @@ template<> struct json<$2$>
         auto it = FIELDS.find(temp);
         return (it == FIELDS.end()) ? -1 : it->second;
     }
-------
-
---- CODE_DESERIALIZE_IF
-            case $1$: return protogen$2$::json<decltype(value.$3$)>::read(ctx, value.$3$);
-------
-
---- CODE_EMPTY_IF
-            json<decltype(value.$1$)>::empty(value.$1$) &&
-------
-
---- CODE_CLEAR_CALL
-        json<decltype(value.$1$)>::clear(value.$1$);
-------
-
---- CODE_EQUAL_IF
-            json<decltype(a.$1$)>::equal(a.$1$, b.$1$) &&
-------
-
---- CODE_SWAP_CALL
-        json<decltype(a.$1$)>::swap(a.$1$, b.$1$);
-------
-
---- CODE_IS_MISSING_IF
-        if (!(ctx.mask & $2$)) { name = $1$; } else
 ------
 
 --- CODE_ENTITY

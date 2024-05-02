@@ -86,10 +86,6 @@ struct ErrorInfo
 
 struct Parameters
 {
-    /// If true, all fields in the message must be present in the input JSON during deserialization.
-    /// Default is false.
-    bool required = false;
-
     /// If true, ensures the output JSON will have all non-ASCII characters escaped.
     /// Default is false.
     bool ensure_ascii = false;

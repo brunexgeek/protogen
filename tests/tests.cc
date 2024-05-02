@@ -102,7 +102,6 @@ bool RUN_TEST4( int argc, char **argv)
         {3, 15, error_code::PGERR_INVALID_NAME,      "{ \n\n   \"bla\" : 55,," },
         {1,  2, error_code::PGERR_INVALID_NAME,      "{\"bla" },
         {1,  7, error_code::PGERR_INVALID_SEPARATOR, "{\"bla\"" },
-        {1, 15, error_code::PGERR_MISSING_FIELD,     "{\"name\":\"bla\"}" },
         {1,  1, error_code::PGERR_INVALID_OBJECT,    "" },
         {1,  6, error_code::PGERR_INVALID_VALUE,     "{\"1\":45}" },
         {1, 12, error_code::PGERR_INVALID_OBJECT,    "{\"blip1\":{}" },
@@ -121,8 +120,6 @@ bool RUN_TEST4( int argc, char **argv)
     int i = 0;
     for (; result && CASES[i].line != 0; ++i)
     {
-        params.required = CASES[i].code == error_code::PGERR_MISSING_FIELD;
-
         result &= !temp.deserialize(CASES[i].json, &params);
         result &= CASES[i].line == params.error.line && CASES[i].col == params.error.column;
         result &= CASES[i].code == params.error.code;

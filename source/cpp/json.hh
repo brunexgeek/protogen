@@ -389,8 +389,6 @@ static int read_object( json_context &ctx, T &object )
             return ctx.tok->error(error_code::PGERR_INVALID_OBJECT, "invalid JSON object");
         };
     }
-    if (ctx.params.required && J::is_missing(ctx))
-        return error_code::PGERR_MISSING_FIELD;
     return PGR_OK;
 }
 
@@ -536,7 +534,6 @@ bool serialize_array( const T& container, std::vector<char> &out, Parameters *pa
         static void clear( O &value ) { S::clear(value); } \
         static bool equal( const O &a, const O &b ) { return S::equal(a, b); } \
         static void swap( O &a, O &b ) { S::swap(a, b); } \
-        static bool is_missing( json_context &ctx ) { return S::is_missing(ctx); } \
     };}
 
 } // namespace protogen_X_Y_Z
