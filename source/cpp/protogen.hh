@@ -97,42 +97,6 @@ struct Parameters
     ErrorInfo error;
 };
 
-namespace internal {
-
-enum class token_id
-{
-    NONE, EOS, OBJS, OBJE, COLON, COMMA, STRING, ARRS,
-    ARRE, NIL, BTRUE, BFALSE, NUMBER,
-};
-
-struct token
-{
-    token_id id;
-    std::string value;
-    int line, column;
-
-    token() : id(token_id::NONE), line(0), column(0) {}
-    token( const token &that ) { *this = that; }
-    token( token &&that ) { swap(that); }
-    token( token_id id, const std::string &value = "", int line = 0, int col = 0 ) : id(id), value(value),
-        line(line), column(col) {}
-    token &operator=( const token &that )
-    {
-        id = that.id;
-        value = that.value;
-        line = that.line;
-        column = that.column;
-        return *this;
-    }
-    void swap( token &that )
-    {
-        std::swap(id, that.id);
-        value.swap(that.value);
-        std::swap(line, that.line);
-        std::swap(column, that.column);
-    }
-};
-
 class ostream
 {
     public:
@@ -226,6 +190,100 @@ class iterator_istream : public istream
                 ++beg_;
             }
         }
+};
+
+template<class T>
+class mem_const_iterator
+{
+    static_assert(std::is_arithmetic<T>::value, "invalid template parameters");
+    public:
+        mem_const_iterator( const T *begin, size_t count ) : cursor(begin), end(begin + count), empty(0)
+        {
+        }
+        mem_const_iterator &operator++()
+        {
+            if (cursor < end) cursor++;
+            return *this;
+        }
+        const T &operator*() const
+        {
+            if (cursor >= end) return empty;
+            return *cursor;
+        }
+        bool operator==( const mem_const_iterator<T> &that ) const
+        {
+            return cursor == that.cursor;
+        }
+    protected:
+        const T *cursor;
+        const T *end;
+        T empty;
+};
+
+template<class T>
+class mem_iterator
+{
+    static_assert(std::is_arithmetic<T>::value, "invalid template parameters");
+    public:
+        mem_iterator( T *begin, size_t count ) : cursor(begin), end(begin + count), empty(0)
+        {
+        }
+        mem_iterator &operator++()
+        {
+            if (cursor < end) cursor++;
+            return *this;
+        }
+        T &operator*()
+        {
+            if (cursor >= end) return empty;
+            return *cursor;
+        }
+        bool operator==( const mem_iterator<T> &that ) const
+        {
+            return cursor == that.cursor;
+        }
+    protected:
+        T *cursor;
+        const T *end;
+        T empty;
+};
+
+namespace internal {
+
+using namespace ::protogen_X_Y_Z;
+
+enum class token_id
+{
+    NONE, EOS, OBJS, OBJE, COLON, COMMA, STRING, ARRS,
+    ARRE, NIL, BTRUE, BFALSE, NUMBER,
+};
+
+struct token
+{
+    token_id id;
+    std::string value;
+    int line, column;
+
+    token() : id(token_id::NONE), line(0), column(0) {}
+    token( const token &that ) { *this = that; }
+    token( token &&that ) { swap(that); }
+    token( token_id id, const std::string &value = "", int line = 0, int col = 0 ) : id(id), value(value),
+        line(line), column(col) {}
+    token &operator=( const token &that )
+    {
+        id = that.id;
+        value = that.value;
+        line = that.line;
+        column = that.column;
+        return *this;
+    }
+    void swap( token &that )
+    {
+        std::swap(id, that.id);
+        value.swap(that.value);
+        std::swap(line, that.line);
+        std::swap(column, that.column);
+    }
 };
 
 class tokenizer
@@ -539,237 +597,12 @@ class tokenizer
                     return PGERR_OK;
                 }
                 default:
-                    return error(error_code::PGERR_IGNORE_FAILED, "invalid json");
+                    return error(error_code::PGERR_IGNORE_FAILED, "invalid value");
             }
         }
 };
 
-template<class T>
-class mem_const_iterator
-{
-    static_assert(std::is_arithmetic<T>::value, "invalid template parameters");
-    public:
-        mem_const_iterator( const T *begin, size_t count ) : cursor(begin), end(begin + count), empty(0)
-        {
-        }
-        mem_const_iterator &operator++()
-        {
-            if (cursor < end) cursor++;
-            return *this;
-        }
-        const T &operator*() const
-        {
-            if (cursor >= end) return empty;
-            return *cursor;
-        }
-        bool operator==( const mem_const_iterator<T> &that ) const
-        {
-            return cursor == that.cursor;
-        }
-    protected:
-        const T *cursor;
-        const T *end;
-        T empty;
-};
-
-template<class T>
-class mem_iterator
-{
-    static_assert(std::is_arithmetic<T>::value, "invalid template parameters");
-    public:
-        mem_iterator( T *begin, size_t count ) : cursor(begin), end(begin + count), empty(0)
-        {
-        }
-        mem_iterator &operator++()
-        {
-            if (cursor < end) cursor++;
-            return *this;
-        }
-        T &operator*()
-        {
-            if (cursor >= end) return empty;
-            return *cursor;
-        }
-        bool operator==( const mem_iterator<T> &that ) const
-        {
-            return cursor == that.cursor;
-        }
-    protected:
-        T *cursor;
-        const T *end;
-        T empty;
-};
-
 } // namespace internal
-
-using namespace protogen_X_Y_Z::internal;
-
-template<typename T, typename _ = void>
-struct is_container : std::false_type {};
-
-template<typename... Ts>
-struct is_container_helper {};
-
-template<typename T>
-struct is_container<
-        T,
-        typename std::conditional<
-            false,
-            is_container_helper<
-                typename T::value_type,
-                typename T::size_type,
-                typename T::allocator_type,
-                typename T::iterator,
-                typename T::const_iterator,
-                decltype(std::declval<T>().size()),
-                decltype(std::declval<T>().begin()),
-                decltype(std::declval<T>().end()),
-                decltype(std::declval<T>().clear()),
-                decltype(std::declval<T>().empty())
-                >,
-            void
-            >::type
-        > : public std::true_type {};
-
-template<typename T, typename E = void> struct json;
-
-class string_field
-{
-    protected:
-        std::string value_;
-        bool null_ = true;
-    public:
-        typedef std::string value_type;
-        string_field() = default;
-        string_field( const string_field &that ) = default;
-        string_field( string_field &&that )  = default;
-        string_field( const value_type &that ) : value_(that) { null_ = false; }
-        string_field( const char *that ) : value_(that) { null_ = false; }
-        void swap( string_field &that ) { std::swap(this->value_, that.value_); std::swap(this->null_, that.null_); }
-        void swap( value_type &that ) { std::swap(this->value_, that); null_ = false; }
-        bool null() const { return null_ && value_.empty(); }
-        void null(bool state) { null_ = state; if (state) value_.clear(); }
-        void clear() { value_.clear(); null_ = true; }
-        string_field &operator=( const string_field &that ) { this->null_ = that.null_; if (!null_) this->value_ = that.value_; return *this; }
-        string_field &operator=( const value_type &that ) { this->null_ = false; this->value_ = that; return *this; }
-        string_field &operator=( const char *that ) { this->null_ = false; this->value_ = that; return *this; }
-        bool operator==( const char *that ) const { return !this->null_ && this->value_ == that; }
-        bool operator!=( const char *that ) const { return !this->null_ && this->value_ != that; }
-        bool operator==( const value_type &that ) const { return !this->null_ && this->value_ == that; }
-        bool operator!=( const value_type &that ) const { return !this->null_ && this->value_ != that; }
-        bool operator==( const string_field &that ) const { return this->null_ == that.null_ && this->value_ == that.value_;  }
-        bool operator!=( const string_field &that ) const { return this->null_ != that.null_ || this->value_ != that.value_;  }
-        operator value_type&() { return this->value_; }
-        operator const value_type&() const { return this->value_; }
-        value_type &operator *() { return this->value_; }
-        const value_type &operator *() const { return this->value_; }
-};
-
-template<typename T> class field
-{
-    static_assert(std::is_arithmetic<T>::value, "invalid arithmetic type");
-    protected:
-        T value_ = (T) 0;
-        bool empty_ = true;
-    public:
-        typedef T value_type;
-        field() = default;
-        field( const field<T> &that ) = default;
-        field( field<T> &&that )  = default;
-        void swap( field<T> &that ) { std::swap(this->value_, that.value_); std::swap(this->empty_, that.empty_); }
-        void swap( T &that ) { std::swap(this->value_, that); empty_ = false; }
-        bool null() const { return empty_; }
-        void clear() { value_ = (T) 0; empty_ = true; }
-        field<T> &operator=( const field<T> &that ) { this->empty_ = that.empty_; if (!empty_) this->value_ = that.value_; return *this; }
-        field<T> &operator=( const T &that ) { this->empty_ = false; this->value_ = that; return *this; }
-        bool operator==( const T &that ) const { return !this->empty_ && this->value_ == that; }
-        bool operator!=( const T &that ) const { return !this->empty_ && this->value_ != that; }
-        bool operator==( const field<T> &that ) const { return this->empty_ == that.empty_ && this->value_ == that.value_;  }
-        bool operator!=( const field<T> &that ) const { return this->empty_ != that.empty_ || this->value_ != that.value_;  }
-        operator T() const { return this->value_; }
-};
-
-template<typename T, typename std::enable_if<std::is_floating_point<T>::value, int>::type = 0>
-static T string_to_number( const std::string &text )
-{
-    double value;
-#if defined(_WIN32) || defined(_WIN64)
-    static _locale_t loc = _create_locale(LC_NUMERIC, "C");
-    if (loc == nullptr) return 0;
-    value = _strtod_l(text.c_str(), nullptr, loc);
-#else
-    static locale_t loc = newlocale(LC_NUMERIC_MASK, "C", 0);
-    if (loc == 0) return 0;
-#ifdef __USE_GNU
-    value = strtod_l(text.c_str(), nullptr, loc);
-#else
-    locale_t old = uselocale(loc);
-    if (old == 0) return 0;
-    value = strtod(text.c_str(), nullptr);
-    uselocale(old);
-#endif
-#endif
-    return static_cast<T>(value);
-}
-
-template<typename T, typename std::enable_if<std::is_integral<T>::value && std::is_signed<T>::value, int>::type = 0>
-T string_to_number( const std::string &text )
-{
-#if defined(_WIN32) || defined(_WIN64)
-    return static_cast<T>( _strtoi64(text.c_str(), nullptr, 10) );
-#else
-    return static_cast<T>( strtol(text.c_str(), nullptr, 10) );
-#endif
-}
-
-template<typename T, typename std::enable_if<std::is_integral<T>::value && !std::is_signed<T>::value, int>::type = 0>
-T string_to_number( const std::string &text )
-{
-#if defined(_WIN32) || defined(_WIN64)
-    return static_cast<T>( _strtoui64(text.c_str(), nullptr, 10) );
-#else
-    return static_cast<T>( strtoul(text.c_str(), nullptr, 10) );
-#endif
-}
-
-template<typename T, typename std::enable_if<std::is_floating_point<T>::value, int>::type = 0>
-std::string number_to_string( const T &value )
-{
-    char tmp[320] = {0};
-#if defined(_WIN32) || defined(_WIN64)
-    static _locale_t loc = _create_locale(LC_NUMERIC, "C");
-    if (loc == nullptr) return "0";
-    _snprintf_l(tmp, sizeof(tmp) - 1, "%f", loc, value);
-#else
-    static locale_t loc = newlocale(LC_NUMERIC_MASK, "C", 0);
-    if (loc == 0) return "0";
-    locale_t old = uselocale(loc);
-    if (old == 0) return "0";
-    snprintf(tmp, sizeof(tmp) - 1, "%f", value);
-    uselocale(old);
-#endif
-    tmp[sizeof(tmp) - 1] = 0;
-    return tmp;
-}
-
-template<typename T, typename std::enable_if<std::is_integral<T>::value, int>::type = 0>
-std::string number_to_string( const T &value )
-{
-    return std::to_string(value);
-}
-
-template<typename T, typename std::enable_if<std::is_floating_point<T>::value, int>::type = 0>
-int equal_number( const T &value1, const T &value2 )
-{
-    return std::nextafter(value1, std::numeric_limits<T>::lowest()) <= value2
-        && std::nextafter(value1, std::numeric_limits<T>::max()) >= value2;
-}
-
-template<typename T, typename std::enable_if<std::is_integral<T>::value, int>::type = 0>
-int equal_number( const T &value1, const T &value2 )
-{
-    return value1 == value2;
-}
 
 template <typename T>
 #if !defined(_WIN32)
@@ -781,7 +614,6 @@ T rol( T value, int count )
 	return (T) ((value << count) | (value >> (-count & (sizeof(T) * 8 - 1))));
 }
 
-// TODO: perform the deobfuscation once in the message construtor
 static inline std::string reveal( const std::string &value )
 {
     uint8_t mask = rol<uint8_t>(0x93U, value.length() % 8);

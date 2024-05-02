@@ -21,6 +21,10 @@
 #include <auto-code.hh>
 #include <auto-protogen.hh>
 #include <auto-json.hh>
+#include <auto-json-array.hh>
+#include <auto-json-base64.hh>
+#include <auto-json-number.hh>
+#include <auto-json-string.hh>
 #include <protogen/protogen.hh>
 #include "../printer.hh"
 #include <sstream>
@@ -532,8 +536,43 @@ static void sort( GeneratorContext &ctx )
 
 static void generateInclusions( GeneratorContext &ctx )
 {
+    bool has_array = false;
+    bool has_base64 = false;
+    bool has_string = false;
+    bool has_number = false;
+
+    // check what types of fields we have
+    for (const auto &message : ctx.root.messages)
+    {
+        for (const auto &field : message->fields)
+        {
+            if (field.type.repeated)
+            {
+                if (field.type.id == protogen::TYPE_BYTES)
+                    has_base64 = true;
+                has_array = true;
+            }
+            if (field.type.id == protogen::TYPE_STRING)
+                has_string = true;
+            else
+            if (field.type.id >= protogen::TYPE_DOUBLE && field.type.id <= protogen::TYPE_BOOL)
+                has_number = true;
+
+            if (has_array && has_base64 && has_string && has_number)
+                break;
+        }
+    }
+    // include the necessary headers
     ctx.printer(GENERATED__protogen_hh);
     ctx.printer(GENERATED__json_hh);
+    if (has_array)
+        ctx.printer(GENERATED__json_array_hh);
+    if (has_base64)
+        ctx.printer(GENERATED__json_base___hh);
+    if (has_number)
+        ctx.printer(GENERATED__json_number_hh);
+    if (has_string)
+        ctx.printer(GENERATED__json_string_hh);
 }
 
 static void generateModel( GeneratorContext &ctx )

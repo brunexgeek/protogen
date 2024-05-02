@@ -72,9 +72,36 @@ add_custom_command(
     DEPENDS template "${CMAKE_CURRENT_LIST_DIR}/source/cpp/json.hh"
     COMMAND "${CMAKE_BINARY_DIR}/template" "${CMAKE_CURRENT_LIST_DIR}/source/cpp/json.hh" "${CMAKE_BINARY_DIR}/__include/auto-json.hh"
 )
+add_custom_command(
+    OUTPUT "${CMAKE_BINARY_DIR}/__include/auto-json-array.hh"
+    DEPENDS template "${CMAKE_CURRENT_LIST_DIR}/source/cpp/json-array.hh"
+    COMMAND "${CMAKE_BINARY_DIR}/template" "${CMAKE_CURRENT_LIST_DIR}/source/cpp/json-array.hh" "${CMAKE_BINARY_DIR}/__include/auto-json-array.hh"
+)
+add_custom_command(
+    OUTPUT "${CMAKE_BINARY_DIR}/__include/auto-json-base64.hh"
+    DEPENDS template "${CMAKE_CURRENT_LIST_DIR}/source/cpp/json-base64.hh"
+    COMMAND "${CMAKE_BINARY_DIR}/template" "${CMAKE_CURRENT_LIST_DIR}/source/cpp/json-base64.hh" "${CMAKE_BINARY_DIR}/__include/auto-json-base64.hh"
+)
+add_custom_command(
+    OUTPUT "${CMAKE_BINARY_DIR}/__include/auto-json-number.hh"
+    DEPENDS template "${CMAKE_CURRENT_LIST_DIR}/source/cpp/json-number.hh"
+    COMMAND "${CMAKE_BINARY_DIR}/template" "${CMAKE_CURRENT_LIST_DIR}/source/cpp/json-number.hh" "${CMAKE_BINARY_DIR}/__include/auto-json-number.hh"
+)
+add_custom_command(
+    OUTPUT "${CMAKE_BINARY_DIR}/__include/auto-json-string.hh"
+    DEPENDS template "${CMAKE_CURRENT_LIST_DIR}/source/cpp/json-string.hh"
+    COMMAND "${CMAKE_BINARY_DIR}/template" "${CMAKE_CURRENT_LIST_DIR}/source/cpp/json-string.hh" "${CMAKE_BINARY_DIR}/__include/auto-json-string.hh"
+)
 
 add_custom_target(process_template
-    DEPENDS "${CMAKE_BINARY_DIR}/__include/auto-code.hh" "${CMAKE_BINARY_DIR}/__include/auto-protogen.hh" "${CMAKE_BINARY_DIR}/__include/auto-json.hh"
+    DEPENDS
+        "${CMAKE_BINARY_DIR}/__include/auto-code.hh"
+        "${CMAKE_BINARY_DIR}/__include/auto-protogen.hh"
+        "${CMAKE_BINARY_DIR}/__include/auto-json.hh"
+        "${CMAKE_BINARY_DIR}/__include/auto-json-array.hh"
+        "${CMAKE_BINARY_DIR}/__include/auto-json-base64.hh"
+        "${CMAKE_BINARY_DIR}/__include/auto-json-number.hh"
+        "${CMAKE_BINARY_DIR}/__include/auto-json-string.hh"
 )
 
 add_executable(template "source/template.cc")
