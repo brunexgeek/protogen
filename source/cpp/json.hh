@@ -14,8 +14,6 @@ struct json_context
     tokenizer *tok = nullptr;
     // Output stream for writing JSON during serialization
     ostream *os = nullptr;
-    // Bitmask of fields found in the JSON input
-    uint64_t mask = 0;
     // Configuration parameters and error information
     Parameters params;
 };
@@ -71,9 +69,9 @@ struct json<T, typename std::enable_if<std::is_arithmetic<T>::value>::type>
         (*ctx.os) << number_to_string(value);
         return PGR_OK;
     }
-    static bool empty( const T &value ) { (void) value; return false; }
+    static bool empty( const T &value ) { return equal_number(value, (T) 0); }
     static void clear( T &value ) { value = (T) 0; }
-    static bool equal( const T &a, const T &b ) { return a == b; } // TODO: create float comparison using epsilon
+    static bool equal( const T &a, const T &b ) { return equal_number(a, b); }
     static void swap( T &a, T &b ) { std::swap(a, b); }
 };
 
@@ -241,7 +239,7 @@ struct json<bool, void>
         (*ctx.os) <<  (value ? "true" : "false");
         return PGR_OK;
     }
-    static bool empty( const bool &value ) { (void) value; return false; }
+    static bool empty( const bool &value ) { return !value; }
     static void clear( bool &value ) { value = false; }
     static bool equal( const bool &a, const bool &b ) { return a == b; }
     static void swap( bool &a, bool &b ) { std::swap(a, b); }

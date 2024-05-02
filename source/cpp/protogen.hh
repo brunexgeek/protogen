@@ -28,6 +28,7 @@
 #include <iterator>
 #include <memory>
 #include <algorithm>
+#include <cmath>
 
 namespace protogen_X_Y_Z {
 
@@ -89,6 +90,9 @@ struct Parameters
     /// If true, ensures the output JSON will have all non-ASCII characters escaped.
     /// Default is false.
     bool ensure_ascii = false;
+
+    bool serialize_zeros = false;
+    bool serialize_empty = false;
 
     /// Information about the error that occurred during the last operation.
     ErrorInfo error;
@@ -721,6 +725,19 @@ template<typename T, typename std::enable_if<std::is_integral<T>::value, int>::t
 std::string number_to_string( const T &value )
 {
     return std::to_string(value);
+}
+
+template<typename T, typename std::enable_if<std::is_floating_point<T>::value, int>::type = 0>
+int equal_number( const T &value1, const T &value2 )
+{
+    return std::nextafter(value1, std::numeric_limits<T>::lowest()) <= value2
+        && std::nextafter(value1, std::numeric_limits<T>::max()) >= value2;
+}
+
+template<typename T, typename std::enable_if<std::is_integral<T>::value, int>::type = 0>
+int equal_number( const T &value1, const T &value2 )
+{
+    return value1 == value2;
 }
 
 template <typename T>

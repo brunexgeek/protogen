@@ -215,13 +215,14 @@ bool RUN_TEST6( int argc, char **argv)
     person.serialize(json1);
 
     auto t = std::chrono::system_clock::now();
-    for (int i = 0; i < 100000; ++i)
+    for (int i = 0; i < 1000000; ++i)
     {
         person.deserialize(json1);
     }
     uint64_t count = (std::chrono::system_clock::now() - t).count() / 1000;
 
     std::cerr << "[TEST #6] Passed!" << std::endl;
+    std::cerr << "   " << json1 << std::endl;
     std::cerr << "   Took " << count << " us" << std::endl;
 
     return true;
@@ -233,18 +234,18 @@ bool RUN_TEST7A( int argc, char **argv)
     (void) argv;
 
     types::Basic object1;
-    object1.a = std::numeric_limits<decltype(object1.a)::value_type>::max();
-    object1.b = std::numeric_limits<decltype(object1.b)::value_type>::max();
-    object1.c = std::numeric_limits<decltype(object1.c)::value_type>::max();
-    object1.d = std::numeric_limits<decltype(object1.d)::value_type>::max();
-    object1.e = std::numeric_limits<decltype(object1.e)::value_type>::max();
-    object1.f = std::numeric_limits<decltype(object1.f)::value_type>::max();
-    object1.g = std::numeric_limits<decltype(object1.g)::value_type>::max();
-    object1.h = std::numeric_limits<decltype(object1.h)::value_type>::max();
-    object1.i = std::numeric_limits<decltype(object1.i)::value_type>::max();
-    object1.j = std::numeric_limits<decltype(object1.j)::value_type>::max();
-    object1.k = std::numeric_limits<decltype(object1.k)::value_type>::max();
-    object1.l = std::numeric_limits<decltype(object1.l)::value_type>::max();
+    object1.a = std::numeric_limits<decltype(object1.a)>::max();
+    object1.b = std::numeric_limits<decltype(object1.b)>::max();
+    object1.c = std::numeric_limits<decltype(object1.c)>::max();
+    object1.d = std::numeric_limits<decltype(object1.d)>::max();
+    object1.e = std::numeric_limits<decltype(object1.e)>::max();
+    object1.f = std::numeric_limits<decltype(object1.f)>::max();
+    object1.g = std::numeric_limits<decltype(object1.g)>::max();
+    object1.h = std::numeric_limits<decltype(object1.h)>::max();
+    object1.i = std::numeric_limits<decltype(object1.i)>::max();
+    object1.j = std::numeric_limits<decltype(object1.j)>::max();
+    object1.k = std::numeric_limits<decltype(object1.k)>::max();
+    object1.l = std::numeric_limits<decltype(object1.l)>::max();
     object1.m = 13; // should be true as 13 is non-zero
 
     std::string json;

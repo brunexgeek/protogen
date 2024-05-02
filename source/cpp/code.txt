@@ -101,8 +101,12 @@ template<> struct json<$2$>
         (*ctx.os) << '{';
 ------
 
+--- CODE_JSON__WRITE__PRIMITIVE
+        if (ctx.params.serialize_zeros || !json<decltype(value.$1$)>::empty(value.$1$)) { (*ctx.os) << (f?"\"":",\"") << $2$ << "\":"; json<decltype(value.$1$)>::write(ctx, value.$1$); f=false; }
+------
+
 --- CODE_JSON__WRITE__ITEM
-        if (!json<decltype(value.$1$)>::empty(value.$1$)) { (*ctx.os) << (f?"\"":",\"") << $2$ << "\":"; json<decltype(value.$1$)>::write(ctx, value.$1$); f=false; }
+        if (ctx.params.serialize_empty || !json<decltype(value.$1$)>::empty(value.$1$)) { (*ctx.os) << (f?"\"":",\"") << $2$ << "\":"; json<decltype(value.$1$)>::write(ctx, value.$1$); f=false; }
 ------
 
 --- CODE_JSON__WRITE__FOOTER

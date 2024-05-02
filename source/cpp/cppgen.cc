@@ -115,9 +115,10 @@ static std::string nativeType( const Field &field )
  /**
   * Translates protobuf3 types to C++ types.
   */
-static std::string fieldNativeType( const Field &field, bool useLists )
+static std::string fieldNativeType( const Field &field, bool useLists, bool &is_primitive )
 {
     std::string valueType;
+    is_primitive = false;
 
     // value type
     if (field.type.id >= protogen::TYPE_DOUBLE && field.type.id <= protogen::TYPE_BYTES)
@@ -127,9 +128,7 @@ static std::string fieldNativeType( const Field &field, bool useLists )
     }
     else
     if (field.type.id == protogen::TYPE_MESSAGE)
-    {
         valueType = nativeType(field);
-    }
     else
         throw protogen::exception("Invalid field type");
 
@@ -144,17 +143,9 @@ static std::string fieldNativeType( const Field &field, bool useLists )
         output += '>';
         return output;
     }
-    if (field.type.id == protogen::TYPE_MESSAGE || field.type.id == protogen::TYPE_STRING)
-        return valueType;
-    else
-    {
-        std::string output = "protogen";
-        output += PROTOGEN_VERSION_NAMING;
-        output += "::field<";
-        output += valueType;
-        output += '>';
-        return output;
-    }
+
+    is_primitive = (field.type.id >= protogen::TYPE_DOUBLE && field.type.id <= protogen::TYPE_BOOL);
+    return valueType;
 }
 
 static void generateNamespace( GeneratorContext &ctx, const Message &message, bool opening )
@@ -186,7 +177,12 @@ static void generateModel( GeneratorContext &ctx, const Message &message )
     ctx.printer("\tstruct $1$_type\n\t{\n", message.name);
     for (auto field : message.fields)
     {
-        ctx.printer("\t\t$1$ $2$;\n", fieldNativeType(field, ctx.cpp_use_lists), field.name);
+        bool is_primitive = false;
+        auto type = fieldNativeType(field, ctx.cpp_use_lists,  is_primitive);
+        if (is_primitive)
+            ctx.printer("\t\t$1$ $2$ = 0;\n", type, field.name);
+        else
+            ctx.printer("\t\t$1$ $2$;\n", type, field.name);
     }
     ctx.printer("\t};\n");
 
@@ -295,7 +291,11 @@ static void generate_function__write( GeneratorContext &ctx, const Message &mess
             label = Printer::format("reveal(\"$1$\")", obfuscate(label));
         else
             label = Printer::format("\"$1$\"", label);
-        ctx.printer(CODE_JSON__WRITE__ITEM, field.name, label);
+
+        if (!field.type.repeated && (field.type.id >= protogen::TYPE_DOUBLE && field.type.id <= protogen::TYPE_BOOL))
+            ctx.printer(CODE_JSON__WRITE__PRIMITIVE, field.name, label);
+        else
+            ctx.printer(CODE_JSON__WRITE__ITEM, field.name, label);
         ++i;
     }
 
