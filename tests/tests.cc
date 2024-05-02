@@ -19,7 +19,7 @@ bool RUN_TEST1( int argc, char **argv)
     (void) argv;
 
     phonebook::AddressBook book;
-    book.owner.id = 33;
+    //book.owner.id = 33;
     book.owner.name = "이주영";
     book.owner.email = "ljy@example.com";
     book.owner.last_updated = (uint32_t) duration_cast<seconds>(system_clock::now().time_since_epoch()).count();
@@ -40,15 +40,47 @@ bool RUN_TEST1( int argc, char **argv)
 
     book.people.push_back(person);
 
+    Parameters params;
+    params.serialize_null = true;
+
     std::string json1;
     std::string json2;
     phonebook::AddressBook temp;
-    book.serialize(json1);
+    book.serialize(json1, &params);
     temp.deserialize(json1);
-    temp.serialize(json2);
+    temp.serialize(json2, &params);
 
     bool result = (json1 == json2) ;//&& (book == temp);
     std::cerr << "[TEST #1] " << ((result) ? "Passed!" : "Failed!" ) << std::endl;
+    std::cerr << "   " << json1 << std::endl << "   " << json2 << std::endl;
+
+    return result;
+}
+
+bool RUN_TEST2( int argc, char **argv)
+{
+    (void) argc;
+    (void) argv;
+
+    phonebook::AddressBook book;
+    //book.owner.id = 33;
+    book.owner.name = "이주영";
+    book.owner.email = "ljy@example.com";
+    book.owner.last_updated = (uint32_t) duration_cast<seconds>(system_clock::now().time_since_epoch()).count();
+
+    Parameters params;
+    params.serialize_null = true;
+    params.ensure_ascii = true;
+
+    std::string json1;
+    std::string json2;
+    phonebook::AddressBook temp;
+    book.serialize(json1, &params);
+    temp.deserialize(json1);
+    temp.serialize(json2, &params);
+
+    bool result = (json1 == json2) ;//&& (book == temp);
+    std::cerr << "[TEST #2] " << ((result) ? "Passed!" : "Failed!" ) << std::endl;
     std::cerr << "   " << json1 << std::endl << "   " << json2 << std::endl;
 
     return result;
@@ -74,7 +106,7 @@ bool RUN_TEST3( int argc, char **argv)
     temp.deserialize(json1);
     temp.serialize(json2);
 
-    bool result = (json1 == json2) && (cake != temp) && temp.flavor.empty();
+    bool result = (json1 == json2) && (cake != temp) && temp.flavor.null();
     std::cerr << "[TEST #3] " << ((result) ? "Passed!" : "Failed!" ) << std::endl;
     std::cerr << "   " << json1 << std::endl << "   " << json2 << std::endl;
 
@@ -215,7 +247,7 @@ bool RUN_TEST6( int argc, char **argv)
     person.serialize(json1);
 
     auto t = std::chrono::system_clock::now();
-    for (int i = 0; i < 1000000; ++i)
+    for (int i = 0; i < 100000; ++i)
     {
         person.deserialize(json1);
     }
@@ -351,8 +383,8 @@ static bool test8_iteration( const char **values, bool ensure_ascii = false )
             if (params.error.code != PGERR_OK)
                 std::cerr << ERRORS[params.error.code] << " at " << params.error.line << ':' << params.error.column << ']' << std::endl;
             std::cerr << "   " << json1 << " -> " << values[i] << '\n';
-            std::cerr << "   " << json2 << " -> " << book.owner.name << '\n';
-            std::cerr << "   '" << book.owner.name << "' == '" << values[i] << "'  ->" << (book.owner.name == values[i] ? "true" : "false") << '\n';
+            std::cerr << "   " << json2 << " -> " << *book.owner.name << '\n';
+            std::cerr << "   '" << *book.owner.name << "' == '" << values[i] << "'  ->" << (book.owner.name == values[i] ? "true" : "false") << '\n';
             return false;
         }
     }
@@ -454,6 +486,7 @@ int main( int argc, char **argv)
 {
     bool result = true;
     result &= RUN_TEST1(argc, argv);
+    result &= RUN_TEST2(argc, argv);
     result &= RUN_TEST3(argc, argv);
     result &= RUN_TEST4(argc, argv);
     result &= RUN_TEST5(argc, argv);

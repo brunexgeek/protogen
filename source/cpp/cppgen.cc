@@ -65,7 +65,7 @@ static constexpr const struct {
     { protogen::TYPE_SFIXED32, "sfixed32",  "int32_t"     , "0" },
     { protogen::TYPE_SFIXED64, "sfixed64",  "int64_t"     , "0" },
     { protogen::TYPE_BOOL,     "bool",      "bool"        , "false" },
-    { protogen::TYPE_STRING,   "string",    "std::string" , "\"\"" },
+    { protogen::TYPE_STRING,   "string",    nullptr       , "\"\"" },
     { protogen::TYPE_BYTES,    "bytes",     "uint8_t"     , nullptr },
     { protogen::TYPE_MESSAGE,  nullptr,     nullptr       , nullptr }
 };
@@ -115,12 +115,18 @@ static std::string nativeType( const Field &field )
  /**
   * Translates protobuf3 types to C++ types.
   */
-static std::string fieldNativeType( const Field &field, bool useLists, bool &is_primitive )
+static std::string fieldNativeType( const Field &field, bool useLists )
 {
     std::string valueType;
-    is_primitive = false;
 
     // value type
+    if (field.type.id == protogen::TYPE_STRING)
+    {
+        valueType = "protogen";
+        valueType += PROTOGEN_VERSION_NAMING;
+        valueType += "::string_field";
+    }
+    else
     if (field.type.id >= protogen::TYPE_DOUBLE && field.type.id <= protogen::TYPE_BYTES)
     {
         int index = (int)field.type.id - (int)protogen::TYPE_DOUBLE;
@@ -143,9 +149,17 @@ static std::string fieldNativeType( const Field &field, bool useLists, bool &is_
         output += '>';
         return output;
     }
-
-    is_primitive = (field.type.id >= protogen::TYPE_DOUBLE && field.type.id <= protogen::TYPE_BOOL);
-    return valueType;
+    if (field.type.id == protogen::TYPE_MESSAGE || field.type.id == protogen::TYPE_STRING)
+        return valueType;
+    else
+    {
+        std::string output = "protogen";
+        output += PROTOGEN_VERSION_NAMING;
+        output += "::field<";
+        output += valueType;
+        output += '>';
+        return output;
+    }
 }
 
 static void generateNamespace( GeneratorContext &ctx, const Message &message, bool opening )
@@ -177,12 +191,8 @@ static void generateModel( GeneratorContext &ctx, const Message &message )
     ctx.printer("\tstruct $1$_type\n\t{\n", message.name);
     for (auto field : message.fields)
     {
-        bool is_primitive = false;
-        auto type = fieldNativeType(field, ctx.cpp_use_lists,  is_primitive);
-        if (is_primitive)
-            ctx.printer("\t\t$1$ $2$ = 0;\n", type, field.name);
-        else
-            ctx.printer("\t\t$1$ $2$;\n", type, field.name);
+        auto type = fieldNativeType(field, ctx.cpp_use_lists);
+        ctx.printer("\t\t$1$ $2$;\n", type, field.name);
     }
     ctx.printer("\t};\n");
 
@@ -261,7 +271,7 @@ static void generate_function__read_field( GeneratorContext &ctx, const Message 
     {
         if (is_transient(field))
             continue;
-        ctx.printer(CODE_JSON__READ_FIELD__ITEM, i, PROTOGEN_VERSION_NAMING, field.name);
+        ctx.printer(CODE_JSON__READ_FIELD__ITEM, i, field.name);
         ++i;
     }
 
@@ -292,10 +302,7 @@ static void generate_function__write( GeneratorContext &ctx, const Message &mess
         else
             label = Printer::format("\"$1$\"", label);
 
-        if (!field.type.repeated && (field.type.id >= protogen::TYPE_DOUBLE && field.type.id <= protogen::TYPE_BOOL))
-            ctx.printer(CODE_JSON__WRITE__PRIMITIVE, field.name, label);
-        else
-            ctx.printer(CODE_JSON__WRITE__ITEM, field.name, label);
+        ctx.printer(CODE_JSON__WRITE__ITEM, field.name, label);
         ++i;
     }
 

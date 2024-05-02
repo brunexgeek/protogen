@@ -133,7 +133,7 @@ proto3     | C++
 `sfixed32` | `protogen_x_y_z::field<int32_t>`
 `sfixed64` | `protogen_x_y_z::field<int64_t>`
 `bool`     | `protogen_x_y_z::field<bool>`
-`string`   | `std::string`
+`string`   | `protogen_x_y_z::string_field`
 `bytes`    | `std::vector<uint8_t>`
 
 Some considerations:

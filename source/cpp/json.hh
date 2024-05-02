@@ -36,15 +36,21 @@ struct json<field<T>, typename std::enable_if<std::is_arithmetic<T>::value>::typ
         T temp;
         json<T>::clear(temp);
         int result = json<T>::read(ctx, temp);
-        value = temp;
+        if (result != PGR_NIL)
+            value = temp;
         return result;
     }
     static int write( json_context &ctx, const field<T> &value )
     {
+        if (value.null())
+        {
+            *(ctx.os) << "null";
+            return PGR_OK;
+        }
         T temp = (T) value;
         return json<T>::write(ctx, temp);
     }
-    static bool empty( const field<T> &value ) { return value.empty(); }
+    static bool null( const field<T> &value ) { return value.null(); }
     static void clear( field<T> &value ) { value.clear(); }
     static bool equal( const field<T> &a, const field<T> &b ) { return a == b; }
     static void swap( field<T> &a, field<T> &b ) { a.swap(b); }
@@ -69,7 +75,7 @@ struct json<T, typename std::enable_if<std::is_arithmetic<T>::value>::type>
         (*ctx.os) << number_to_string(value);
         return PGR_OK;
     }
-    static bool empty( const T &value ) { return equal_number(value, (T) 0); }
+    static bool null( const T &value ) { return equal_number(value, (T) 0); }
     static void clear( T &value ) { value = (T) 0; }
     static bool equal( const T &a, const T &b ) { return equal_number(a, b); }
     static void swap( T &a, T &b ) { std::swap(a, b); }
@@ -114,7 +120,7 @@ struct json<T, typename std::enable_if<is_container<T>::value>::type >
         (*ctx.os) <<  ']';
         return PGR_OK;
     }
-    static bool empty( const T &value ) { return value.empty(); }
+    static bool null( const T &value ) { return value.empty(); }
     static void clear( T &value ) { value.clear(); }
     static bool equal( const T &a, const T &b ) { return a == b; }
     static void swap( T &a, T &b ) { std::swap(a, b); }
@@ -215,7 +221,7 @@ struct json< std::vector<uint8_t> >
                 k+=1;
         }
     }
-    static bool empty( const std::vector<uint8_t> &value ) { return value.empty(); }
+    static bool null( const std::vector<uint8_t> &value ) { return value.empty(); }
     static void clear( std::vector<uint8_t> &value ) { value.clear(); }
     static bool equal( const std::vector<uint8_t> &a, const std::vector<uint8_t> &b ) { return a == b; }
     static void swap( std::vector<uint8_t> &a, std::vector<uint8_t> &b ) { std::swap(a, b); }
@@ -239,7 +245,7 @@ struct json<bool, void>
         (*ctx.os) <<  (value ? "true" : "false");
         return PGR_OK;
     }
-    static bool empty( const bool &value ) { return !value; }
+    static bool null( const bool &value ) { return !value; }
     static void clear( bool &value ) { value = false; }
     static bool equal( const bool &a, const bool &b ) { return a == b; }
     static void swap( bool &a, bool &b ) { std::swap(a, b); }
@@ -353,12 +359,38 @@ struct json<std::string, void>
         (*ctx.os) <<  '"';
         return PGR_OK;
     }
-    static bool empty( const std::string &value ) { return value.empty(); }
+    static bool null( const std::string &value ) { return value.empty(); }
     static void clear( std::string &value ) { value.clear(); }
     static bool equal( const std::string &a, const std::string &b ) { return a == b; }
     static void swap( std::string &a, std::string &b ) { a.swap(b); }
 };
 
+template <>
+struct json<string_field, void>
+{
+    static int read( json_context &ctx, string_field &value )
+    {
+        std::string temp;
+        temp.clear();
+        int result = json<std::string, void>::read(ctx, temp);
+        value.null(result == PGR_NIL);
+        value = temp;
+        return result;
+    }
+    static int write( json_context &ctx, const string_field &value )
+    {
+        if (value.null())
+        {
+            *(ctx.os) << "null";
+            return PGR_OK;
+        }
+        return json<std::string, void>::write(ctx, value);
+    }
+    static bool null( const string_field &value ) { return value.null(); }
+    static void clear( string_field &value ) { value.clear(); }
+    static bool equal( const string_field &a, const string_field &b ) { return a == b; }
+    static void swap( string_field &a, string_field &b ) { a.swap(b); }
+};
 
 template<typename T, typename J = json<T> >
 static int read_object( json_context &ctx, T &object )
@@ -390,11 +422,11 @@ static int read_object( json_context &ctx, T &object )
     return PGR_OK;
 }
 
-template<typename T, typename J = protogen_X_Y_Z::json<T>>
+/*template<typename T, typename J = protogen_X_Y_Z::json<T>>
 void clear( T &value ) { json<T>::clear(value); }
 
 template<typename T, typename J = protogen_X_Y_Z::json<T>>
-bool empty( const T &value ) { return json<T>::empty(value); }
+bool empty( const T &value ) { return json<T>::empty(value); }*/
 
 //
 // Deserialization of arrays
@@ -515,7 +547,7 @@ bool serialize_array( const T& container, std::vector<char> &out, Parameters *pa
             return false; \
         } \
         void clear() override { S::clear(*this); } \
-        bool empty() const override { return S::empty(*this); } \
+        bool null() const override { return S::null(*this); } \
         bool equal( const O &that ) const override { return S::equal(*this, that); } \
         void swap( O &that ) { S::swap(*this, that); } \
     };
@@ -528,7 +560,7 @@ bool serialize_array( const T& container, std::vector<char> &out, Parameters *pa
         static int read( json_context &ctx, O &value ) { return S::read(ctx, value); } \
         static int read_field( json_context &ctx, const std::string &name, O &value ) { return S::read_field(ctx, name, value); } \
         static int write( json_context &ctx, const O &value ) { return S::write(ctx, value); } \
-        static bool empty( const O &value ) { return S::empty(value); } \
+        static bool null( const O &value ) { return S::null(value); } \
         static void clear( O &value ) { S::clear(value); } \
         static bool equal( const O &a, const O &b ) { return S::equal(a, b); } \
         static void swap( O &a, O &b ) { S::swap(a, b); } \

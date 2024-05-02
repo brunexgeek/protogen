@@ -91,8 +91,7 @@ struct Parameters
     /// Default is false.
     bool ensure_ascii = false;
 
-    bool serialize_zeros = false;
-    bool serialize_empty = false;
+    bool serialize_null = false;
 
     /// Information about the error that occurred during the last operation.
     ErrorInfo error;
@@ -634,6 +633,38 @@ struct is_container<
 
 template<typename T, typename E = void> struct json;
 
+class string_field
+{
+    protected:
+        std::string value_;
+        bool null_ = true;
+    public:
+        typedef std::string value_type;
+        string_field() = default;
+        string_field( const string_field &that ) = default;
+        string_field( string_field &&that )  = default;
+        string_field( const value_type &that ) : value_(that) { null_ = false; }
+        string_field( const char *that ) : value_(that) { null_ = false; }
+        void swap( string_field &that ) { std::swap(this->value_, that.value_); std::swap(this->null_, that.null_); }
+        void swap( value_type &that ) { std::swap(this->value_, that); null_ = false; }
+        bool null() const { return null_ && value_.empty(); }
+        void null(bool state) { null_ = state; if (state) value_.clear(); }
+        void clear() { value_.clear(); null_ = true; }
+        string_field &operator=( const string_field &that ) { this->null_ = that.null_; if (!null_) this->value_ = that.value_; return *this; }
+        string_field &operator=( const value_type &that ) { this->null_ = false; this->value_ = that; return *this; }
+        string_field &operator=( const char *that ) { this->null_ = false; this->value_ = that; return *this; }
+        bool operator==( const char *that ) const { return !this->null_ && this->value_ == that; }
+        bool operator!=( const char *that ) const { return !this->null_ && this->value_ != that; }
+        bool operator==( const value_type &that ) const { return !this->null_ && this->value_ == that; }
+        bool operator!=( const value_type &that ) const { return !this->null_ && this->value_ != that; }
+        bool operator==( const string_field &that ) const { return this->null_ == that.null_ && this->value_ == that.value_;  }
+        bool operator!=( const string_field &that ) const { return this->null_ != that.null_ || this->value_ != that.value_;  }
+        operator value_type&() { return this->value_; }
+        operator const value_type&() const { return this->value_; }
+        value_type &operator *() { return this->value_; }
+        const value_type &operator *() const { return this->value_; }
+};
+
 template<typename T> class field
 {
     static_assert(std::is_arithmetic<T>::value, "invalid arithmetic type");
@@ -647,7 +678,7 @@ template<typename T> class field
         field( field<T> &&that )  = default;
         void swap( field<T> &that ) { std::swap(this->value_, that.value_); std::swap(this->empty_, that.empty_); }
         void swap( T &that ) { std::swap(this->value_, that); empty_ = false; }
-        bool empty() const { return empty_; }
+        bool null() const { return empty_; }
         void clear() { value_ = (T) 0; empty_ = true; }
         field<T> &operator=( const field<T> &that ) { this->empty_ = that.empty_; if (!empty_) this->value_ = that.value_; return *this; }
         field<T> &operator=( const T &that ) { this->empty_ = false; this->value_ = that; return *this; }
@@ -835,7 +866,7 @@ struct message
     }
 
     virtual void clear() = 0;
-    virtual bool empty() const  = 0;
+    virtual bool null() const  = 0;
     virtual bool equal( const T &that ) const = 0;
     bool operator==( const T &that ) const { return equal(that); }
     bool operator!=( const T &that ) const { return !equal(that); }

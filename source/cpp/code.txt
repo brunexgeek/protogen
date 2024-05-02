@@ -75,7 +75,7 @@ template<> struct json<$2$>
 ------
 
 --- CODE_JSON__READ_FIELD__ITEM
-            case $1$: return protogen$2$::json<decltype(value.$3$)>::read(ctx, value.$3$);
+            case $1$: return json<decltype(value.$2$)>::read(ctx, value.$2$);
 ------
 
 --- CODE_JSON__READ_FIELD__FOOTER
@@ -101,12 +101,8 @@ template<> struct json<$2$>
         (*ctx.os) << '{';
 ------
 
---- CODE_JSON__WRITE__PRIMITIVE
-        if (ctx.params.serialize_zeros || !json<decltype(value.$1$)>::empty(value.$1$)) { (*ctx.os) << (f?"\"":",\"") << $2$ << "\":"; json<decltype(value.$1$)>::write(ctx, value.$1$); f=false; }
-------
-
 --- CODE_JSON__WRITE__ITEM
-        if (ctx.params.serialize_empty || !json<decltype(value.$1$)>::empty(value.$1$)) { (*ctx.os) << (f?"\"":",\"") << $2$ << "\":"; json<decltype(value.$1$)>::write(ctx, value.$1$); f=false; }
+        if (ctx.params.serialize_null || !json<decltype(value.$1$)>::null(value.$1$)) { (*ctx.os) << (f?"\"":",\"") << $2$ << "\":"; json<decltype(value.$1$)>::write(ctx, value.$1$); f=false; }
 ------
 
 --- CODE_JSON__WRITE__FOOTER
@@ -117,17 +113,17 @@ template<> struct json<$2$>
 
 
 --- CODE_JSON__EMPTY__EMPTY
-    static bool empty( const $1$ &value ) { (void) value; return true; }
+    static bool null( const $1$ &value ) { (void) value; return true; }
 ------
 
 --- CODE_JSON__EMPTY__HEADER
-    static bool empty( const $1$ &value )
+    static bool null( const $1$ &value )
     {
         return
 ------
 
 --- CODE_JSON__EMPTY__ITEM
-            json<decltype(value.$1$)>::empty(value.$1$) &&
+            json<decltype(value.$1$)>::null(value.$1$) &&
 ------
 
 --- CODE_JSON__EMPTY__FOOTER
