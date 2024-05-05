@@ -90,9 +90,9 @@ These options can be set in the `proto3` file:
 ## Features
 
 Supported field types:
-- [x] other messages (see [Limitations](#Limitations))
+- [x] messages (see [Limitations](#Limitations))
 - [x] repeated
-- [x] optional
+- [x] optional - Fields are always optional, but the syntax is accepted for completeness.
 - [x] double, float
 - [x] int32, sint32, uint32, fixed32, sfixed32
 - [x] int64, sint64, uint64, fixed64, sfixed64
@@ -100,12 +100,11 @@ Supported field types:
 - [x] string
 - [x] bytes
 - [ ] any
-- [x] oneof - The compiler **do not** actually supports it, but you can have a similar behavior by calling `empty` to check whether a field is present.
-- [ ] maps
+- [ ] oneof - The compiler **do not** actually supports it, but you can have a similar behavior by calling `empty` to check whether a field is present.
+- [ ] map
 
 Proto3 syntax features:
-- [x] Line comments
-- [x] Block comments
+- [x] Line and block comments
 - [x] Packages
 - [ ] Imports
 - [x] Options
@@ -138,7 +137,7 @@ proto3     | C++
 
 Some considerations:
 - `optional` is accepted only for compatibility since everything is always optional in protogen and all field types have the `empty` function to check its presence.
-- Exact precision for 64-bit integers (e.g. int64, uint64) is guaranteed only when using up to 53-bits, since JSON numbers are always [IEEE-754 doubles](https://en.wikipedia.org/wiki/Double-precision_floating-point_format#Precision_limitations_on_integer_values).
+- Exact precision for 64-bit integers (e.g. int64, uint64) is guaranteed only when using up to 53 bits, since JSON numbers are always [IEEE-754 doubles](https://en.wikipedia.org/wiki/Double-precision_floating-point_format#Precision_limitations_on_integer_values).
 - C++ integer types are defined by `<cstdint>`.
 
 ## Limitations
@@ -147,10 +146,6 @@ These are the current limitations of the implementation. Some of them may be rem
 
 Proto3 parser:
 - Circular references are not supported;
-
-## Ideas
-
-- Field option to set the JSON field name with a different value.
 
 ## License
 
