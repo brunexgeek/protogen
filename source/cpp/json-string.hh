@@ -19,8 +19,8 @@ class string_field
         string_field( const char *that ) : value_(that) { null_ = false; }
         void swap( string_field &that ) { std::swap(this->value_, that.value_); std::swap(this->null_, that.null_); }
         void swap( value_type &that ) { std::swap(this->value_, that); null_ = false; }
-        bool null() const { return null_ && value_.empty(); }
-        void null(bool state) { null_ = state; if (state) value_.clear(); }
+        bool empty() const { return null_ && value_.empty(); }
+        void empty(bool state) { null_ = state; if (state) value_.clear(); }
         void clear() { value_.clear(); null_ = true; }
         string_field &operator=( const string_field &that ) { this->null_ = that.null_; if (!null_) this->value_ = that.value_; return *this; }
         string_field &operator=( const value_type &that ) { this->null_ = false; this->value_ = that; return *this; }
@@ -145,7 +145,7 @@ struct json<std::string, void>
         (*ctx.os) <<  '"';
         return PGR_OK;
     }
-    static bool null( const std::string &value ) { return value.empty(); }
+    static bool empty( const std::string &value ) { return value.empty(); }
     static void clear( std::string &value ) { value.clear(); }
     static bool equal( const std::string &a, const std::string &b ) { return a == b; }
     static void swap( std::string &a, std::string &b ) { a.swap(b); }
@@ -159,20 +159,20 @@ struct json<string_field, void>
         std::string temp;
         temp.clear();
         int result = json<std::string, void>::read(ctx, temp);
-        value.null(result == PGR_NIL);
+        value.empty(result == PGR_NIL);
         value = temp;
         return result;
     }
     static int write( json_context &ctx, const string_field &value )
     {
-        if (value.null())
+        if (value.empty())
         {
             *(ctx.os) << "null";
             return PGR_OK;
         }
         return json<std::string, void>::write(ctx, value);
     }
-    static bool null( const string_field &value ) { return value.null(); }
+    static bool empty( const string_field &value ) { return value.empty(); }
     static void clear( string_field &value ) { value.clear(); }
     static bool equal( const string_field &a, const string_field &b ) { return a == b; }
     static void swap( string_field &a, string_field &b ) { a.swap(b); }

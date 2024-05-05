@@ -18,7 +18,7 @@ template<typename T> class field
         field( field<T> &&that )  = default;
         void swap( field<T> &that ) { std::swap(this->value_, that.value_); std::swap(this->empty_, that.empty_); }
         void swap( T &that ) { std::swap(this->value_, that); empty_ = false; }
-        bool null() const { return empty_; }
+        bool empty() const { return empty_; }
         void clear() { value_ = (T) 0; empty_ = true; }
         field<T> &operator=( const field<T> &that ) { this->empty_ = that.empty_; if (!empty_) this->value_ = that.value_; return *this; }
         field<T> &operator=( const T &that ) { this->empty_ = false; this->value_ = that; return *this; }
@@ -125,7 +125,7 @@ struct json<field<T>, typename std::enable_if<std::is_arithmetic<T>::value>::typ
     }
     static int write( json_context &ctx, const field<T> &value )
     {
-        if (value.null())
+        if (value.empty())
         {
             *(ctx.os) << "null";
             return PGR_OK;
@@ -133,7 +133,7 @@ struct json<field<T>, typename std::enable_if<std::is_arithmetic<T>::value>::typ
         T temp = (T) value;
         return json<T>::write(ctx, temp);
     }
-    static bool null( const field<T> &value ) { return value.null(); }
+    static bool empty( const field<T> &value ) { return value.empty(); }
     static void clear( field<T> &value ) { value.clear(); }
     static bool equal( const field<T> &a, const field<T> &b ) { return a == b; }
     static void swap( field<T> &a, field<T> &b ) { a.swap(b); }
@@ -157,7 +157,7 @@ struct json<T, typename std::enable_if<std::is_arithmetic<T>::value>::type>
         (*ctx.os) << number_to_string(value);
         return PGR_OK;
     }
-    static bool null( const T &value ) { return equal_number(value, (T) 0); }
+    static bool empty( const T &value ) { return equal_number(value, (T) 0); }
     static void clear( T &value ) { value = (T) 0; }
     static bool equal( const T &a, const T &b ) { return equal_number(a, b); }
     static void swap( T &a, T &b ) { std::swap(a, b); }
@@ -181,7 +181,7 @@ struct json<bool, void>
         (*ctx.os) <<  (value ? "true" : "false");
         return PGR_OK;
     }
-    static bool null( const bool &value ) { return !value; }
+    static bool empty( const bool &value ) { return !value; }
     static void clear( bool &value ) { value = false; }
     static bool equal( const bool &a, const bool &b ) { return a == b; }
     static void swap( bool &a, bool &b ) { std::swap(a, b); }

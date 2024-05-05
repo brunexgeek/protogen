@@ -698,7 +698,7 @@ struct message
     }
 
     virtual void clear() = 0;
-    virtual bool null() const  = 0;
+    virtual bool empty() const  = 0;
     virtual bool equal( const T &that ) const = 0;
     bool operator==( const T &that ) const { return equal(that); }
     bool operator!=( const T &that ) const { return !equal(that); }

@@ -71,7 +71,7 @@ struct json<T, typename std::enable_if<is_container<T>::value>::type >
         (*ctx.os) <<  ']';
         return PGR_OK;
     }
-    static bool null( const T &value ) { return value.empty(); }
+    static bool empty( const T &value ) { return value.empty(); }
     static void clear( T &value ) { value.clear(); }
     static bool equal( const T &a, const T &b ) { return a == b; }
     static void swap( T &a, T &b ) { std::swap(a, b); }

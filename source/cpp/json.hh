@@ -99,7 +99,7 @@ static int read_object( json_context &ctx, T &object )
             return false; \
         } \
         void clear() override { S::clear(*this); } \
-        bool null() const override { return S::null(*this); } \
+        bool empty() const override { return S::empty(*this); } \
         bool equal( const O &that ) const override { return S::equal(*this, that); } \
         void swap( O &that ) { S::swap(*this, that); } \
     };
@@ -112,7 +112,7 @@ static int read_object( json_context &ctx, T &object )
         static int read( json_context &ctx, O &value ) { return S::read(ctx, value); } \
         static int read_field( json_context &ctx, const std::string &name, O &value ) { return S::read_field(ctx, name, value); } \
         static int write( json_context &ctx, const O &value ) { return S::write(ctx, value); } \
-        static bool null( const O &value ) { return S::null(value); } \
+        static bool empty( const O &value ) { return S::empty(value); } \
         static void clear( O &value ) { S::clear(value); } \
         static bool equal( const O &a, const O &b ) { return S::equal(a, b); } \
         static void swap( O &a, O &b ) { S::swap(a, b); } \

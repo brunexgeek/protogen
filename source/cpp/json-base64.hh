@@ -99,7 +99,7 @@ struct json< std::vector<uint8_t> >
                 k+=1;
         }
     }
-    static bool null( const std::vector<uint8_t> &value ) { return value.empty(); }
+    static bool empty( const std::vector<uint8_t> &value ) { return value.empty(); }
     static void clear( std::vector<uint8_t> &value ) { value.clear(); }
     static bool equal( const std::vector<uint8_t> &a, const std::vector<uint8_t> &b ) { return a == b; }
     static void swap( std::vector<uint8_t> &a, std::vector<uint8_t> &b ) { std::swap(a, b); }

@@ -106,7 +106,7 @@ bool RUN_TEST3( int argc, char **argv)
     temp.deserialize(json1);
     temp.serialize(json2);
 
-    bool result = (json1 == json2) && (cake != temp) && temp.flavor.null();
+    bool result = (json1 == json2) && (cake != temp) && temp.flavor.empty();
     std::cerr << "[TEST #3] " << ((result) ? "Passed!" : "Failed!" ) << std::endl;
     std::cerr << "   " << json1 << std::endl << "   " << json2 << std::endl;
 
