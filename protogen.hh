@@ -651,6 +651,8 @@ struct json<T, typename std::enable_if<is_container<T>::value>::type >
         if (ctx.tok->peek().id == token_id::NIL) return PGR_NIL;
         if (!ctx.tok->expect(token_id::ARRS))
             return ctx.tok->error(error_code::PGERR_INVALID_OBJECT, "Invalid object");
+        if (ctx.tok->expect(token_id::ARRE))
+            return PGR_OK;
         while (true)
         {
             typename T::value_type temp;
