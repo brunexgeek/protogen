@@ -26,7 +26,7 @@ struct Person
 
 PG_JSON(compact::Person, name, age, gender, email, friends)
 
-using namespace protogen_2_0_2;
+using namespace protogen_2_0_3;
 
 bool RUN_TEST1( int argc, char **argv)
 {

@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 3.18)
 
 set(PROTOGEN_MAJOR 2)
 set(PROTOGEN_MINOR 0)
-set(PROTOGEN_PATCH 2)
+set(PROTOGEN_PATCH 3)
 
 add_definitions(-DPROTOGEN_MAJOR=${PROTOGEN_MAJOR})
 add_definitions(-DPROTOGEN_MINOR=${PROTOGEN_MINOR})
