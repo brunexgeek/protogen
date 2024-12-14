@@ -142,6 +142,7 @@ bool RUN_TEST4( int argc, char **argv)
         {0,  0, error_code::PGERR_OK,                "{\"name\":null}" },
         {0,  0, error_code::PGERR_INVALID_VALUE,     "{\"name\":\"\\uFFFF\"}" },
         {0,  0, error_code::PGERR_INVALID_VALUE,     "{\"name\":\"\\u01\"}" },
+        {0,  0, error_code::PGERR_OK,                "{\"ingredients\":[]}" },
         {0,  0, error_code::PGERR_OK,                ""}
     };
 
